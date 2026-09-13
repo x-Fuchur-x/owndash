@@ -8,7 +8,7 @@ README = (ROOT/"README.md").read_text(encoding="utf-8")
 INIT = (ROOT/"src/owndash/__init__.py").read_text(encoding="utf-8")
 PROJECT = (ROOT/"pyproject.toml").read_text(encoding="utf-8")
 
-def test_beta5_version_and_author():
+def test_beta1_version_and_author():
     assert '__version__ = "0.14.0 Beta 1"' in INIT
     assert 'version = "0.14.0b1"' in PROJECT
     assert 'authors = [{ name = "Markus Rosinski" }]' in PROJECT
