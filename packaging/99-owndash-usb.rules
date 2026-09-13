@@ -1,0 +1,2 @@
+# OwnDash direct userspace access for the currently supported USB bar display.
+SUBSYSTEM=="usb", ATTR{idVendor}=="33c3", ATTR{idProduct}=="0e02", TAG+="uaccess"

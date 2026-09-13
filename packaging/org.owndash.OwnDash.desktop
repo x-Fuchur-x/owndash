@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=OwnDash
+GenericName=Telemetry Display Studio
+Comment=Create and preview customizable hardware dashboards
+Exec=OwnDash
+Icon=org.owndash.OwnDash
+Terminal=false
+Categories=Utility;System;Qt;
+StartupNotify=true
+StartupWMClass=org.owndash.OwnDash
+X-KDE-StartupNotify=true

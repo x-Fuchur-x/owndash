@@ -1,0 +1,8 @@
+.venv/
+build/
+dist/
+*.AppImage
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
