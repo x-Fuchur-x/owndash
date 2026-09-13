@@ -1,100 +1,133 @@
 # OwnDash
 
-**Your display. Your design. — Linux hardware dashboards without the terminal headache.**
+### Your display. Your design.
+**A visual Linux hardware dashboard editor — without the terminal headache.**
 
-OwnDash is a visual dashboard editor for Linux PC displays. It is designed for people who want a useful, attractive hardware-monitoring display without having to understand Python, `hwmon`, USB protocols or Linux internals.
+![OwnDash Dashboard Editor](docs/images/owndash-editor.png)
 
-> **Beta software:** OwnDash is currently in public-beta preparation. The first real-hardware development and testing has been performed on Bazzite/KDE with AMD hardware. Testing on other Linux distributions, desktops and hardware is welcome.
+OwnDash lets you create customizable hardware-monitoring dashboards for dedicated PC displays and secondary monitors — visually, without having to understand Python, `hwmon`, USB protocols or Linux internals.
 
-## What OwnDash does
+> **OwnDash 0.14.0 Beta 1 is now available.**
+>
+> Download the ready-to-run x86-64 AppImage from the [latest OwnDash release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta1).
 
-Create dashboards with CPU, GPU, memory, storage, network, temperature and power widgets; gauges and charts; custom backgrounds and animations; multiple dashboard pages; and live output to a PC case display or secondary monitor.
+## OwnDash in action
 
-OwnDash supports two display paths:
+![OwnDash running on a PC sensor display](docs/images/owndash-hardware.jpg)
 
-- **Standard monitor output** — for HDMI, DisplayPort, USB-C and other displays Linux recognizes as normal monitors.
-- **ArtInChip / VSDISPLAY USB output** — direct USB support for compatible ArtInChip devices.
+The first public beta has been tested on real hardware using Bazzite Linux and a compatible ArtInChip / VSDISPLAY USB sensor display.
+
+## Features
+
+- Visual drag-and-drop dashboard editor
+- CPU, GPU, RAM, storage and network monitoring
+- Temperature and power sensors where supported by Linux and the hardware
+- Gauges, charts and sparklines
+- Custom backgrounds and themes
+- Widget animations and alert triggers
+- Multiple dashboard pages
+- Light, dark and native system appearance
+- German and English interface
+- System tray integration
+- Built-in diagnostics and compatibility checks
+- Direct ArtInChip / VSDISPLAY USB output
+- Standard monitor output for displays recognized by Linux
+
+## Display support
+
+OwnDash currently provides two display paths:
+
+**Standard monitor output** works with HDMI, DisplayPort, USB-C and other displays that Linux recognizes as normal monitors.
+
+**ArtInChip / VSDISPLAY USB output** provides direct USB support for compatible ArtInChip-based displays without requiring the display to appear as a normal Linux monitor.
 
 Other proprietary USB-only displays may require a dedicated OwnDash backend for their protocol.
 
 ## Easy first start
 
-On the first launch, OwnDash opens a **system check**. It explains in plain language whether the computer is ready and separates real requirements from optional sensor features. The check can be run again at any time from **Help → System check**.
+OwnDash Beta 1 is distributed as a self-contained **x86-64 AppImage**.
 
-A missing optional sensor is **not an installation failure**. For example, a GPU may expose utilization and temperature but not power consumption. OwnDash continues to work and simply marks that individual reading as unavailable.
+Download:
 
-## Requirements
+**`OwnDash-0.14.0-Beta-1-x86_64.AppImage`**
 
-For normal users, the goal is a self-contained Linux build so Python knowledge is not required.
+from the [OwnDash 0.14.0 Beta 1 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta1).
 
-### Required
+Make the AppImage executable if required by your Linux desktop and launch it by double-clicking it.
 
-- Linux on **x86-64** for the first binary release
-- A graphical Linux session using **Wayland or X11**
-- Standard Linux `/proc` and `/sys` interfaces
+No manual Python or PySide6 installation is required.
 
-### Optional — only for additional features
+On the first launch, OwnDash automatically opens its setup and compatibility assistant. It checks the computer and explains in plain language which features are available.
 
-- `hwmon` — hardware temperatures and other sensors when provided by the kernel/driver
-- `powercap` / RAPL — CPU/package power on supported systems
-- `nvidia-smi` — additional NVIDIA telemetry when supplied by the NVIDIA driver
-- `lspci` — friendly GPU model names
-- USB permission/udev rule — only for direct ArtInChip/VSDISPLAY USB access
+For compatible ArtInChip / VSDISPLAY devices, OwnDash can offer graphical installation of the required USB permission rule using the desktop's normal administrator authentication.
 
-OwnDash detects these capabilities at runtime. It does **not** require KDE or Bazzite.
+No privileged command is executed automatically at startup.
 
-## Linux and hardware compatibility
+## Sensors and compatibility
 
-OwnDash uses common Linux interfaces such as `/proc`, `sysfs`, `hwmon`, DRM and `powercap` instead of hard-coding one Linux distribution. AMD and Intel GPU telemetry is discovered through Linux interfaces where available. NVIDIA telemetry can additionally use `nvidia-smi`.
+OwnDash uses common Linux interfaces including `/proc`, `sysfs`, `hwmon`, DRM and `powercap` instead of targeting one specific Linux distribution.
 
-Sensor availability always depends on the kernel, driver and hardware. OwnDash's **Help → System and sensor information** window shows exactly what the current computer provides, and the same capability report is included automatically when preparing a bug report.
+Sensor availability depends on the kernel, driver and hardware. A missing optional sensor is **not an installation failure**.
 
-## Installation
+For example, a GPU may expose utilization and temperature but not power consumption. OwnDash continues to work and simply marks that individual reading as unavailable.
 
-### End users
+Additional NVIDIA telemetry can be obtained through `nvidia-smi` when available.
 
-The public beta is prepared around a self-contained **x86-64 AppImage**. The repository contains a reproducible AppImage build script and GitHub Actions workflow. Until a GitHub Release publishes the built AppImage, source archives remain primarily for developers and testers.
+OwnDash includes **Help → System and sensor information** to show the capabilities detected on the current computer.
 
-### Developers / running from source
+## Tested platform
 
-Requires Python 3.11 or newer. From a virtual environment, install the project dependencies and run:
+OwnDash 0.14.0 Beta 1 has been tested successfully on:
 
-```bash
-python -m pip install -e .
-owndash
-```
+- Bazzite Linux
+- KDE Plasma
+- AMD CPU/GPU hardware
+- x86-64
+- Compatible ArtInChip / VSDISPLAY direct USB hardware
+- Standard Linux monitor output
 
-Core Python dependencies are declared in `pyproject.toml`: PySide6, Pillow, PyUSB and cryptography.
+OwnDash is designed around common Linux interfaces and does **not** require Bazzite or KDE.
 
-## ArtInChip / VSDISPLAY USB access
+Other distributions, desktop environments and hardware configurations may work, but have not yet been tested to the same extent.
 
-Compatible ArtInChip USB displays require permission for OwnDash to access the USB device. A udev rule is included in:
+Testing and compatibility reports are welcome.
 
-```text
-src/owndash/packaging/99-owndash-usb.rules
-```
-
-The future end-user installer/package should install this rule automatically. Until then, source-based testers may need to install it manually according to their distribution's udev setup.
-
-OwnDash also refuses to take over the supported USB display while the legacy `tinyscreen.service` is active, preventing two applications from controlling the same device.
-
-## Help and troubleshooting
+## Help and bug reports
 
 OwnDash includes:
 
 - **OwnDash Help** — getting started and FAQ
 - **System check** — beginner-friendly compatibility overview
 - **System and sensor information** — detailed detected capabilities
-- **Report a bug** — opens a prepared GitHub issue with useful system/sensor diagnostics
-- **OwnDash on GitHub** — project page
+- **Report a bug** — prepares a GitHub issue with useful diagnostic information
 
-## Project status
+Bugs and feature requests can also be reported through [GitHub Issues](https://github.com/x-Fuchur-x/owndash/issues).
 
-OwnDash is MIT-licensed beta software by **Markus Rosinski**. See `THIRD_PARTY.md` for third-party acknowledgements and licenses.
+## Developers / running from source
 
-Project page: `https://github.com/x-Fuchur-x/owndash`
+Python 3.11 or newer is required when running OwnDash from source.
 
+From a virtual environment:
 
-## Release packaging
+```bash
+python -m pip install -e .
+owndash
+```
 
-The repository includes `packaging/appimage/build-appimage.sh` and a GitHub Actions AppImage workflow. The first-run system check also detects compatible ArtInChip/VSDISPLAY hardware and can offer a graphical USB-permission setup using the desktop's normal administrator authentication. No privileged command runs automatically.
+Core Python dependencies are declared in `pyproject.toml` and include PySide6, Pillow, PyUSB and cryptography.
+
+The repository also contains the AppImage build tooling and GitHub Actions workflows used by the project.
+
+## Beta status
+
+OwnDash is currently beta software.
+
+Bugs and compatibility issues are possible. Feedback from different Linux distributions, hardware configurations and display types is especially valuable during the beta period.
+
+## License
+
+OwnDash is released under the **MIT License**.
+
+Third-party components and acknowledgements are documented in [`THIRD_PARTY.md`](THIRD_PARTY.md).
+
+Copyright © 2026 **Markus Rosinski**
