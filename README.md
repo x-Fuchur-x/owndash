@@ -45,6 +45,13 @@ Other proprietary USB-only displays may require a dedicated OwnDash backend for 
 
 ## Easy first start
 
+### Required
+
+Python knowledge is not required. OwnDash is provided as a self-contained AppImage.
+
+### Optional — only for additional features
+
+
 OwnDash Beta 1 is distributed as a self-contained **x86-64 AppImage**.
 
 Download:

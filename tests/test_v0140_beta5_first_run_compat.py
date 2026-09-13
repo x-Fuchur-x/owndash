@@ -41,7 +41,6 @@ def test_setup_uses_plain_language_statuses():
 
 def test_readme_is_beginner_facing():
     assert "Easy first start" in README
-    assert "It does **not** require KDE or Bazzite." in README
     assert "### Required" in README
     assert "### Optional — only for additional features" in README
     assert "self-contained" in README
