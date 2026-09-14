@@ -1,6 +1,10 @@
 # OwnDash Changelog
 
-## Unreleased
+## 0.14.0 Beta 2
+
+- VRAM widgets automatically use the detected total VRAM for GiB scales.
+- VRAM units display correctly, with one decimal place for GiB values.
+- Unavailable gauge sensors no longer fall back to unrelated CPU/GPU readings.
 
 - AMDGPU VRAM usage, used GiB and total GiB are available in the existing widget sensor selector.
 - Sensor diagnostics report VRAM availability. Missing, unreadable or invalid counters remain unavailable, not zero.
