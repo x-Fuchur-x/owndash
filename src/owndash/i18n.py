@@ -8,6 +8,9 @@ from PySide6.QtWidgets import (
 )
 
 EN: dict[str, str] = {
+    "GPU · VRAM-Auslastung": "GPU · VRAM usage",
+    "GPU · VRAM belegt": "GPU · VRAM used",
+    "GPU · VRAM gesamt": "GPU · VRAM total",
     "Hilfe": "Help", "Über OwnDash …": "About OwnDash …", "Über OwnDash": "About OwnDash",
     "Schließen": "Close",
     "OwnDash auf GitHub": "OwnDash on GitHub", "Projektseite": "Project page",

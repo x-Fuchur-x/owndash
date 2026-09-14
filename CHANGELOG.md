@@ -1,5 +1,11 @@
 # OwnDash Changelog
 
+## Unreleased
+
+- AMDGPU VRAM usage, used GiB and total GiB are available in the existing widget sensor selector.
+- Sensor diagnostics report VRAM availability. Missing, unreadable or invalid counters remain unavailable, not zero.
+- VRAM currently uses AMDGPU sysfs counters; NVIDIA/Intel VRAM and real-device verification remain follow-up work.
+
 ## 0.14.0 Beta 1 — First Public Beta
 
 This is the first public beta of OwnDash. It combines the completed internal development work into one clear public starting point.

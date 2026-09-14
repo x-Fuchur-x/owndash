@@ -241,9 +241,7 @@ class WidgetItem(QGraphicsRectItem):
     def _gauge_value(self) -> float | None:
         metric_key = str(self.options.get("metric_key", ""))
         if metric_key:
-            value = read_metric(self.snapshot, metric_key)
-            if value is not None:
-                return value
+            return read_metric(self.snapshot, metric_key)
         metric = str(self.options.get("gauge_metric", "cpu"))
         legacy = {
             "cpu": "cpu.usage",
@@ -253,6 +251,16 @@ class WidgetItem(QGraphicsRectItem):
             "memory": "memory.percent",
         }.get(metric)
         return read_metric(self.snapshot, legacy) if legacy else None
+
+    def _vram_bounds(self, minimum: float, maximum: float) -> tuple[float, float]:
+        key = str(self.options.get("metric_key", ""))
+        if key == "gpu.vram_percent":
+            return 0.0, 100.0
+        if key in {"gpu.vram_used_gib", "gpu.vram_total_gib"}:
+            total = read_metric(self.snapshot, "gpu.vram_total_gib")
+            if total is not None and math.isfinite(total) and total > 0:
+                return 0.0, total
+        return minimum, maximum
 
     def _gauge_color(self, value: float | None, accent: QColor, maximum: float) -> QColor:
         active = QColor(accent)
@@ -268,6 +276,7 @@ class WidgetItem(QGraphicsRectItem):
         value = self._gauge_value()
         minimum = float(self.options.get("gauge_min", 0))
         maximum = float(self.options.get("gauge_max", 100))
+        minimum, maximum = self._vram_bounds(minimum, maximum)
         if maximum <= minimum:
             maximum = minimum + 1.0
         ratio = 0.0 if value is None else max(0.0, min(1.0, (value - minimum) / (maximum - minimum)))
@@ -282,7 +291,13 @@ class WidgetItem(QGraphicsRectItem):
         painter.drawText(self.rect().adjusted(16, 12, -16, -12), Qt.AlignTop | Qt.AlignHCenter, self.label)
 
         unit = str(self.options.get("gauge_unit", "%"))
-        text = "—" if value is None else f"{value:.0f} {unit}"
+        metric_key = str(self.options.get("metric_key", ""))
+        if metric_key in {"gpu.vram_used_gib", "gpu.vram_total_gib"}:
+            unit = "GiB"
+        elif metric_key == "gpu.vram_percent":
+            unit = "%"
+        decimals = 1 if unit == "GiB" else 0
+        text = "—" if value is None else f"{value:.{decimals}f} {unit}"
         painter.setPen(value_color)
         font.setPointSize(max(12, min(42, int(self.options.get("value_size", 18)) + 6)))
         painter.setFont(font)
@@ -325,6 +340,10 @@ class WidgetItem(QGraphicsRectItem):
         label = self.label or (metric.label if metric else "Diagramm")
         current = read_metric(self.snapshot, metric_key)
         unit = str(self.options.get("gauge_unit") or (metric.unit if metric else ""))
+        if metric_key in {"gpu.vram_used_gib", "gpu.vram_total_gib"}:
+            unit = "GiB"
+        elif metric_key == "gpu.vram_percent":
+            unit = "%"
 
         painter.setPen(title_color)
         font = painter.font()
@@ -346,6 +365,7 @@ class WidgetItem(QGraphicsRectItem):
             return
         minimum = float(self.options.get("chart_min", metric.minimum if metric else min(self._history)))
         maximum = float(self.options.get("chart_max", metric.maximum if metric else max(self._history)))
+        minimum, maximum = self._vram_bounds(minimum, maximum)
         if maximum <= minimum:
             maximum = minimum + 1.0
         points = []

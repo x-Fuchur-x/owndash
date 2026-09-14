@@ -71,6 +71,9 @@ class SystemSensorProvider(SensorProvider):
                 "name": gpu.get("name", "GPU"),
                 "driver": gpu.get("driver", "unknown"),
                 "temperature": gpu.get("temperature"),
+                "vram_used_gib": gpu.get("vram_used_gib"),
+                "vram_total_gib": gpu.get("vram_total_gib"),
+                "vram_percent": gpu.get("vram_percent"),
             },
             "memory": self._memory(),
             "storage": self._storage(),
@@ -108,6 +111,7 @@ class SystemSensorProvider(SensorProvider):
                 "usage": gpu.get("usage") is not None,
                 "temperature": gpu.get("temperature") is not None,
                 "power": gpu.get("power_w") is not None,
+                "vram": gpu.get("vram_percent") is not None,
             },
             "memory": snap["memory"].get("total", 0) > 0,
             "storage": snap["storage"].get("total", 0) > 0,
@@ -137,6 +141,7 @@ class SystemSensorProvider(SensorProvider):
                 f"  Auslastung: {mark(info['gpu']['usage'])}",
                 f"  Temperatur: {mark(info['gpu']['temperature'])}",
                 f"  Leistung: {mark(info['gpu']['power'])}",
+                f"  Grafikspeicher: {mark(info['gpu']['vram'])}",
                 "",
                 f"Arbeitsspeicher: {mark(info['memory'])}",
                 f"Speicher: {mark(info['storage'])}",
@@ -158,6 +163,7 @@ class SystemSensorProvider(SensorProvider):
             f"  Usage: {mark(info['gpu']['usage'])}",
             f"  Temperature: {mark(info['gpu']['temperature'])}",
             f"  Power: {mark(info['gpu']['power'])}",
+            f"  VRAM: {mark(info['gpu']['vram'])}",
             "",
             f"Memory: {mark(info['memory'])}",
             f"Storage: {mark(info['storage'])}",
@@ -289,6 +295,7 @@ class SystemSensorProvider(SensorProvider):
                 "driver": driver,
                 "temperature": temp,
                 "power_w": power,
+                **self._gpu_vram_sysfs(device),
             })
 
         # NVIDIA proprietary telemetry is optional. If available, treat it as
@@ -308,6 +315,23 @@ class SystemSensorProvider(SensorProvider):
             )
             return candidates[0]
         return {"usage": None, "name": "GPU", "driver": "unknown", "temperature": None, "power_w": None}
+
+    @staticmethod
+    def _gpu_vram_sysfs(device: Path) -> dict[str, float | None]:
+        """Read AMDGPU VRAM byte counters; unavailable is not zero usage."""
+        unavailable = dict.fromkeys(("vram_used_gib", "vram_total_gib", "vram_percent"))
+        try:
+            used = int(_read_text(device / "mem_info_vram_used"))
+            total = int(_read_text(device / "mem_info_vram_total"))
+        except ValueError:
+            return unavailable
+        if total <= 0 or used < 0 or used > total:
+            return unavailable
+        return {
+            "vram_used_gib": used / 1024**3,
+            "vram_total_gib": total / 1024**3,
+            "vram_percent": _percent(used, total),
+        }
 
     @staticmethod
     def _gpu_name(device: Path, driver: str) -> str:
