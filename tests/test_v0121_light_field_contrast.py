@@ -6,7 +6,7 @@ APPEARANCE = (ROOT / "src/owndash/appearance.py").read_text(encoding="utf-8")
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0121():
-    assert '__version__ = "0.14.0 Beta 1"' in INIT
+    assert '__version__ = "0.14.0 Beta 2"' in INIT
 
 def test_editors_have_explicit_foreground_and_background():
     assert "QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox {{" in WINDOW

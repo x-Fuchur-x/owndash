@@ -6,7 +6,7 @@ INIT = (ROOT / "src/owndash/__init__.py").read_text()
 
 
 def test_version_is_at_least_093():
-    assert '__version__ = "0.14.0 Beta 1"' in INIT
+    assert '__version__ = "0.14.0 Beta 2"' in INIT
 
 
 def test_design_inspector_uses_focus_tabs():

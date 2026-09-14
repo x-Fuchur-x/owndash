@@ -6,7 +6,7 @@ INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 I18N = (ROOT / "src/owndash/i18n.py").read_text(encoding="utf-8")
 
 def test_beta3_version():
-    assert '__version__ = "0.14.0 Beta 1"' in INIT
+    assert '__version__ = "0.14.0 Beta 2"' in INIT
 
 def test_about_layout_and_credit():
     assert "dialog.setMinimumSize(560, 480)" in WINDOW

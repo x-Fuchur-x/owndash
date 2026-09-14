@@ -8,7 +8,7 @@ SCREEN = (ROOT/"src/owndash/hardware/screen_display.py").read_text(encoding="utf
 INIT = (ROOT/"src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version():
-    assert '__version__ = "0.14.0 Beta 1"' in INIT
+    assert '__version__ = "0.14.0 Beta 2"' in INIT
 
 def test_profile_persists_display_backend():
     assert 'display_backend: str = "aic_usb"' in MODELS

@@ -10,7 +10,7 @@ INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 
 def test_version_0120():
-    assert '__version__ = "0.14.0 Beta 1"' in INIT
+    assert '__version__ = "0.14.0 Beta 2"' in INIT
 
 
 def test_preferences_are_loaded_before_ui_build():
