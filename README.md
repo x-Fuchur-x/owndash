@@ -7,7 +7,7 @@
 
 OwnDash lets you create customizable hardware-monitoring dashboards for dedicated PC displays and secondary monitors — visually, without having to understand Python, `hwmon`, USB protocols or Linux internals.
 
-> **OwnDash 0.14.0 Beta 2 is now available.**
+> **OwnDash 0.14.0 Beta 3 is now available.**
 >
 > Download the ready-to-run x86-64 AppImage from the [latest OwnDash release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.2).
 
