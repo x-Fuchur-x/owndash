@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 
 
 USB_VENDOR_ID = "33c3"
@@ -60,8 +61,9 @@ def can_offer_graphical_setup() -> bool:
 def install_udev_rule() -> tuple[bool, str]:
     """Install OwnDash's udev rule after an explicit user action.
 
-    pkexec provides the normal desktop administrator-authentication dialog.
-    No privileged command is run automatically at application startup.
+    A single pkexec invocation performs all privileged setup steps so the user
+    only has to authenticate once. No privileged command is run automatically
+    at application startup.
     """
     pkexec = shutil.which("pkexec")
     install = shutil.which("install")
@@ -84,41 +86,55 @@ def install_udev_rule() -> tuple[bool, str]:
             temp_path = Path(handle.name)
 
         destination = f"/etc/udev/rules.d/{RULE_NAME}"
+
+        commands = [
+            f'install -m 0644 "{temp_path}" "{destination}"',
+        ]
+        if udevadm:
+            commands.extend(
+                [
+                    "udevadm control --reload-rules",
+                    (
+                        "udevadm trigger --subsystem-match=usb "
+                        f"--attr-match=idVendor={USB_VENDOR_ID} "
+                        f"--attr-match=idProduct={USB_PRODUCT_ID}"
+                    ),
+                ]
+            )
+
+        command = " && ".join(commands)
         result = subprocess.run(
-            [pkexec, install, "-m", "0644", str(temp_path), destination],
+            [pkexec, "/bin/sh", "-c", command],
             check=False,
             capture_output=True,
             text=True,
             timeout=120,
         )
+
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).strip()
             if result.returncode in {126, 127}:
                 return False, "Die Administratorfreigabe wurde abgebrochen."
             return False, detail or "Die USB-Regel konnte nicht installiert werden."
 
-        if udevadm:
-            subprocess.run(
-                [pkexec, udevadm, "control", "--reload-rules"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            subprocess.run(
-                [
-                    pkexec, udevadm, "trigger",
-                    "--subsystem-match=usb",
-                    f"--attr-match=idVendor={USB_VENDOR_ID}",
-                    f"--attr-match=idProduct={USB_PRODUCT_ID}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
+        # udev may need a moment to update permissions on the existing device.
+        for _ in range(10):
+            if probe_artinchip_usb().accessible:
+                return True, "USB-Zugriff wurde erfolgreich eingerichtet."
+            time.sleep(0.2)
+
+        status = probe_artinchip_usb()
+        if status.connected:
+            return False, (
+                "Die USB-Regel wurde installiert, aber der Zugriff ist noch nicht aktiv. "
+                "Bitte trenne das Display kurz und verbinde es erneut."
             )
 
-        return True, "USB-Zugriff wurde eingerichtet. Falls das Display noch nicht erkannt wird, trenne es kurz und verbinde es erneut."
+        return False, (
+            "Die USB-Regel wurde installiert, aber das Display wurde anschließend nicht mehr erkannt. "
+            "Bitte verbinde das Display erneut."
+        )
+
     except (OSError, subprocess.SubprocessError) as exc:
         return False, f"USB-Einrichtung fehlgeschlagen: {exc}"
     finally:

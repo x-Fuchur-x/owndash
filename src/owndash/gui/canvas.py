@@ -629,7 +629,8 @@ class WidgetItem(QGraphicsRectItem):
             if self.isSelected() and not self._export_mode:
                 painter.setPen(QPen(QColor(255, 255, 255), 1, Qt.DashLine))
                 painter.setBrush(QBrush(accent))
-                painter.drawRect(self._handle_rect())
+                for handle_rect in self._handle_rects().values():
+                    painter.drawRect(handle_rect)
             return
 
         if self.kind in {"chart", "sparkline"}:
@@ -637,7 +638,8 @@ class WidgetItem(QGraphicsRectItem):
             if self.isSelected() and not self._export_mode:
                 painter.setPen(QPen(QColor(255, 255, 255), 1, Qt.DashLine))
                 painter.setBrush(QBrush(accent))
-                painter.drawRect(self._handle_rect())
+                for handle_rect in self._handle_rects().values():
+                    painter.drawRect(handle_rect)
             return
 
         title, value, percent = self._content()
@@ -737,8 +739,8 @@ class BackgroundImageItem(QGraphicsRectItem):
     def hoverMoveEvent(self, event) -> None:  # noqa: ANN001
         if not self._editing_enabled:
             self.unsetCursor()
-        elif self.isSelected() and self._handle_rect().contains(event.pos()):
-            self.setCursor(Qt.SizeFDiagCursor)
+        elif self.isSelected() and (handle := self._handle_at(event.pos())):
+            self.setCursor(self._cursor_for_handle(handle))
         else:
             self.setCursor(Qt.OpenHandCursor)
         super().hoverMoveEvent(event)
@@ -748,7 +750,7 @@ class BackgroundImageItem(QGraphicsRectItem):
             self._editing_enabled
             and event.button() == Qt.LeftButton
             and self.isSelected()
-            and self._handle_rect().contains(event.pos())
+            and self._handle_at(event.pos()) is not None
         ):
             self._resizing = True
             self._resize_origin = event.scenePos()
@@ -787,7 +789,8 @@ class BackgroundImageItem(QGraphicsRectItem):
             painter.drawRect(self.rect())
             painter.setPen(Qt.NoPen)
             painter.setBrush(QColor(90, 190, 255, 235))
-            painter.drawRect(self._handle_rect())
+            for handle_rect in self._handle_rects().values():
+                painter.drawRect(handle_rect)
 
 
 class DashboardCanvas(QGraphicsView):
