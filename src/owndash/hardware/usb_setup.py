@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from owndash.core.subprocess_env import system_subprocess_env
 
 
 USB_VENDOR_ID = "33c3"
@@ -109,6 +110,7 @@ def install_udev_rule() -> tuple[bool, str]:
             capture_output=True,
             text=True,
             timeout=120,
+            env=system_subprocess_env(),
         )
 
         if result.returncode != 0:

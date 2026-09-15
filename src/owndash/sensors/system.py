@@ -10,6 +10,7 @@ from typing import Any
 
 from .base import SensorProvider
 from owndash.hardware.usb_setup import can_offer_graphical_setup, probe_artinchip_usb
+from owndash.core.subprocess_env import system_subprocess_env
 
 
 def _read_text(path: Path) -> str:
@@ -368,6 +369,7 @@ class SystemSensorProvider(SensorProvider):
                 capture_output=True,
                 text=True,
                 timeout=1.0,
+                env=system_subprocess_env(),
             )
         except (OSError, subprocess.SubprocessError):
             return None
@@ -446,6 +448,7 @@ class SystemSensorProvider(SensorProvider):
                 capture_output=True,
                 text=True,
                 timeout=1.5,
+                env=system_subprocess_env(),
             )
         except (OSError, subprocess.SubprocessError):
             return None
