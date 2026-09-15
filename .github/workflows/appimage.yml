@@ -33,6 +33,7 @@ jobs:
                 file \
                 libfuse2 \
                 binutils \
+                libusb-1.0-0 \
                 >/dev/null
 
               curl -L -sS \
