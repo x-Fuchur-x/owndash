@@ -1,11 +1,24 @@
 # OwnDash Changelog
 
+## 0.14.0 Beta 3
+
+- Official AppImages are now built on a Debian 12 compatibility baseline.
+- Release CI verifies that bundled ELF binaries require no newer than GLIBC 2.36.
+- The finished AppImage is launched in a clean Debian 12 environment as an automated compatibility smoke test.
+- Added AppStream metadata for improved Linux desktop and application metadata integration.
+- Improved AppImage packaging metadata and desktop application categorization.
+- Documentation now clearly distinguishes practical hardware testing from automated AppImage compatibility testing.
+- Documented the x86-64 and GLIBC 2.36 minimum baseline for the official AppImage.
+- Clarified that Python and PySide6 do not need to be installed separately when using the AppImage.
+- Clarified the difference between official Debian 12 release builds and locally built AppImages.
+- Project metadata now describes OwnDash as a customizable Linux hardware dashboard platform rather than a USB-only telemetry application.
+- Documentation now more clearly distinguishes standard Linux monitor output from compatible direct USB display support.
+
 ## 0.14.0 Beta 2
 
 - VRAM widgets automatically use the detected total VRAM for GiB scales.
 - VRAM units display correctly, with one decimal place for GiB values.
 - Unavailable gauge sensors no longer fall back to unrelated CPU/GPU readings.
-
 - AMDGPU VRAM usage, used GiB and total GiB are available in the existing widget sensor selector.
 - Sensor diagnostics report VRAM availability. Missing, unreadable or invalid counters remain unavailable, not zero.
 - VRAM currently uses AMDGPU sysfs counters; NVIDIA/Intel VRAM and real-device verification remain follow-up work.

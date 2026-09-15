@@ -5,7 +5,7 @@ WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0122():
-    assert '__version__ = "0.14.0 Beta 2"' in INIT
+    assert '__version__ = "0.14.0 Beta 3"' in INIT
 
 def test_stylesheet_uses_current_application_palette():
     assert "palette = QPalette(app.palette()) if app is not None else QPalette(self.palette())" in WINDOW

@@ -8,8 +8,8 @@ CHANGELOG = (ROOT/"CHANGELOG.md").read_text(encoding="utf-8")
 CONTRIBUTING = (ROOT/"CONTRIBUTING.md").read_text(encoding="utf-8")
 
 def test_public_beta_version():
-    assert '__version__ = "0.14.0 Beta 2"' in INIT
-    assert 'version = "0.14.0b2"' in PYPROJECT
+    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert 'version = "0.14.0b3"' in PYPROJECT
 
 def test_clean_window_title():
     assert 'self.setWindowTitle("")' in WINDOW

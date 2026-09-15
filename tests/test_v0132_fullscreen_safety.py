@@ -6,7 +6,7 @@ SCREEN = (ROOT / "src/owndash/hardware/screen_display.py").read_text(encoding="u
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0132():
-    assert '__version__ = "0.14.0 Beta 2"' in INIT
+    assert '__version__ = "0.14.0 Beta 3"' in INIT
 
 def test_fullscreen_window_has_escape_signal():
     assert "class FullscreenDisplayWindow(QWidget):" in SCREEN

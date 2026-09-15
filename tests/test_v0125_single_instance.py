@@ -6,7 +6,7 @@ SINGLE = (ROOT / "src/owndash/single_instance.py").read_text(encoding="utf-8")
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0125():
-    assert '__version__ = "0.14.0 Beta 2"' in INIT
+    assert '__version__ = "0.14.0 Beta 3"' in INIT
 
 def test_second_launch_exits_before_window_creation():
     notify = MAIN.index("if notify_existing_instance(server_name):")
