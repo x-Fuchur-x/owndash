@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.owndash.OwnDash</id>
+
+  <name>OwnDash</name>
+  <summary>Visual Linux hardware dashboard editor</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      OwnDash is a visual Linux hardware dashboard editor and runtime for
+      dedicated PC displays, secondary monitors and compatible direct USB
+      sensor displays.
+    </p>
+    <p>
+      Create customizable monitoring dashboards with gauges, charts,
+      sparklines, backgrounds, themes and multiple dashboard pages without
+      requiring Python knowledge or manual sensor configuration.
+    </p>
+    <p>
+      OwnDash supports standard displays recognized by Linux and direct USB
+      output for compatible ArtInChip/VSDISPLAY hardware.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">org.owndash.OwnDash.desktop</launchable>
+
+  <url type="homepage">https://github.com/x-Fuchur-x/owndash</url>
+  <url type="bugtracker">https://github.com/x-Fuchur-x/owndash/issues</url>
+
+  <provides>
+    <binary>OwnDash</binary>
+  </provides>
+
+  <categories>
+    <category>System</category>
+  </categories>
+
+  <content_rating type="oars-1.1" />
+</component>
