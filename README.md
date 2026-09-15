@@ -5,7 +5,7 @@
 
 ![OwnDash Dashboard Editor](docs/images/owndash-editor.png)
 
-OwnDash lets you create customizable hardware-monitoring dashboards for dedicated PC displays, secondary monitors and compatible direct USB displays — visually, without having to understand Python, `hwmon`, USB protocols or Linux internals.
+OwnDash lets you create customizable hardware-monitoring dashboards for dedicated PC displays and secondary monitors — visually, without having to understand Python, `hwmon`, USB protocols or Linux internals.
 
 > **OwnDash 0.14.0 Beta 3 is now available.**
 >
@@ -15,13 +15,14 @@ OwnDash lets you create customizable hardware-monitoring dashboards for dedicate
 
 ![OwnDash running on a PC sensor display](docs/images/owndash-hardware.jpg)
 
-OwnDash has been tested on real hardware using Bazzite Linux and a compatible ArtInChip / VSDISPLAY USB sensor display.
+OwnDash 0.14.0 Beta 3 has been tested on real hardware using Bazzite Linux and a compatible ArtInChip / VSDISPLAY USB sensor display.
 
 ## Features
 
 - Visual drag-and-drop dashboard editor
 - CPU, GPU, RAM, storage and network monitoring
 - Temperature and power sensors where supported by Linux and the hardware
+- AMD GPU VRAM usage and capacity where supported
 - Gauges, charts and sparklines
 - Custom backgrounds and themes
 - Widget animations and alert triggers
@@ -30,6 +31,7 @@ OwnDash has been tested on real hardware using Bazzite Linux and a compatible Ar
 - German and English interface
 - System tray integration
 - Built-in diagnostics and compatibility checks
+- First-run setup and compatibility assistant
 - Direct ArtInChip / VSDISPLAY USB output
 - Standard monitor output for displays recognized by Linux
 
@@ -40,6 +42,8 @@ OwnDash currently provides two display paths:
 **Standard monitor output** works with HDMI, DisplayPort, USB-C and other displays that Linux recognizes as normal monitors.
 
 **ArtInChip / VSDISPLAY USB output** provides direct USB support for compatible ArtInChip-based displays without requiring the display to appear as a normal Linux monitor.
+
+The direct USB backend uses PyUSB and bundles the required `libusb-1.0.so.0` runtime in the official AppImage.
 
 Other proprietary USB-only displays may require a dedicated OwnDash backend for their protocol.
 
@@ -55,19 +59,32 @@ The ready-to-run OwnDash AppImage currently requires:
 
 Python knowledge is not required, and no separate installation of Python or PySide6 is required for the AppImage.
 
-The official release AppImage is built on a **Debian 12** compatibility baseline. The release workflow verifies that bundled ELF binaries do not require a GLIBC version newer than GLIBC 2.36 and launches the finished AppImage in Debian 12 as an automated CI compatibility smoke test.
+The official release AppImage is built on a **Debian 12 compatibility baseline**.
 
-The GLIBC baseline describes binary compatibility. It does not guarantee identical hardware support on every Linux distribution. Available sensors, graphics functionality, USB access and other capabilities can still depend on the kernel, drivers, desktop environment and installed system libraries.
+The release workflow:
+
+- builds the AppImage on Debian 12
+- verifies that bundled ELF binaries do not require a GLIBC version newer than GLIBC 2.36
+- launches the finished AppImage in a clean Debian 12 environment as an automated compatibility smoke test
+
+The GLIBC baseline describes binary compatibility. It does not guarantee identical hardware support on every Linux distribution.
+
+Available sensors, graphics functionality, USB access and other capabilities can still depend on the kernel, drivers, desktop environment and installed system libraries.
 
 ### Running from source
 
 Python **3.11 or newer** is required when running OwnDash from source.
 
-Core Python dependencies are declared in `pyproject.toml` and include PySide6, Pillow, PyUSB and cryptography.
+Core Python dependencies are declared in `pyproject.toml` and include:
+
+- PySide6
+- Pillow
+- PyUSB
+- cryptography
 
 ## Installation
 
-OwnDash Beta 3 is distributed as a self-contained **x86-64 AppImage**.
+OwnDash 0.14.0 Beta 3 is distributed as a self-contained **x86-64 AppImage**.
 
 Download:
 
@@ -83,7 +100,9 @@ No manual Python or PySide6 installation is required.
 
 ### Required
 
-Python knowledge is not required. OwnDash is provided as a self-contained AppImage.
+Python knowledge is not required.
+
+OwnDash is provided as a self-contained AppImage.
 
 On the first launch, OwnDash automatically opens its setup and compatibility assistant. It checks the computer and explains in plain language which features are available.
 
@@ -91,7 +110,9 @@ On the first launch, OwnDash automatically opens its setup and compatibility ass
 
 For compatible ArtInChip / VSDISPLAY devices, OwnDash can offer graphical installation of the required USB permission rule using the desktop's normal administrator authentication.
 
-This USB permission setup is only required for compatible direct USB displays. Standard monitor output does not require it.
+This USB permission setup is only required for compatible direct USB displays.
+
+Standard monitor output does not require it.
 
 No privileged command is executed automatically at startup.
 
@@ -99,11 +120,15 @@ No privileged command is executed automatically at startup.
 
 OwnDash uses common Linux interfaces including `/proc`, `sysfs`, `hwmon`, DRM and `powercap` instead of targeting one specific Linux distribution.
 
-Sensor availability depends on the kernel, driver and hardware. A missing optional sensor is **not an installation failure**.
+Sensor availability depends on the kernel, driver and hardware.
+
+A missing optional sensor is **not an installation failure**.
 
 For example, a GPU may expose utilization and temperature but not power consumption. OwnDash continues to work and simply marks that individual reading as unavailable.
 
 Additional NVIDIA telemetry can be obtained through `nvidia-smi` when available.
+
+AMD GPU VRAM usage, used GiB and total GiB are available where the required AMDGPU sysfs counters are exposed.
 
 OwnDash includes **Help → System and sensor information** to show the capabilities detected on the current computer.
 
@@ -111,7 +136,7 @@ OwnDash includes **Help → System and sensor information** to show the capabili
 
 ### Practical hardware testing
 
-OwnDash has been tested on:
+OwnDash 0.14.0 Beta 3 has been tested successfully on:
 
 - Bazzite Linux
 - KDE Plasma
@@ -120,6 +145,8 @@ OwnDash has been tested on:
 - Compatible ArtInChip / VSDISPLAY direct USB hardware
 - Standard Linux monitor output
 
+The official Beta 3 AppImage has been tested on real VSDISPLAY / ArtInChip hardware under Bazzite, including direct USB output.
+
 ### AppImage compatibility testing
 
 The official AppImage build process uses Debian 12 as its compatibility baseline.
@@ -127,10 +154,17 @@ The official AppImage build process uses Debian 12 as its compatibility baseline
 GitHub CI:
 
 - builds the AppImage in Debian 12
+- bundles `libusb-1.0.so.0` for direct USB support
 - verifies a maximum required GLIBC version of **GLIBC 2.36**
 - launches the finished AppImage in a clean Debian 12 environment as a compatibility smoke test
 
-This Debian 12 CI test verifies packaging and startup compatibility. It is not a complete hardware, sensor or desktop-environment validation.
+Beta 3 also includes a fix for an AppImage packaging issue that could previously cause PyUSB to report:
+
+**`No backend available`**
+
+The fix was verified with real hardware.
+
+These CI tests verify packaging and startup compatibility. They are not a complete hardware, sensor or desktop-environment validation.
 
 OwnDash is designed around common Linux interfaces and does **not** require Bazzite or KDE.
 
@@ -158,24 +192,3 @@ From a virtual environment:
 ```bash
 python -m pip install -e .
 owndash
-```
-
-Core Python dependencies are declared in `pyproject.toml`.
-
-The repository also contains the AppImage build tooling and GitHub Actions workflows used by the project.
-
-A locally built AppImage is not automatically equivalent to the official release artifact. Official release AppImages use the Debian 12 compatibility baseline and the additional compatibility checks in the GitHub workflow.
-
-## Beta status
-
-OwnDash is currently beta software.
-
-Bugs and compatibility issues are possible. Feedback from different Linux distributions, hardware configurations and display types is especially valuable during the beta period.
-
-## License
-
-OwnDash is released under the **MIT License**.
-
-Third-party components and acknowledgements are documented in [`THIRD_PARTY.md`](THIRD_PARTY.md).
-
-Copyright © 2026 **Markus Rosinski**
