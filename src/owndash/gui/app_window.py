@@ -2,16 +2,108 @@ from __future__ import annotations
 
 from PySide6.QtCore import QBuffer, QByteArray, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QSystemTrayIcon,
+    QVBoxLayout,
+)
 
 from owndash import APP_NAME
 from owndash.assets import app_icon_path
+from owndash.appearance import apply_appearance
+from owndash.core.preferences import save_preferences
+from owndash.i18n import resolved_language
 
 from .main_window import MainWindow
 
 
 class SafeShutdownWindow(MainWindow):
     """Main window lifecycle that leaves displays in a defined branded state."""
+
+    def _open_settings(self) -> None:
+        """Show general settings, including the optional background update check."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self._t("Einstellungen"))
+        dialog.setModal(True)
+        dialog.setMinimumWidth(440)
+
+        outer = QVBoxLayout(dialog)
+        form = QFormLayout()
+        self._polish_form(form)
+
+        language_combo = QComboBox(dialog)
+        language_combo.addItem(self._t("Systemsprache"), "system")
+        language_combo.addItem(self._t("Deutsch"), "de")
+        language_combo.addItem(self._t("Englisch"), "en")
+        language_index = language_combo.findData(self.preferences.language)
+        language_combo.setCurrentIndex(max(0, language_index))
+
+        appearance_combo = QComboBox(dialog)
+        appearance_combo.addItem(self._t("System"), "system")
+        appearance_combo.addItem(self._t("Dunkel"), "dark")
+        appearance_combo.addItem(self._t("Hell"), "light")
+        appearance_index = appearance_combo.findData(self.preferences.appearance)
+        appearance_combo.setCurrentIndex(max(0, appearance_index))
+
+        form.addRow(self._t("Sprache"), language_combo)
+        form.addRow(self._t("Erscheinungsbild"), appearance_combo)
+        outer.addLayout(form)
+
+        if self.language == "de":
+            update_label = "Automatisch nach Updates suchen"
+            update_explanation = (
+                "OwnDash prüft gelegentlich auf GitHub nach neuen Versionen. "
+                "Es wird nichts automatisch heruntergeladen oder installiert."
+            )
+        else:
+            update_label = "Automatically check for updates"
+            update_explanation = (
+                "OwnDash occasionally checks GitHub for new versions. "
+                "Nothing is downloaded or installed automatically."
+            )
+
+        update_check = QCheckBox(update_label, dialog)
+        update_check.setChecked(self.preferences.check_updates)
+        outer.addWidget(update_check)
+
+        update_hint = QLabel(update_explanation, dialog)
+        update_hint.setWordWrap(True)
+        outer.addWidget(update_hint)
+
+        hint = QLabel(self._t("Sprache und Erscheinungsbild werden sofort angewendet."), dialog)
+        hint.setWordWrap(True)
+        outer.addWidget(hint)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Apply | QDialogButtonBox.Cancel, dialog)
+        apply_button = buttons.button(QDialogButtonBox.Apply)
+        cancel_button = buttons.button(QDialogButtonBox.Cancel)
+        if apply_button is not None:
+            apply_button.setText(self._t("Übernehmen"))
+            apply_button.clicked.connect(dialog.accept)
+        if cancel_button is not None:
+            cancel_button.setText(self._t("Abbrechen"))
+        buttons.rejected.connect(dialog.reject)
+        outer.addWidget(buttons)
+
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        self.preferences.language = str(language_combo.currentData())
+        self.preferences.appearance = str(appearance_combo.currentData())
+        self.preferences.check_updates = update_check.isChecked()
+        save_preferences(self.preferences)
+
+        self.language = resolved_language(self.preferences.language)
+        apply_appearance(self.preferences.appearance, self._system_palette)
+        self._apply_ui_polish()
+        self._retranslate_ui()
+        self.statusBar().showMessage(self._t("Bereit · Live-Vorschau aktiv"), 2500)
 
     def _render_shutdown_frame_payload(self) -> bytes | None:
         width = max(320, int(self.canvas.canvas_size.width))
