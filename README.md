@@ -1,90 +1,122 @@
+<p align="center">
+  <img src="docs/images/owndash-hero.svg" alt="OwnDash — Your display. Your design." width="100%">
+</p>
+
+<p align="center">
+  <strong>English</strong> · <a href="README_DE.md">Deutsch</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.3"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%203-5577FF?style=for-the-badge"></a>
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-x86__64-0B0E15?style=for-the-badge&logo=linux&logoColor=white">
+  <img alt="AppImage" src="https://img.shields.io/badge/AppImage-ready-1593FF?style=for-the-badge&logo=appimage&logoColor=white">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-A05CFF?style=for-the-badge"></a>
+</p>
+
 # OwnDash
 
-### Your display. Your design.
-**A visual Linux hardware dashboard editor — without the terminal headache.**
+**Create. Customize. Display.**
 
-![OwnDash Dashboard Editor](docs/images/owndash-editor.png)
+OwnDash is an open-source visual dashboard editor for Linux. Build hardware-monitoring dashboards with drag & drop, connect live system sensors, and send the result to a compatible USB display or any monitor Linux recognizes — without having to understand Python, `hwmon`, USB protocols, or Linux internals.
 
-OwnDash lets you create customizable hardware-monitoring dashboards for dedicated PC displays and secondary monitors — visually, without having to understand Python, `hwmon`, USB protocols or Linux internals.
+> **Current release: OwnDash 0.14.0 Beta 3**  
+> Ready-to-run x86-64 AppImage · Debian 12 / GLIBC 2.36 compatibility baseline · direct ArtInChip / VSDISPLAY USB output verified on real hardware.
 
-> **OwnDash 0.14.0 Beta 3 is now available.**
->
-> Download the ready-to-run x86-64 AppImage from the [latest OwnDash release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.2).
+<p align="center">
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.3"><strong>Download OwnDash 0.14.0 Beta 3</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/x-Fuchur-x/owndash/releases">All releases</a>
+  &nbsp;·&nbsp;
+  <a href="ROADMAP.md">Roadmap</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/x-Fuchur-x/owndash/issues">Issues</a>
+</p>
 
-## OwnDash in action
+## Why OwnDash?
 
-![OwnDash running on a PC sensor display](docs/images/owndash-hardware.jpg)
+OwnDash is built for people who want a dedicated system display without turning dashboard setup into a terminal project.
 
-The first public beta has been tested on real hardware using Bazzite Linux and a compatible ArtInChip / VSDISPLAY USB sensor display.
+- **Visual editor** — design dashboards with drag & drop and live previews.
+- **Real Linux telemetry** — CPU, GPU, RAM, storage, network, temperatures, power and other metrics where the hardware exposes them.
+- **Flexible widgets** — gauges, charts, sparklines, clocks, text, images, backgrounds, themes and animated elements.
+- **Multiple dashboard pages** — organize different layouts and cycle between them.
+- **Sensor-driven behavior** — animations, rules and alert states can react to live values.
+- **Two output paths** — standard Linux monitors and compatible direct USB displays.
+- **Beginner-friendly setup** — first-run compatibility checks, diagnostics and graphical USB-permission setup.
+- **Linux-native approach** — built around common Linux interfaces instead of one specific distribution.
+- **English and German UI** — plus System, Light and Dark appearance modes.
+- **Open source** — MIT licensed and designed to grow with additional hardware backends over time.
 
-## Features
+## See OwnDash in action
 
-- Visual drag-and-drop dashboard editor
-- CPU, GPU, RAM, storage and network monitoring
-- Temperature and power sensors where supported by Linux and the hardware
-- Gauges, charts and sparklines
-- Custom backgrounds and themes
-- Widget animations and alert triggers
-- Multiple dashboard pages
-- Light, dark and native system appearance
-- German and English interface
-- System tray integration
-- Built-in diagnostics and compatibility checks
-- Direct ArtInChip / VSDISPLAY USB output
-- Standard monitor output for displays recognized by Linux
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/owndash-editor.png" alt="OwnDash visual dashboard editor">
+      <br><strong>Visual dashboard editor</strong><br>
+      Build and customize dashboards without editing configuration files by hand.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/owndash-hardware.jpg" alt="OwnDash running on a real USB sensor display">
+      <br><strong>Real hardware output</strong><br>
+      OwnDash running on a compatible ArtInChip / VSDISPLAY USB sensor display.
+    </td>
+  </tr>
+</table>
 
 ## Display support
 
-OwnDash currently provides two display paths:
+OwnDash currently supports two display paths:
 
-**Standard monitor output** works with HDMI, DisplayPort, USB-C and other displays that Linux recognizes as normal monitors.
+### Standard Linux monitors
 
-**ArtInChip / VSDISPLAY USB output** provides direct USB support for compatible ArtInChip-based displays without requiring the display to appear as a normal Linux monitor.
+Use displays that Linux already recognizes as regular screens, including HDMI, DisplayPort and USB-C display outputs. OwnDash can show the dashboard in a dedicated output window with fullscreen safety controls.
 
-Other proprietary USB-only displays may require a dedicated OwnDash backend for their protocol.
+### Direct ArtInChip / VSDISPLAY USB output
 
-## Easy first start
+Compatible ArtInChip-based sensor displays can be driven directly over USB without appearing as a normal monitor. The official AppImage bundles the required `libusb-1.0.so.0` runtime.
 
-### Required
+Other proprietary USB-only display families need their own backend and protocol support. Broader hardware support is part of the long-term project direction — see the [roadmap](ROADMAP.md).
 
-Python knowledge is not required. OwnDash is provided as a self-contained AppImage.
+## Download & quick start
 
-### Optional — only for additional features
+The official release is distributed as a self-contained **x86-64 AppImage**.
 
+**Current file:** `OwnDash-0.14.0-Beta-3-x86_64.AppImage`
 
-OwnDash Beta 2 is distributed as a self-contained **x86-64 AppImage**.
+1. Download the AppImage from the [OwnDash 0.14.0 Beta 3 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.3).
+2. Make it executable if your desktop requires it.
+3. Launch OwnDash by double-clicking the AppImage.
+4. Follow the first-run setup and compatibility assistant.
+5. Create a dashboard and select your output display.
 
-Download:
+No separate Python or PySide6 installation is required when using the official AppImage.
 
-**`OwnDash-0.14.0-Beta-2-x86_64.AppImage`**
+For compatible direct USB displays, OwnDash can offer graphical installation of the required USB permission rule using your desktop's normal administrator authentication. No privileged command is executed automatically at startup.
 
-from the [OwnDash 0.14.0 Beta 2 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.2).
+## Sensors & compatibility
 
-Make the AppImage executable if required by your Linux desktop and launch it by double-clicking it.
+OwnDash reads common Linux interfaces such as `/proc`, `sysfs`, `hwmon`, DRM and `powercap`. Sensor availability therefore depends on the kernel, driver and hardware rather than on one specific distribution.
 
-No manual Python or PySide6 installation is required.
+A missing optional metric is **not** treated as an application failure. For example, a GPU may expose utilization and temperature but not power consumption; OwnDash keeps working and marks that individual metric as unavailable.
 
-On the first launch, OwnDash automatically opens its setup and compatibility assistant. It checks the computer and explains in plain language which features are available.
+Additional NVIDIA telemetry can be obtained through `nvidia-smi` when available. AMDGPU VRAM usage, used GiB and total GiB are supported where the required sysfs counters are exposed.
 
-For compatible ArtInChip / VSDISPLAY devices, OwnDash can offer graphical installation of the required USB permission rule using the desktop's normal administrator authentication.
+OwnDash includes **Help → System and sensor information** for detailed capability diagnostics.
 
-No privileged command is executed automatically at startup.
+### Current AppImage baseline
 
-## Sensors and compatibility
+- Linux on **x86-64**
+- **GLIBC 2.36 or newer**
+- Graphical Linux desktop environment
+- Official release builds produced on a **Debian 12 compatibility baseline**
 
-OwnDash uses common Linux interfaces including `/proc`, `sysfs`, `hwmon`, DRM and `powercap` instead of targeting one specific Linux distribution.
+The Beta 3 release includes automated GLIBC compatibility verification and a clean Debian 12 AppImage startup smoke test. Hardware, sensors, graphics and USB capabilities can still vary between systems.
 
-Sensor availability depends on the kernel, driver and hardware. A missing optional sensor is **not an installation failure**.
+## Tested hardware & platform
 
-For example, a GPU may expose utilization and temperature but not power consumption. OwnDash continues to work and simply marks that individual reading as unavailable.
-
-Additional NVIDIA telemetry can be obtained through `nvidia-smi` when available.
-
-OwnDash includes **Help → System and sensor information** to show the capabilities detected on the current computer.
-
-## Tested platform
-
-OwnDash 0.14.0 Beta 1 has been tested successfully on:
+Beta 3 has been practically tested with:
 
 - Bazzite Linux
 - KDE Plasma
@@ -93,48 +125,38 @@ OwnDash 0.14.0 Beta 1 has been tested successfully on:
 - Compatible ArtInChip / VSDISPLAY direct USB hardware
 - Standard Linux monitor output
 
-OwnDash is designed around common Linux interfaces and does **not** require Bazzite or KDE.
+OwnDash does **not** require Bazzite or KDE. Reports from other distributions, desktop environments, GPUs and display types are welcome.
 
-Other distributions, desktop environments and hardware configurations may work, but have not yet been tested to the same extent.
+## Running from source
 
-Testing and compatibility reports are welcome.
-
-## Help and bug reports
-
-OwnDash includes:
-
-- **OwnDash Help** — getting started and FAQ
-- **System check** — beginner-friendly compatibility overview
-- **System and sensor information** — detailed detected capabilities
-- **Report a bug** — prepares a GitHub issue with useful diagnostic information
-
-Bugs and feature requests can also be reported through [GitHub Issues](https://github.com/x-Fuchur-x/owndash/issues).
-
-## Developers / running from source
-
-Python 3.11 or newer is required when running OwnDash from source.
-
-From a virtual environment:
+Python **3.11 or newer** is required when running OwnDash from source.
 
 ```bash
 python -m pip install -e .
 owndash
 ```
 
-Core Python dependencies are declared in `pyproject.toml` and include PySide6, Pillow, PyUSB and cryptography.
+Core dependencies are declared in `pyproject.toml` and include PySide6, Pillow, PyUSB and cryptography.
 
-The repository also contains the AppImage build tooling and GitHub Actions workflows used by the project.
+## Project links
+
+- **[Roadmap](ROADMAP.md)** — planned direction toward 1.0 and broader device support
+- **[Changelog](CHANGELOG.md)** — released features and version history
+- **[Contributing](CONTRIBUTING.md)** — how to contribute
+- **[Issues](https://github.com/x-Fuchur-x/owndash/issues)** — bugs and feature requests
+- **[Releases](https://github.com/x-Fuchur-x/owndash/releases)** — AppImages and release notes
 
 ## Beta status
 
-OwnDash is currently beta software.
-
-Bugs and compatibility issues are possible. Feedback from different Linux distributions, hardware configurations and display types is especially valuable during the beta period.
+OwnDash is currently beta software. Bugs and compatibility issues are possible, and feedback from different Linux distributions, hardware configurations and display types is especially useful during this phase.
 
 ## License
 
-OwnDash is released under the **MIT License**.
+OwnDash is released under the **MIT License**. Third-party components and acknowledgements are documented in [`THIRD_PARTY.md`](THIRD_PARTY.md).
 
-Third-party components and acknowledgements are documented in [`THIRD_PARTY.md`](THIRD_PARTY.md).
+<p align="center">
+  <strong>Your display. Your design.</strong><br>
+  Built for Linux · Open source · Made to be yours
+</p>
 
 Copyright © 2026 **Markus Rosinski**
