@@ -14,7 +14,7 @@ def main() -> int:
         return 2
 
     from owndash.assets import app_icon_path
-    from owndash.gui.main_window import MainWindow
+    from owndash.gui.app_window import SafeShutdownWindow as MainWindow
     from owndash.single_instance import SingleInstanceServer, notify_existing_instance
 
     app = QApplication(sys.argv)
