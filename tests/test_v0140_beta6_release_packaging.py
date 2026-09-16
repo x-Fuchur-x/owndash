@@ -52,4 +52,4 @@ def test_appimage_build_is_scripted():
 def test_github_action_builds_appimage_artifact():
     assert "Build AppImage" in WORKFLOW
     assert "packaging/appimage/build-appimage.sh" in WORKFLOW
-    assert "actions/upload-artifact@v4" in WORKFLOW
+    assert "actions/upload-artifact@v7" in WORKFLOW
