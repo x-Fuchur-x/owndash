@@ -1,5 +1,14 @@
 # OwnDash Changelog
 
+## Unreleased
+
+- Added an optional background check for newer OwnDash releases on the official GitHub repository.
+- Update checks are enabled by default and can be disabled in Settings.
+- Update checks are non-blocking, use a short network timeout, and fail silently when GitHub or the network is unavailable.
+- Stable builds ignore prereleases; beta builds can detect newer betas as well as newer stable releases.
+- Available updates are shown with a modeless notification that can open the corresponding GitHub release page.
+- OwnDash does not download, install, or replace the AppImage automatically at this stage.
+
 ## 0.14.0 Beta 3
 
 - Official AppImages are now built on a Debian 12 compatibility baseline.

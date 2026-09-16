@@ -12,6 +12,7 @@ class AppPreferences:
     language: str = "system"      # system | de | en
     appearance: str = "system"    # system | dark | light
     setup_completed: bool = False   # first-run compatibility assistant
+    check_updates: bool = True      # background GitHub release check
 
     @classmethod
     def from_raw(cls, raw: object) -> "AppPreferences":
@@ -24,7 +25,13 @@ class AppPreferences:
         if appearance not in {"system", "dark", "light"}:
             appearance = "system"
         setup_completed = bool(raw.get("setup_completed", False))
-        return cls(language=language, appearance=appearance, setup_completed=setup_completed)
+        check_updates = bool(raw.get("check_updates", True))
+        return cls(
+            language=language,
+            appearance=appearance,
+            setup_completed=setup_completed,
+            check_updates=check_updates,
+        )
 
 
 def preferences_path() -> Path:
