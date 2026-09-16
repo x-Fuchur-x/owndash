@@ -79,9 +79,11 @@ Compatible ArtInChip-based sensor displays can be driven directly over USB witho
 
 Other proprietary USB-only display families need their own backend and protocol support. Broader hardware support is part of the long-term project direction — see the [roadmap](ROADMAP.md).
 
-## Download & quick start
+## Easy first start
 
-The official release is distributed as a self-contained **x86-64 AppImage**.
+### Required
+
+The official release is a **self-contained x86-64 AppImage**. Python knowledge is not required, and no separate installation of Python or PySide6 is required when using the official AppImage.
 
 **Current file:** `OwnDash-0.14.0-Beta-3-x86_64.AppImage`
 
@@ -91,9 +93,9 @@ The official release is distributed as a self-contained **x86-64 AppImage**.
 4. Follow the first-run setup and compatibility assistant.
 5. Create a dashboard and select your output display.
 
-No separate Python or PySide6 installation is required when using the official AppImage.
+### Optional — only for additional features
 
-For compatible direct USB displays, OwnDash can offer graphical installation of the required USB permission rule using your desktop's normal administrator authentication. No privileged command is executed automatically at startup.
+For compatible direct USB displays, OwnDash can offer graphical installation of the required USB permission rule using your desktop's normal administrator authentication. No privileged command is executed automatically at startup. Standard monitor output does not require this USB permission setup.
 
 ## Sensors & compatibility
 
@@ -112,7 +114,7 @@ OwnDash includes **Help → System and sensor information** for detailed capabil
 - Graphical Linux desktop environment
 - Official release builds produced on a **Debian 12 compatibility baseline**
 
-The Beta 3 release includes automated GLIBC compatibility verification and a clean Debian 12 AppImage startup smoke test. Hardware, sensors, graphics and USB capabilities can still vary between systems.
+GitHub CI builds the official Beta 3 AppImage on Debian 12, verifies the GLIBC compatibility baseline, and performs a clean Debian 12 AppImage startup smoke test. Hardware, sensors, graphics and USB capabilities can still vary between systems.
 
 ## Tested hardware & platform
 
