@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QBuffer, QByteArray, Qt
+from threading import Thread
+import webbrowser
+
+from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
@@ -10,24 +13,98 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
+    QMessageBox,
     QSystemTrayIcon,
     QVBoxLayout,
 )
 
-from owndash import APP_NAME
+from owndash import APP_NAME, __version__
 from owndash.assets import app_icon_path
 from owndash.appearance import apply_appearance
 from owndash.core.preferences import save_preferences
+from owndash.core.updates import ReleaseInfo, fetch_available_update
 from owndash.i18n import resolved_language
 
 from .main_window import MainWindow
 
 
+class UpdateBridge(QObject):
+    """Marshal background update results safely back onto the Qt GUI thread."""
+
+    completed = Signal(object)
+
+
 class SafeShutdownWindow(MainWindow):
-    """Main window lifecycle that leaves displays in a defined branded state."""
+    """OwnDash lifecycle extensions for safe shutdown and update awareness."""
+
+    def __init__(self):
+        super().__init__()
+        self._update_bridge = UpdateBridge(self)
+        self._update_bridge.completed.connect(self._handle_update_result)
+        self._update_check_started = False
+        self._update_dialog: QMessageBox | None = None
+        self._schedule_update_check()
+
+    def _schedule_update_check(self) -> None:
+        if not self.preferences.check_updates:
+            return
+        QTimer.singleShot(1500, self._start_update_check)
+
+    def _start_update_check(self) -> None:
+        if not self.preferences.check_updates or self._update_check_started:
+            return
+        self._update_check_started = True
+
+        def check() -> None:
+            release = fetch_available_update(__version__)
+            self._update_bridge.completed.emit(release)
+
+        Thread(target=check, name="OwnDash-UpdateCheck", daemon=True).start()
+
+    def _handle_update_result(self, release: object) -> None:
+        if isinstance(release, ReleaseInfo):
+            self._show_update_available(release)
+
+    def _show_update_available(self, release: ReleaseInfo) -> None:
+        if self._update_dialog is not None:
+            return
+
+        german = self.language == "de"
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("OwnDash-Update verfügbar" if german else "OwnDash update available")
+        dialog.setIcon(QMessageBox.Information)
+        dialog.setText(
+            "Eine neue OwnDash-Version ist verfügbar."
+            if german
+            else "A new OwnDash version is available."
+        )
+        dialog.setInformativeText(
+            f"Installiert: {__version__}\nVerfügbar: {release.tag}"
+            if german
+            else f"Installed: {__version__}\nAvailable: {release.tag}"
+        )
+        dialog.setStandardButtons(QMessageBox.NoButton)
+        open_button = dialog.addButton(
+            "Release-Seite öffnen" if german else "Open release page",
+            QMessageBox.AcceptRole,
+        )
+        dialog.addButton("Später" if german else "Later", QMessageBox.RejectRole)
+        open_button.clicked.connect(lambda: webbrowser.open(release.url))
+        dialog.finished.connect(self._clear_update_dialog)
+        dialog.setModal(False)
+        self._update_dialog = dialog
+        dialog.show()
+
+    def _clear_update_dialog(self, _result: int) -> None:
+        dialog = self._update_dialog
+        self._update_dialog = None
+        if dialog is not None:
+            dialog.deleteLater()
 
     def _open_settings(self) -> None:
         """Show general settings, including the optional background update check."""
+        was_checking_updates = self.preferences.check_updates
+
         dialog = QDialog(self)
         dialog.setWindowTitle(self._t("Einstellungen"))
         dialog.setModal(True)
@@ -104,6 +181,9 @@ class SafeShutdownWindow(MainWindow):
         self._apply_ui_polish()
         self._retranslate_ui()
         self.statusBar().showMessage(self._t("Bereit · Live-Vorschau aktiv"), 2500)
+
+        if self.preferences.check_updates and not was_checking_updates:
+            self._schedule_update_check()
 
     def _render_shutdown_frame_payload(self) -> bytes | None:
         width = max(320, int(self.canvas.canvas_size.width))
