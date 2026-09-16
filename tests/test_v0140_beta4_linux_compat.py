@@ -7,8 +7,8 @@ INIT = (ROOT/"src/owndash/__init__.py").read_text(encoding="utf-8")
 PYPROJECT = (ROOT/"pyproject.toml").read_text(encoding="utf-8")
 
 def test_beta4_version():
-    assert '__version__ = "0.14.0 Beta 2"' in INIT
-    assert 'version = "0.14.0b2"' in PYPROJECT
+    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert 'version = "0.14.0b3"' in PYPROJECT
 
 def test_sensor_layer_discovers_common_linux_interfaces():
     assert 'Path("/proc/stat")' in SYSTEM

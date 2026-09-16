@@ -19,6 +19,11 @@
 - [ ] Close-to-tray and reopen.
 - [ ] Second launch activates the existing instance.
 
+## AppImage compatibility
+- [ ] GitHub AppImage workflow completes successfully.
+- [ ] Maximum required GLIBC version is verified as GLIBC 2.36 or older.
+- [ ] Finished AppImage passes the Debian 12 compatibility smoke test.
+
 ## GitHub
 - [ ] README screenshots updated.
 - [ ] CHANGELOG reviewed.

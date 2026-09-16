@@ -10,8 +10,8 @@ APPIMAGE = (ROOT/"packaging/appimage/build-appimage.sh").read_text(encoding="utf
 WORKFLOW = (ROOT/".github/workflows/appimage.yml").read_text(encoding="utf-8")
 
 def test_beta6_version():
-    assert '__version__ = "0.14.0 Beta 2"' in INIT
-    assert 'version = "0.14.0b2"' in PROJECT
+    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert 'version = "0.14.0b3"' in PROJECT
 
 def test_udev_rule_is_bundled():
     assert '"resources/*.rules"' in PROJECT
@@ -52,4 +52,4 @@ def test_appimage_build_is_scripted():
 def test_github_action_builds_appimage_artifact():
     assert "Build AppImage" in WORKFLOW
     assert "packaging/appimage/build-appimage.sh" in WORKFLOW
-    assert "actions/upload-artifact@v4" in WORKFLOW
+    assert "actions/upload-artifact@v7" in WORKFLOW

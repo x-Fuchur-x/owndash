@@ -196,6 +196,15 @@ class MainWindow(QMainWindow):
         self._load_default_if_present()
         if not self.canvas.widget_items():
             self._apply_theme(DEFAULT_THEME_NAME, commit=False)
+
+        # A fresh installation has no saved profile yet. Keep the editor's
+        # multi-dashboard state valid from the beginning so actions such as
+        # loading a template always have a real active page to operate on.
+        if not self.dashboard_pages:
+            self.dashboard_pages = [self._page_from_canvas("Dashboard 1")]
+            self.active_page_index = 0
+            self._sync_pages_ui()
+
         self._history_json = self._profile_from_canvas().to_json()
 
         self.live_timer = QTimer(self)
@@ -468,14 +477,18 @@ class MainWindow(QMainWindow):
         palette_dark = dialog.palette().color(QPalette.Window).lightness() < 128
         ok_color = "#43d17a" if palette_dark else "#148a45"
         warning_color = "#f2bd4b" if palette_dark else "#9a6500"
+        error_color = "#ff6b6b" if palette_dark else "#c62828"
         muted_color = "#aeb7c4" if palette_dark else "#5d6673"
 
         row_height = 32
 
-        def status(available: bool, optional_item: bool = False) -> QLabel:
+        def status(available: bool, optional_item: bool = False, setup_required: bool = False) -> QLabel:
             if available:
                 label = QLabel("✓  " + self._t("Bereit"), dialog)
                 label.setStyleSheet(f"font-weight: 700; color: {ok_color};")
+            elif setup_required:
+                label = QLabel("●  " + self._t("Einrichtung erforderlich"), dialog)
+                label.setStyleSheet(f"font-weight: 700; color: {error_color};")
             elif optional_item:
                 label = QLabel("○  " + self._t("Optional / nicht verfügbar"), dialog)
                 label.setStyleSheet(f"font-weight: 600; color: {muted_color};")
@@ -487,7 +500,7 @@ class MainWindow(QMainWindow):
             label.setFixedHeight(row_height)
             return label
 
-        def section(title_text: str, rows: list[tuple[str, bool, bool]]) -> QGroupBox:
+        def section(title_text: str, rows: list[tuple[str, bool, bool] | tuple[str, bool, bool, bool]]) -> QGroupBox:
             box = QGroupBox(title_text, dialog)
             # Do not let Qt compress rows below their readable height when the
             # desktop uses a larger font or display scaling.
@@ -498,12 +511,14 @@ class MainWindow(QMainWindow):
             grid.setVerticalSpacing(4)
             grid.setColumnStretch(0, 1)
             grid.setColumnMinimumWidth(1, 220)
-            for row, (label_text, available, optional_item) in enumerate(rows):
+            for row, row_data in enumerate(rows):
+                label_text, available, optional_item = row_data[:3]
+                setup_required = bool(row_data[3]) if len(row_data) > 3 else False
                 name = QLabel(label_text, dialog)
                 name.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 name.setFixedHeight(row_height)
                 grid.addWidget(name, row, 0)
-                grid.addWidget(status(available, optional_item), row, 1)
+                grid.addWidget(status(available, optional_item, setup_required), row, 1)
                 grid.setRowMinimumHeight(row, row_height)
                 grid.setRowStretch(row, 0)
             box.setMinimumHeight(54 + len(rows) * row_height)
@@ -544,7 +559,8 @@ class MainWindow(QMainWindow):
                 (
                     self._t("USB-Zugriffsberechtigung"),
                     bool(display_caps["artinchip_accessible"]),
-                    True,
+                    False,
+                    not bool(display_caps["artinchip_accessible"]),
                 )
             )
         sections_layout.addWidget(section(self._t("Display-Ausgabe"), display_rows))

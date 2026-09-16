@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 
 from owndash.core.display import DisplayBackend, DisplayBusyError, DisplayInfo, DisplayNotFoundError, DisplayProtocolError
+from owndash.core.subprocess_env import system_subprocess_env
 
 from .aic_protocol import AUTH_DEVICE_MAGIC, AUTH_HOST_MAGIC, FRAME_START_MAGIC, make_command_header, parse_display_parameters
 
@@ -66,6 +67,7 @@ class AicUsbDisplayBackend(DisplayBackend):
                 ["systemctl", "is-active", "--quiet", "tinyscreen.service"],
                 check=False,
                 timeout=1.5,
+                env=system_subprocess_env(),
             )
         except (OSError, subprocess.TimeoutExpired):
             return False
