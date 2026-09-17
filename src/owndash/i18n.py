@@ -34,7 +34,7 @@ EN: dict[str, str] = {
     "Die OwnDash-USB-Regel konnte im Programmpaket nicht gefunden werden.":
         "The OwnDash USB rule could not be found in the application package.",
     "Die Administratorfreigabe wurde abgebrochen.": "Administrator authorization was cancelled.",
-    "Die USB-Regel konnte nicht installiert werden.": "The USB rule could not be installed.",
+    "Die USB-Regel konnte nicht installiert werden.": "The OwnDash USB rule could not be installed.",
     "USB-Zugriff wurde eingerichtet. Falls das Display noch nicht erkannt wird, trenne es kurz und verbinde es erneut.":
         "USB access was set up. If the display is still not detected, disconnect it briefly and reconnect it.",
     "Linux-System": "Linux system",
@@ -136,6 +136,11 @@ EN: dict[str, str] = {
         "Language and appearance are applied immediately.",
     "Systemeinstellung": "System setting",
     "Display auswählen": "Select display", "Display auswählen …": "Select display …",
+    "Display-Steuerung …": "Display controls …", "Display-Steuerung": "Display controls",
+    "Geräteversion": "Device version", "Helligkeit": "Brightness",
+    "Display-Steuerung nicht verfügbar": "Display controls unavailable",
+    "Die Display-Steuerung ist erst nach erfolgreicher Verbindung verfügbar.":
+        "Display controls are available only after a successful connection.",
     "Standard-Monitor (HDMI/DP/USB-C)": "Standard monitor (HDMI/DP/USB-C)",
     "Automatisch erkennen": "Detect automatically", "Ausgabe": "Output",
     "Gerät": "Device", "Rotation": "Rotation",
