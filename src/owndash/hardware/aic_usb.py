@@ -5,6 +5,7 @@ import os
 import secrets
 import subprocess
 from dataclasses import dataclass
+from threading import RLock
 from typing import Any
 
 from PIL import Image
@@ -21,7 +22,6 @@ from owndash.core.display import (
 )
 from owndash.core.subprocess_env import system_subprocess_env
 
-from .aic_cdc import AicCdcControlTransport
 from .aic_protocol import (
     AUTH_DEVICE_MAGIC,
     AUTH_HOST_MAGIC,
@@ -67,7 +67,7 @@ class UsbBackendSettings:
 
 
 class AicUsbDisplayBackend(DisplayBackend):
-    """Direct JPEG transport plus the verified ArtInChip CDC control channel."""
+    """Direct JPEG and verified control transport over ArtInChip USB interface 0."""
 
     def __init__(self, settings: UsbBackendSettings | None = None):
         self.settings = settings or UsbBackendSettings()
@@ -77,9 +77,9 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._format = 0
         self._frame_id = 0
         self._info: DisplayInfo | None = None
-        self._control: Any = AicCdcControlTransport()
         self._device_version: str | None = None
         self._expansion_mode: bool | None = None
+        self._io_lock = RLock()
 
     @staticmethod
     def _legacy_service_active() -> bool:
@@ -106,17 +106,24 @@ class AicUsbDisplayBackend(DisplayBackend):
     def get_capabilities(self) -> DisplayCapabilities:
         return _AIC_33C3_0E02_CAPABILITIES
 
-    def _ensure_control(self) -> None:
-        if not self._control.is_open:
-            self._control.open()
-
     def _send_control(self, command: int, payload: bytes) -> None:
-        self._ensure_control()
-        self._control.write(make_control_packet(command, payload))
+        if self._dev is None:
+            raise DisplayProtocolError("Display ist nicht verbunden.")
+        self._bulk_out(make_control_packet(command, payload))
+
+    def _read_control_response(self, expected_command: int, minimum_length: int) -> bytes:
+        try:
+            packet = self._bulk_in(4096, timeout=1000)
+        except Exception as exc:
+            raise DisplayProtocolError(f"ArtInChip-Steuerantwort konnte nicht gelesen werden: {exc}") from exc
+        if len(packet) < minimum_length or len(packet) < 4 or packet[:2] != b"\x5a\xa5" or packet[3] != expected_command:
+            raise DisplayProtocolError("Unerwartete oder unvollständige ArtInChip-Steuerantwort.")
+        return packet
 
     def _query_panel_info(self) -> tuple[int, int, bool]:
-        self._send_control(0x90, b"\x01")
-        packet = self._control.read_response(0x90, 13)
+        with self._io_lock:
+            self._send_control(0x90, b"\x01")
+            packet = self._read_control_response(0x90, 13)
         width, height, expansion = parse_panel_info_response(packet)
         self._expansion_mode = expansion
         return width, height, expansion
@@ -124,14 +131,16 @@ class AicUsbDisplayBackend(DisplayBackend):
     def get_device_version(self) -> str | None:
         if self._device_version is not None:
             return self._device_version
-        self._send_control(0x81, b"\x01")
-        packet = self._control.read_response(0x81, 5)
+        with self._io_lock:
+            self._send_control(0x81, b"\x01")
+            packet = self._read_control_response(0x81, 5)
         self._device_version = parse_device_version_response(packet)
         return self._device_version
 
     def set_brightness(self, percent: int) -> None:
         value = brightness_to_device_value(percent)
-        self._send_control(0x80, bytes((value,)))
+        with self._io_lock:
+            self._send_control(0x80, bytes((value,)))
 
     def get_expansion_mode(self) -> bool | None:
         if self._expansion_mode is None:
@@ -142,8 +151,12 @@ class AicUsbDisplayBackend(DisplayBackend):
         return self._expansion_mode
 
     def set_expansion_mode(self, enabled: bool) -> None:
-        self._send_control(0x91, bytes((1 if enabled else 0,)))
-        self._query_panel_info()
+        with self._io_lock:
+            self._send_control(0x91, bytes((1 if enabled else 0,)))
+            self._send_control(0x90, b"\x01")
+            packet = self._read_control_response(0x90, 13)
+        _width, _height, expansion = parse_panel_info_response(packet)
+        self._expansion_mode = expansion
 
     def connect(self) -> DisplayInfo:
         if self.settings.check_conflicting_service and self._legacy_service_active():
@@ -203,7 +216,6 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._expansion_mode = None
 
         try:
-            self._ensure_control()
             panel_width, panel_height, expansion = self._query_panel_info()
             width, height = panel_width, panel_height
             try:
@@ -282,20 +294,21 @@ class AicUsbDisplayBackend(DisplayBackend):
             raise DisplayProtocolError("Display ist nicht verbunden.")
         frame = self._prepare_jpeg(payload)
         header = make_command_header(FRAME_START_MAGIC, len(frame), self._frame_id, self._format)
-        try:
-            self._bulk_out(header)
-            block_size = max(4096, min(1024 * 1024, self.settings.block_size))
-            for offset in range(0, len(frame), block_size):
-                self._bulk_out(frame[offset : offset + block_size], timeout=10000)
-        except Exception as exc:
+        block_size = max(4096, min(1024 * 1024, self.settings.block_size))
+        with self._io_lock:
             try:
-                if self._usb_util is not None:
-                    self._dev.clear_halt(EP_OUT)
                 self._bulk_out(header)
                 for offset in range(0, len(frame), block_size):
                     self._bulk_out(frame[offset : offset + block_size], timeout=10000)
-            except Exception as retry_exc:
-                raise DisplayProtocolError(f"USB-Übertragung fehlgeschlagen: {retry_exc}") from exc
+            except Exception as exc:
+                try:
+                    if self._usb_util is not None:
+                        self._dev.clear_halt(EP_OUT)
+                    self._bulk_out(header)
+                    for offset in range(0, len(frame), block_size):
+                        self._bulk_out(frame[offset : offset + block_size], timeout=10000)
+                except Exception as retry_exc:
+                    raise DisplayProtocolError(f"USB-Übertragung fehlgeschlagen: {retry_exc}") from exc
         self._frame_id = (self._frame_id + 1) & 0xFFFF
 
     def close(self) -> None:
@@ -304,7 +317,6 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._info = None
         self._device_version = None
         self._expansion_mode = None
-        self._control.close()
         if dev is not None and util is not None:
             try:
                 util.release_interface(dev, 0)
