@@ -14,6 +14,7 @@ This phase covers only behavior confirmed by static interoperability analysis fo
 - Device-version query support.
 - Expansion Screen Mode read/set support when the device capability says it is supported.
 - Protocol parsing/building kept independent from Qt UI code.
+- A Linux CDC/serial control transport discovered from sysfs instead of assuming a fixed `/dev/tty*` name.
 
 Out of scope for this phase:
 
@@ -31,11 +32,13 @@ Only documented/verified control messages are exposed. Unknown commands remain i
 
 ## Architecture
 
-Introduce a small immutable capability model in the core display layer. `DisplayInfo` remains the connection result but gains optional version/capability/state metadata without forcing unrelated display backends to implement ArtInChip-specific behavior.
+Introduce a small immutable capability model in the core display layer. `DisplayInfo` remains the connection result but gains optional version/state metadata without forcing unrelated display backends to implement ArtInChip-specific behavior.
 
-Keep ArtInChip control-packet serialization/parsing in `owndash.hardware.aic_protocol`. The USB backend owns transport and connection lifecycle. High-level control methods validate capability support before emitting bytes.
+Keep ArtInChip control-packet serialization/parsing in `owndash.hardware.aic_protocol`. The existing bulk USB interface remains responsible for authentication and JPEG streaming. A second logical channel, implemented in `owndash.hardware.aic_cdc`, opens the device's verified CDC/serial interface at 1,000,000 baud, 8N1, no flow control. Both channels are owned by the same `AicUsbDisplayBackend` lifecycle and are closed together.
 
-The first implementation should not add a second independent device connection. It must reuse the existing backend lifecycle and preserve the current frame-streaming path.
+The CDC tty is discovered by walking `/sys/class/tty/*/device` back to a USB parent with `idVendor=33c3` and `idProduct=0e02`; no `/dev/ttyACM*` or `/dev/ttyUSB*` name is hard-coded.
+
+Control-channel discovery/enrichment is non-fatal during connection: failure to read optional control metadata must not break the existing authenticated JPEG streaming path. Explicit user control actions still surface a clear `DisplayProtocolError` when the CDC channel is unavailable.
 
 ## Capability model
 
@@ -81,9 +84,13 @@ Add optional control methods to `DisplayBackend` with default `DisplayProtocolEr
 
 The ArtInChip backend overrides supported methods. Unsupported backends keep safe defaults.
 
+## Linux permissions
+
+The existing udev rule must grant user-session access to both the raw USB device used by PyUSB and the tty child interface used by the CDC control channel. The tty rule matches the parent USB VID/PID with `ATTRS{idVendor}` / `ATTRS{idProduct}` and uses `TAG+="uaccess"`.
+
 ## UI
 
-Expose a compact Display Control section only when a connected backend reports matching capabilities. This phase should show:
+Expose a compact Display Control dialog only when a connected backend reports matching capabilities. This phase should show:
 
 - Connected device name and native resolution.
 - Device version when available.
@@ -92,7 +99,7 @@ Expose a compact Display Control section only when a connected backend reports m
 
 No Power Off wording is used. Brightness 0% is labeled and treated only as brightness 0%.
 
-UI operations must surface transport failures without crashing the streamer or blocking normal shutdown.
+UI operations must surface transport failures without crashing the streamer or blocking normal shutdown. To avoid growing the already large base main-window module, the control widget lives in `gui/display_controls.py` and the current `SafeShutdownWindow` extension adds the menu action/dialog.
 
 ## Testing
 
@@ -103,9 +110,10 @@ Protocol tests are pure unit tests with no hardware:
 - device-version UTF-8 response parsing;
 - panel-info width/height and expansion-mode parsing;
 - malformed/short response rejection;
-- unsupported capability methods fail safely.
+- unsupported capability methods fail safely;
+- sysfs-based CDC tty discovery.
 
-Backend tests use fake USB/transport objects and assert exact outgoing bytes. Existing JPEG/authentication tests must remain unchanged.
+Backend tests inject fake control transports and assert exact outgoing bytes. Existing JPEG/authentication tests must remain unchanged. GUI structure tests remain headless because the minimal GitHub runner image does not provide `libEGL.so.1` for importing Qt GUI modules during pytest collection.
 
 Hardware verification is a manual final gate after CI is green:
 
