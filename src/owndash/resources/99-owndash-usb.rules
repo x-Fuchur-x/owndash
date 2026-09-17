@@ -1,4 +1,2 @@
 # OwnDash direct userspace access for supported ArtInChip/VSDISPLAY USB displays.
 SUBSYSTEM=="usb", ATTR{idVendor}=="33c3", ATTR{idProduct}=="0e02", TAG+="uaccess"
-# The verified display-control protocol is exposed through the device's CDC/serial interface.
-SUBSYSTEM=="tty", ATTRS{idVendor}=="33c3", ATTRS{idProduct}=="0e02", TAG+="uaccess"
