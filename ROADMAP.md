@@ -21,10 +21,13 @@ Make OwnDash easier to maintain and make connected displays easier to understand
 
 - Background update check with a clear user-facing notification when a new OwnDash release is available
 - Release information and a safe path to obtain the new version
-- Display brightness control where the selected backend and hardware expose a supported mechanism
+- Capability-driven device information for compatible ArtInChip displays
+- Hardware brightness control where the selected backend and hardware expose a verified mechanism
+- Expansion Screen Mode where the connected device reports support
 - Improved display and device detection
 - Clearer diagnostics for unavailable, unsupported, or permission-limited devices
 - More consistent display-management UX across direct USB and standard-monitor output
+- Persistent startup-image support after a separate real-hardware verification phase
 
 ## Planned — 0.16 Dashboard Studio
 
