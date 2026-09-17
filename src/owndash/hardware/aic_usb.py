@@ -26,12 +26,8 @@ from .aic_protocol import (
     AUTH_DEVICE_MAGIC,
     AUTH_HOST_MAGIC,
     FRAME_START_MAGIC,
-    brightness_to_device_value,
     make_command_header,
-    make_control_packet,
-    parse_device_version_response,
     parse_display_parameters,
-    parse_panel_info_response,
 )
 
 USB_VENDOR_ID = 0x33C3
@@ -40,12 +36,9 @@ EP_OUT = 0x01
 EP_IN = 0x81
 MAX_TRANSFER = 256 * 1024
 
-_AIC_33C3_0E02_CAPABILITIES = DisplayCapabilities(
-    hardware_brightness=True,
-    device_version=True,
-    panel_info=True,
-    expansion_mode=True,
-)
+# Hardware controls stay disabled until their Linux transport has been verified
+# on real 33C3:0E02 hardware without disturbing the JPEG stream.
+_AIC_33C3_0E02_CAPABILITIES = DisplayCapabilities()
 
 _RSA_PUBLIC_KEY = b"""-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAybdtvB1uNA4XICh+xJi1
@@ -67,7 +60,7 @@ class UsbBackendSettings:
 
 
 class AicUsbDisplayBackend(DisplayBackend):
-    """Direct JPEG and verified control transport over ArtInChip USB interface 0."""
+    """Direct JPEG transport for compatible ArtInChip USB displays."""
 
     def __init__(self, settings: UsbBackendSettings | None = None):
         self.settings = settings or UsbBackendSettings()
@@ -77,8 +70,6 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._format = 0
         self._frame_id = 0
         self._info: DisplayInfo | None = None
-        self._device_version: str | None = None
-        self._expansion_mode: bool | None = None
         self._io_lock = RLock()
 
     @staticmethod
@@ -105,58 +96,6 @@ class AicUsbDisplayBackend(DisplayBackend):
 
     def get_capabilities(self) -> DisplayCapabilities:
         return _AIC_33C3_0E02_CAPABILITIES
-
-    def _send_control(self, command: int, payload: bytes) -> None:
-        if self._dev is None:
-            raise DisplayProtocolError("Display ist nicht verbunden.")
-        self._bulk_out(make_control_packet(command, payload))
-
-    def _read_control_response(self, expected_command: int, minimum_length: int) -> bytes:
-        try:
-            packet = self._bulk_in(4096, timeout=1000)
-        except Exception as exc:
-            raise DisplayProtocolError(f"ArtInChip-Steuerantwort konnte nicht gelesen werden: {exc}") from exc
-        if len(packet) < minimum_length or len(packet) < 4 or packet[:2] != b"\x5a\xa5" or packet[3] != expected_command:
-            raise DisplayProtocolError("Unerwartete oder unvollständige ArtInChip-Steuerantwort.")
-        return packet
-
-    def _query_panel_info(self) -> tuple[int, int, bool]:
-        with self._io_lock:
-            self._send_control(0x90, b"\x01")
-            packet = self._read_control_response(0x90, 13)
-        width, height, expansion = parse_panel_info_response(packet)
-        self._expansion_mode = expansion
-        return width, height, expansion
-
-    def get_device_version(self) -> str | None:
-        if self._device_version is not None:
-            return self._device_version
-        with self._io_lock:
-            self._send_control(0x81, b"\x01")
-            packet = self._read_control_response(0x81, 5)
-        self._device_version = parse_device_version_response(packet)
-        return self._device_version
-
-    def set_brightness(self, percent: int) -> None:
-        value = brightness_to_device_value(percent)
-        with self._io_lock:
-            self._send_control(0x80, bytes((value,)))
-
-    def get_expansion_mode(self) -> bool | None:
-        if self._expansion_mode is None:
-            try:
-                self._query_panel_info()
-            except DisplayProtocolError:
-                return None
-        return self._expansion_mode
-
-    def set_expansion_mode(self, enabled: bool) -> None:
-        with self._io_lock:
-            self._send_control(0x91, bytes((1 if enabled else 0,)))
-            self._send_control(0x90, b"\x01")
-            packet = self._read_control_response(0x90, 13)
-        _width, _height, expansion = parse_panel_info_response(packet)
-        self._expansion_mode = expansion
 
     def connect(self) -> DisplayInfo:
         if self.settings.check_conflicting_service and self._legacy_service_active():
@@ -212,28 +151,7 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._dev = dev
         self._format = media_format
         self._frame_id = 0
-        self._device_version = None
-        self._expansion_mode = None
-
-        try:
-            panel_width, panel_height, expansion = self._query_panel_info()
-            width, height = panel_width, panel_height
-            try:
-                self._device_version = self.get_device_version()
-            except DisplayProtocolError:
-                pass
-            self._expansion_mode = expansion
-        except DisplayProtocolError:
-            pass
-
-        self._info = DisplayInfo(
-            "USB Bar Display",
-            width,
-            height,
-            fps or None,
-            self._device_version,
-            self._expansion_mode,
-        )
+        self._info = DisplayInfo("USB Bar Display", width, height, fps or None)
         return self._info
 
     def _bulk_out(self, payload: bytes, timeout: int = 5000) -> None:
@@ -315,8 +233,6 @@ class AicUsbDisplayBackend(DisplayBackend):
         dev, util = self._dev, self._usb_util
         self._dev = None
         self._info = None
-        self._device_version = None
-        self._expansion_mode = None
         if dev is not None and util is not None:
             try:
                 util.release_interface(dev, 0)
