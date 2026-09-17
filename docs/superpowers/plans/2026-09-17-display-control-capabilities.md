@@ -2,22 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add capability-driven ArtInChip display information, hardware brightness, and Expansion Screen Mode control without disturbing the existing JPEG streaming path.
+**Goal:** Add capability-driven ArtInChip device information, hardware brightness, and Expansion Screen Mode control while preserving the existing authenticated JPEG streaming path.
 
-**Architecture:** Extend the core display contract with conservative optional capabilities, keep ArtInChip packet encoding/decoding pure in `aic_protocol.py`, and let `AicUsbDisplayBackend` expose only verified controls. Add a small Qt control surface that appears only for capabilities reported by the connected backend.
+**Architecture:** Keep image streaming on the existing PyUSB bulk transport and add the verified ArtInChip control plane as a separate CDC/serial channel owned by the same backend lifecycle. Protocol encoding/parsing stays pure in `aic_protocol.py`; Linux tty discovery and serial I/O live in `aic_cdc.py`; the GUI is capability-gated and isolated from the oversized base main-window module.
 
-**Tech Stack:** Python 3.11+, PySide6, PyUSB, pytest
+**Tech Stack:** Python 3.11+, PySide6, PyUSB, termios, pytest, GitHub Actions
 
 **Spec:** `docs/superpowers/specs/2026-09-17-display-control-capabilities-design.md`
 
 ## Global Constraints
 
-- Preserve the existing direct JPEG/authentication transport and Safe Shutdown behavior.
-- Do not send unknown command `0x86` or expose `0x85` as a user control.
-- Do not implement raw flash, EEPROM, XDATA, firmware upgrade, or claim brightness 0% is power-off.
-- `33C3:0E02` enables only verified capabilities in this phase: brightness, device version, panel info, Expansion Screen Mode.
-- All protocol byte construction/parsing must be unit-testable without physical hardware.
-- Existing screen display backends must remain compatible.
+- Preserve existing RSA authentication, JPEG frame transport, retry behavior, and Safe Shutdown.
+- The supported control channel is 1,000,000 baud, 8N1, no flow control.
+- Do not hard-code `/dev/ttyACM*` or `/dev/ttyUSB*`; discover the tty through sysfs USB ancestry.
+- Do not send control `0x86`, expose generic `0x85`, or add raw flash/EEPROM/XDATA/firmware operations.
+- Do not describe brightness `0%` as power-off or sleep.
+- Startup JPG/MP4 remains a separate follow-up after this phase passes real-hardware verification.
+- `33C3:0E02` advertises only brightness, device version, panel info, and Expansion Screen Mode in this phase.
+- A missing/unavailable CDC control channel must not prevent the already-working JPEG stream from connecting.
+- Explicit control actions must surface transport errors without crashing the application.
 
 ---
 
@@ -28,391 +31,114 @@
 - Test: `tests/test_display_capabilities.py`
 
 **Interfaces:**
-- Produces: `DisplayCapabilities`, extended `DisplayInfo`, and default optional control methods on `DisplayBackend`.
-- Consumes: existing `DisplayProtocolError`.
+- Produces: `DisplayCapabilities`, optional `DisplayInfo.device_version`, optional `DisplayInfo.expansion_mode`, and safe optional methods on `DisplayBackend`.
 
-- [ ] **Step 1: Write failing capability/default tests**
+- [x] **Step 1: Add failing tests for conservative defaults and unsupported setters.**
+- [x] **Step 2: Implement immutable `DisplayCapabilities` with all fields defaulting to `False`.**
+- [x] **Step 3: Extend `DisplayInfo` without breaking existing positional callers.**
+- [x] **Step 4: Add safe default getters/setters to `DisplayBackend`; unsupported setters raise `DisplayProtocolError`.**
+- [x] **Step 5: Commit as `feat: add display capability model`.**
 
-```python
-from owndash.core.display import DisplayBackend, DisplayCapabilities, DisplayInfo, DisplayProtocolError
-
-
-class DummyBackend(DisplayBackend):
-    def connect(self) -> DisplayInfo:
-        return DisplayInfo("dummy", 100, 200)
-
-    def send_jpeg(self, payload: bytes) -> None:
-        pass
-
-    def close(self) -> None:
-        pass
-
-
-def test_capabilities_default_to_safe_false_values():
-    caps = DisplayCapabilities()
-    assert caps.hardware_brightness is False
-    assert caps.device_version is False
-    assert caps.panel_info is False
-    assert caps.expansion_mode is False
-    assert caps.startup_image is False
-    assert caps.startup_video is False
-    assert caps.hardware_screen_off is False
-    assert caps.firmware_upgrade is False
-
-
-def test_optional_controls_fail_safely_by_default():
-    backend = DummyBackend()
-    assert backend.get_capabilities() == DisplayCapabilities()
-    assert backend.get_device_version() is None
-    assert backend.get_expansion_mode() is None
-    try:
-        backend.set_brightness(50)
-    except DisplayProtocolError:
-        pass
-    else:
-        raise AssertionError("unsupported brightness must raise DisplayProtocolError")
-```
-
-- [ ] **Step 2: Run the new test and verify it fails**
-
-Run: `PYTHONPATH=src pytest -q tests/test_display_capabilities.py`
-
-Expected: FAIL because `DisplayCapabilities` and optional methods do not exist yet.
-
-- [ ] **Step 3: Implement the core model**
-
-Add to `src/owndash/core/display.py`:
-
-```python
-@dataclass(frozen=True, slots=True)
-class DisplayCapabilities:
-    hardware_brightness: bool = False
-    device_version: bool = False
-    panel_info: bool = False
-    expansion_mode: bool = False
-    startup_image: bool = False
-    startup_video: bool = False
-    hardware_screen_off: bool = False
-    firmware_upgrade: bool = False
-```
-
-Extend `DisplayInfo` with optional metadata while preserving existing positional call sites:
-
-```python
-@dataclass(frozen=True, slots=True)
-class DisplayInfo:
-    name: str
-    width: int
-    height: int
-    refresh_hz: int | None = None
-    device_version: str | None = None
-    expansion_mode: bool | None = None
-```
-
-Add concrete safe defaults to `DisplayBackend`:
-
-```python
-def get_capabilities(self) -> DisplayCapabilities:
-    return DisplayCapabilities()
-
-def get_device_version(self) -> str | None:
-    return None
-
-def set_brightness(self, percent: int) -> None:
-    raise DisplayProtocolError("Hardware-Helligkeit wird von diesem Display nicht unterstützt.")
-
-def get_expansion_mode(self) -> bool | None:
-    return None
-
-def set_expansion_mode(self, enabled: bool) -> None:
-    raise DisplayProtocolError("Expansion Screen Mode wird von diesem Display nicht unterstützt.")
-```
-
-- [ ] **Step 4: Run tests**
-
-Run: `PYTHONPATH=src pytest -q tests/test_display_capabilities.py`
-
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/owndash/core/display.py tests/test_display_capabilities.py
-git commit -m "feat: add display capability model"
-```
-
-### Task 2: Pure ArtInChip control protocol helpers
+### Task 2: Pure ArtInChip control protocol
 
 **Files:**
 - Modify: `src/owndash/hardware/aic_protocol.py`
 - Test: `tests/test_aic_control_protocol.py`
 
 **Interfaces:**
-- Produces: `make_control_packet(command: int, payload: bytes = b"") -> bytes`, `brightness_to_device_value(percent: int) -> int`, `parse_device_version_response(data: bytes) -> str`, and `parse_panel_info_response(data: bytes) -> tuple[int, int, bool]`.
-- Consumes: no USB or Qt objects.
+- Produces:
+  - `make_control_packet(command: int, payload: bytes = b"") -> bytes`
+  - `brightness_to_device_value(percent: int) -> int`
+  - `parse_device_version_response(data: bytes) -> str`
+  - `parse_panel_info_response(data: bytes) -> tuple[int, int, bool]`
 
-- [ ] **Step 1: Write exact packet and parser tests**
+- [x] **Step 1: Add exact-byte tests for commands `0x80`, `0x81`, `0x90`, `0x91`.**
+- [x] **Step 2: Add brightness boundary tests for `0,25,50,75,100` and invalid values.**
+- [x] **Step 3: Add UTF-8 version and panel-info response parser tests, including malformed input.**
+- [x] **Step 4: Implement `5A A5 <cmd> 00 <len:u32 LE> <payload>` packet construction.**
+- [x] **Step 5: Implement `floor(percent * 255 / 100)` brightness conversion.**
+- [x] **Step 6: Implement response validation and parsers without Qt/USB dependencies.**
+- [x] **Step 7: Commit as `feat: add ArtInChip control protocol helpers`.**
 
-```python
-import pytest
-from owndash.hardware.aic_protocol import (
-    brightness_to_device_value,
-    make_control_packet,
-    parse_device_version_response,
-    parse_panel_info_response,
-)
+### Task 3: Linux CDC control transport
 
+**Files:**
+- Create: `src/owndash/hardware/aic_cdc.py`
+- Modify: `src/owndash/resources/99-owndash-usb.rules`
+- Test: `tests/test_aic_cdc.py`
 
-def test_control_packet_layout():
-    assert make_control_packet(0x80, b"\x7f") == bytes.fromhex("5a a5 80 00 01 00 00 00 7f")
-    assert make_control_packet(0x81, b"\x01") == bytes.fromhex("5a a5 81 00 01 00 00 00 01")
-    assert make_control_packet(0x90, b"\x01") == bytes.fromhex("5a a5 90 00 01 00 00 00 01")
-    assert make_control_packet(0x91, b"\x01") == bytes.fromhex("5a a5 91 00 01 00 00 00 01")
+**Interfaces:**
+- Produces:
+  - `find_control_tty(...) -> Path | None`
+  - `AicCdcControlTransport.open() / close() / write() / read_response()`
 
+- [x] **Step 1: Discover the tty by walking `/sys/class/tty/*/device` to a USB parent matching `33c3:0e02`.**
+- [x] **Step 2: Configure the tty at 1,000,000 baud, 8 data bits, no parity, one stop bit, no hardware flow control.**
+- [x] **Step 3: Implement bounded write and response-read behavior with protocol-prefix/command validation.**
+- [x] **Step 4: Extend udev permissions to the matching tty child interface using `ATTRS{idVendor}` / `ATTRS{idProduct}` and `TAG+="uaccess"`.**
+- [x] **Step 5: Add sysfs fixture tests proving matching tty selection and unrelated-device rejection.**
+- [x] **Step 6: Commit transport and permission changes.**
 
-@pytest.mark.parametrize("percent,expected", [(0, 0), (25, 63), (50, 127), (75, 191), (100, 255)])
-def test_brightness_mapping(percent, expected):
-    assert brightness_to_device_value(percent) == expected
-
-
-def test_brightness_rejects_out_of_range():
-    with pytest.raises(ValueError):
-        brightness_to_device_value(-1)
-    with pytest.raises(ValueError):
-        brightness_to_device_value(101)
-
-
-def test_parse_device_version_utf8_payload():
-    packet = b"\x5a\xa5\x00\x81\x00" + "1.2.3".encode("utf-8")
-    assert parse_device_version_response(packet) == "1.2.3"
-
-
-def test_parse_panel_info_response():
-    packet = bytes([0x5A, 0xA5, 0x00, 0x90, 0, 0, 0, 0, 0x01, 0xE0, 0x07, 0x80, 0x01])
-    assert parse_panel_info_response(packet) == (480, 1920, True)
-```
-
-Also add short/malformed-response rejection tests.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `PYTHONPATH=src pytest -q tests/test_aic_control_protocol.py`
-
-Expected: FAIL because helpers are not implemented.
-
-- [ ] **Step 3: Implement protocol helpers**
-
-Use a single control-header helper:
-
-```python
-CONTROL_PREFIX = b"\x5a\xa5"
-
-
-def make_control_packet(command: int, payload: bytes = b"") -> bytes:
-    if not 0 <= command <= 0xFF:
-        raise ValueError("command out of range")
-    return CONTROL_PREFIX + bytes((command, 0)) + struct.pack("<I", len(payload)) + payload
-
-
-def brightness_to_device_value(percent: int) -> int:
-    if not 0 <= percent <= 100:
-        raise ValueError("brightness percent out of range")
-    return (percent * 255) // 100
-```
-
-Parsers must validate minimum length and response command before decoding fields. `parse_panel_info_response` reads width from bytes 8-9 and height from bytes 10-11 as big-endian and returns `bool(data[12])`.
-
-- [ ] **Step 4: Run protocol tests**
-
-Run: `PYTHONPATH=src pytest -q tests/test_aic_control_protocol.py`
-
-Expected: PASS.
-
-- [ ] **Step 5: Run existing protocol tests**
-
-Run: `PYTHONPATH=src pytest -q tests/test_protocol.py`
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/owndash/hardware/aic_protocol.py tests/test_aic_control_protocol.py
-git commit -m "feat: add ArtInChip control protocol helpers"
-```
-
-### Task 3: ArtInChip backend controls
+### Task 4: Integrate verified controls into `AicUsbDisplayBackend`
 
 **Files:**
 - Modify: `src/owndash/hardware/aic_usb.py`
 - Test: `tests/test_aic_usb_controls.py`
 
 **Interfaces:**
-- Consumes: `DisplayCapabilities`, `make_control_packet`, `brightness_to_device_value`, response parsers.
-- Produces: `AicUsbDisplayBackend.get_capabilities`, `.get_device_version`, `.set_brightness`, `.get_expansion_mode`, `.set_expansion_mode`.
+- Produces:
+  - `get_capabilities()`
+  - `get_device_version()`
+  - `set_brightness(percent)`
+  - `get_expansion_mode()`
+  - `set_expansion_mode(enabled)`
 
-- [ ] **Step 1: Write fake-transport tests for capabilities and outgoing bytes**
+- [x] **Step 1: Add a conservative capability constant enabling only the four verified controls.**
+- [x] **Step 2: Own one `AicCdcControlTransport` instance alongside the existing USB image transport.**
+- [x] **Step 3: Implement exact outgoing bytes for brightness, version query, panel query, and expansion setter.**
+- [x] **Step 4: Cache returned version/state and enrich `DisplayInfo` when the control channel is available.**
+- [x] **Step 5: Keep CDC enrichment non-fatal so existing authenticated JPEG streaming still connects when the control tty is absent/inaccessible.**
+- [x] **Step 6: Close both transport channels in backend shutdown.**
+- [x] **Step 7: Verify exact packets with an injected fake control transport.**
 
-Create an `AicUsbDisplayBackend` instance and inject a fake `_dev` with deterministic `write/read` calls. Tests must assert:
-
-```python
-assert backend.get_capabilities().hardware_brightness is True
-assert backend.get_capabilities().device_version is True
-assert backend.get_capabilities().panel_info is True
-assert backend.get_capabilities().expansion_mode is True
-assert backend.get_capabilities().startup_image is False
-```
-
-For brightness 50%, assert exact outgoing control bytes:
-
-```python
-bytes.fromhex("5a a5 80 00 01 00 00 00 7f")
-```
-
-For expansion on/off, assert payloads `01` and `00` under command `0x91`.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `PYTHONPATH=src pytest -q tests/test_aic_usb_controls.py`
-
-Expected: FAIL because backend controls do not exist.
-
-- [ ] **Step 3: Implement conservative capabilities and controls**
-
-Add an immutable module-level capability value for the currently supported device:
-
-```python
-_AIC_33C3_0E02_CAPABILITIES = DisplayCapabilities(
-    hardware_brightness=True,
-    device_version=True,
-    panel_info=True,
-    expansion_mode=True,
-)
-```
-
-Implement control sends through a small private helper rather than duplicating USB writes. Never emit `0x85` or control `0x86` from public methods.
-
-Store the last known Expansion Screen Mode from a valid panel-info response so `get_expansion_mode()` can return it without fabricating a value.
-
-- [ ] **Step 4: Keep existing connection/streaming behavior intact**
-
-Do not remove the existing vendor `ctrl_transfer` parameter query or RSA authentication. Device-control enrichment happens after the existing connection succeeds, and failure to retrieve optional version/state metadata must not corrupt `_dev` or the JPEG stream.
-
-- [ ] **Step 5: Run focused tests**
-
-Run: `PYTHONPATH=src pytest -q tests/test_aic_usb_controls.py tests/test_protocol.py tests/test_streaming.py`
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/owndash/hardware/aic_usb.py tests/test_aic_usb_controls.py
-git commit -m "feat: add ArtInChip display controls"
-```
-
-### Task 4: Display control UI
+### Task 5: Capability-driven GUI and localization
 
 **Files:**
 - Create: `src/owndash/gui/display_controls.py`
-- Modify: `src/owndash/gui/main_window.py`
+- Modify: `src/owndash/gui/app_window.py`
 - Modify: `src/owndash/i18n.py`
 - Test: `tests/test_display_controls.py`
 
 **Interfaces:**
-- Consumes: connected `DisplayBackend`, `DisplayInfo`, `DisplayCapabilities`.
-- Produces: `DisplayControlsWidget` that hides unsupported controls and delegates supported changes to the backend.
+- Produces: `DisplayControlsWidget`, plus a `Display-Steuerung …` action on `SafeShutdownWindow` that is enabled only while a compatible connected backend reports relevant capabilities.
 
-- [ ] **Step 1: Write offscreen Qt tests**
+- [x] **Step 1: Create a compact widget showing device/resolution, optional version, brightness slider, and optional Expansion Screen Mode toggle.**
+- [x] **Step 2: Send brightness only when the slider is released to avoid command flooding.**
+- [x] **Step 3: Catch `DisplayProtocolError` and render a non-fatal status message.**
+- [x] **Step 4: Integrate the dialog in `SafeShutdownWindow` rather than expanding the already-large base `main_window.py`.**
+- [x] **Step 5: Disable the action before connection and immediately on stop/error.**
+- [x] **Step 6: Add English translations for all new user-facing control labels/messages.**
+- [x] **Step 7: Keep CI GUI assertions headless because the minimal runner does not provide `libEGL.so.1`.**
 
-Tests should instantiate `DisplayControlsWidget` with a fake backend and verify:
-
-- device name/resolution text is visible;
-- version text is displayed when capability/value exists;
-- brightness slider is visible only when `hardware_brightness=True`;
-- expansion checkbox is visible only when `expansion_mode=True`;
-- slider changes call `set_brightness` with integer percent;
-- checkbox changes call `set_expansion_mode` with a bool;
-- `DisplayProtocolError` is surfaced as non-fatal status text.
-
-Run under `QT_QPA_PLATFORM=offscreen`.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `QT_QPA_PLATFORM=offscreen PYTHONPATH=src pytest -q tests/test_display_controls.py`
-
-Expected: FAIL because widget does not exist.
-
-- [ ] **Step 3: Implement focused widget**
-
-Create `DisplayControlsWidget(QWidget)` in its own file rather than growing `main_window.py` further. Constructor receives the backend and current `DisplayInfo`; `refresh_from_backend()` reads capabilities and optional state.
-
-Use copy that never implies true power-off. Brightness is labeled `Brightness`/localized equivalent and range is exactly 0-100.
-
-- [ ] **Step 4: Integrate in main window**
-
-Add the control widget to the existing display/settings area only after a backend connects. On disconnect, clear/disable it. Do not let UI exceptions stop the streaming timer or shutdown path.
-
-- [ ] **Step 5: Add i18n strings**
-
-Add translations for `Display`, `Device version`, `Brightness`, `Expansion Screen Mode`, and concise control-error text in the project's existing i18n structure.
-
-- [ ] **Step 6: Run GUI tests**
-
-Run: `QT_QPA_PLATFORM=offscreen PYTHONPATH=src pytest -q tests/test_display_controls.py`
-
-Expected: PASS.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add src/owndash/gui/display_controls.py src/owndash/gui/main_window.py src/owndash/i18n.py tests/test_display_controls.py
-git commit -m "feat: add display control panel"
-```
-
-### Task 5: Regression verification and documentation
+### Task 6: Documentation, CI, and hardware gate
 
 **Files:**
 - Modify: `README.md`
-- Modify: `ROADMAP.md` if present; otherwise do not create a duplicate roadmap file.
+- Modify: `ROADMAP.md`
+- Modify: this plan and the design spec
+- Pull request: `#2 Display Control & Capabilities`
 
-**Interfaces:**
-- Consumes: all prior tasks.
-- Produces: user-facing documentation and a fully verified branch.
+- [x] **Step 1: Document capability-driven controls and explicitly avoid power-off/sleep claims.**
+- [x] **Step 2: Keep Startup Image listed as the next separate hardware-verified phase rather than shipping it here.**
+- [x] **Step 3: Update design/spec to describe the discovered CDC control channel and sysfs discovery.**
+- [x] **Step 4: Update PR body with exact scope, exclusions, and verification status.**
+- [x] **Step 5: Run GitHub CI through compileall, complete pytest suite, and shell syntax validation.**
+- [ ] **Step 6: Re-run CI after the final localization/plan cleanup and record the fresh result.**
+- [ ] **Step 7: Hardware-test on the real `33C3:0E02`: version/native resolution; brightness 100%, 50%, 0%, then restore; Expansion Screen Mode roundtrip; JPEG streaming; Safe Shutdown.**
+- [ ] **Step 8: Only after hardware verification, mark PR ready, merge into `main`, verify `main` CI, and clean the feature branch / stale workflow artifacts where supported.**
 
-- [ ] **Step 1: Document only implemented controls**
+## Hardware Verification Script
 
-Add a short README section stating that compatible ArtInChip displays can expose device information, hardware brightness, and Expansion Screen Mode. Explicitly avoid advertising startup-image upload until its separate phase is implemented.
+Use the normal OwnDash UI rather than sending ad-hoc serial bytes. Start the ArtInChip display stream, open **Display → Display-Steuerung …**, confirm the detected resolution/version, then test brightness at `100%`, `50%`, and `0%` and restore a comfortable brightness immediately. Toggle Expansion Screen Mode once and restore its original state. Finally verify dashboard streaming and fully quit OwnDash to confirm the Safe Shutdown frame still arrives.
 
-- [ ] **Step 2: Run compile verification**
-
-Run: `python -m compileall -q src`
-
-Expected: exit 0.
-
-- [ ] **Step 3: Run full test suite**
-
-Run: `QT_QPA_PLATFORM=offscreen PYTHONPATH=src .venv/bin/python -m pytest -q`
-
-Expected: all tests pass.
-
-- [ ] **Step 4: Run shell syntax checks used by CI**
-
-Run the repository's existing `bash -n` checks exactly as defined in `.github/workflows`.
-
-Expected: exit 0.
-
-- [ ] **Step 5: Commit docs**
-
-```bash
-git add README.md ROADMAP.md 2>/dev/null || git add README.md
-git commit -m "docs: describe display controls"
-```
-
-- [ ] **Step 6: Hardware verification before merge**
-
-On the real `33C3:0E02` display, verify native resolution/version, brightness at 100/50/0 and restored normal value, Expansion Screen Mode round-trip if observable, normal JPEG streaming, and Safe Shutdown.
-
-- [ ] **Step 7: Merge only after CI and hardware verification are green**
-
-Merge `feature/display-control-capabilities` into `main`, then run/verify `main` CI again. Remove temporary feature branches/workflow clutter when supported, matching the project's clean-repository policy.
+Any unexpected display behavior blocks merge. Do not probe dormant `0x86`, raw flash, or firmware commands while diagnosing this phase.
