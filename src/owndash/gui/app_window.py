@@ -4,7 +4,7 @@ from threading import Thread
 import webbrowser
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -25,6 +25,7 @@ from owndash.core.preferences import save_preferences
 from owndash.core.updates import ReleaseInfo, fetch_available_update
 from owndash.i18n import resolved_language
 
+from .display_controls import DisplayControlsWidget
 from .main_window import MainWindow
 
 
@@ -35,15 +36,74 @@ class UpdateBridge(QObject):
 
 
 class SafeShutdownWindow(MainWindow):
-    """OwnDash lifecycle extensions for safe shutdown and update awareness."""
+    """OwnDash lifecycle extensions for safe shutdown, updates and display controls."""
+
+    def _build_toolbar(self) -> None:
+        super()._build_toolbar()
+        self.display_controls_action = QAction(self._t("Display-Steuerung …"), self)
+        self.display_controls_action.setEnabled(False)
+        self.display_controls_action.triggered.connect(self._open_display_controls)
+        for action in self.menuBar().actions():
+            menu = action.menu()
+            if menu is not None and action.text().replace("&", "") == "Display":
+                menu.insertAction(self.keep_running_action, self.display_controls_action)
+                break
 
     def __init__(self):
         super().__init__()
+        self._connected_display_info = None
         self._update_bridge = UpdateBridge(self)
         self._update_bridge.completed.connect(self._handle_update_result)
         self._update_check_started = False
         self._update_dialog: QMessageBox | None = None
         self._schedule_update_check()
+
+    def _display_connected(self, info: object) -> None:
+        super()._display_connected(info)
+        self._connected_display_info = info
+        streamer = self.display_streamer
+        caps = streamer.backend.get_capabilities() if streamer is not None else None
+        if hasattr(self, "display_controls_action"):
+            self.display_controls_action.setEnabled(
+                bool(caps and (caps.hardware_brightness or caps.device_version or caps.expansion_mode))
+            )
+
+    def _stop_display_stream(self) -> None:
+        self._connected_display_info = None
+        if hasattr(self, "display_controls_action"):
+            self.display_controls_action.setEnabled(False)
+        super()._stop_display_stream()
+
+    def _display_error(self, error: object) -> None:
+        self._connected_display_info = None
+        if hasattr(self, "display_controls_action"):
+            self.display_controls_action.setEnabled(False)
+        super()._display_error(error)
+
+    def _open_display_controls(self) -> None:
+        streamer = self.display_streamer
+        info = self._connected_display_info
+        if streamer is None or info is None or not self.display_connected:
+            QMessageBox.information(
+                self,
+                self._t("Display-Steuerung"),
+                self._t("Die Display-Steuerung ist erst nach erfolgreicher Verbindung verfügbar."),
+            )
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self._t("Display-Steuerung"))
+        dialog.setModal(True)
+        dialog.setMinimumWidth(460)
+        layout = QVBoxLayout(dialog)
+        controls = DisplayControlsWidget(streamer.backend, info, dialog, translate=self._t)
+        layout.addWidget(controls)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close, dialog)
+        close_button = buttons.button(QDialogButtonBox.Close)
+        if close_button is not None:
+            close_button.setText(self._t("Schließen"))
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def _schedule_update_check(self) -> None:
         if not self.preferences.check_updates:
