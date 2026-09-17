@@ -11,20 +11,42 @@ from PIL import Image
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 
-from owndash.core.display import DisplayBackend, DisplayBusyError, DisplayInfo, DisplayNotFoundError, DisplayProtocolError
+from owndash.core.display import (
+    DisplayBackend,
+    DisplayBusyError,
+    DisplayCapabilities,
+    DisplayInfo,
+    DisplayNotFoundError,
+    DisplayProtocolError,
+)
 from owndash.core.subprocess_env import system_subprocess_env
 
-from .aic_protocol import AUTH_DEVICE_MAGIC, AUTH_HOST_MAGIC, FRAME_START_MAGIC, make_command_header, parse_display_parameters
+from .aic_cdc import AicCdcControlTransport
+from .aic_protocol import (
+    AUTH_DEVICE_MAGIC,
+    AUTH_HOST_MAGIC,
+    FRAME_START_MAGIC,
+    brightness_to_device_value,
+    make_command_header,
+    make_control_packet,
+    parse_device_version_response,
+    parse_display_parameters,
+    parse_panel_info_response,
+)
 
-# USB identity used by the currently supported 8.8-inch bar-display controller.
 USB_VENDOR_ID = 0x33C3
 USB_PRODUCT_ID = 0x0E02
 EP_OUT = 0x01
 EP_IN = 0x81
 MAX_TRANSFER = 256 * 1024
 
-# Public authentication key required by the compatible display firmware.  It is
-# protocol data, not application branding or executable third-party source code.
+_AIC_33C3_0E02_CAPABILITIES = DisplayCapabilities(
+    hardware_brightness=True,
+    device_version=True,
+    panel_info=True,
+    expansion_mode=True,
+)
+
 _RSA_PUBLIC_KEY = b"""-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAybdtvB1uNA4XICh+xJi1
 KJWO0GYal4lNiW69zSMIJFGzb2wkiFBX2txFaH5ZYh0TYdwmjzBqinzTsWhIasW3
@@ -45,11 +67,7 @@ class UsbBackendSettings:
 
 
 class AicUsbDisplayBackend(DisplayBackend):
-    """Direct userspace USB transport for the currently supported bar display.
-
-    The implementation is intentionally isolated behind ``DisplayBackend`` so
-    additional display families can be added without changing the editor.
-    """
+    """Direct JPEG transport plus the verified ArtInChip CDC control channel."""
 
     def __init__(self, settings: UsbBackendSettings | None = None):
         self.settings = settings or UsbBackendSettings()
@@ -59,6 +77,9 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._format = 0
         self._frame_id = 0
         self._info: DisplayInfo | None = None
+        self._control: Any = AicCdcControlTransport()
+        self._device_version: str | None = None
+        self._expansion_mode: bool | None = None
 
     @staticmethod
     def _legacy_service_active() -> bool:
@@ -81,6 +102,48 @@ class AicUsbDisplayBackend(DisplayBackend):
         except ImportError as exc:
             raise DisplayProtocolError("PyUSB ist nicht installiert.") from exc
         return usb.core, usb.util
+
+    def get_capabilities(self) -> DisplayCapabilities:
+        return _AIC_33C3_0E02_CAPABILITIES
+
+    def _ensure_control(self) -> None:
+        if not self._control.is_open:
+            self._control.open()
+
+    def _send_control(self, command: int, payload: bytes) -> None:
+        self._ensure_control()
+        self._control.write(make_control_packet(command, payload))
+
+    def _query_panel_info(self) -> tuple[int, int, bool]:
+        self._send_control(0x90, b"\x01")
+        packet = self._control.read_response(0x90, 13)
+        width, height, expansion = parse_panel_info_response(packet)
+        self._expansion_mode = expansion
+        return width, height, expansion
+
+    def get_device_version(self) -> str | None:
+        if self._device_version is not None:
+            return self._device_version
+        self._send_control(0x81, b"\x01")
+        packet = self._control.read_response(0x81, 5)
+        self._device_version = parse_device_version_response(packet)
+        return self._device_version
+
+    def set_brightness(self, percent: int) -> None:
+        value = brightness_to_device_value(percent)
+        self._send_control(0x80, bytes((value,)))
+
+    def get_expansion_mode(self) -> bool | None:
+        if self._expansion_mode is None:
+            try:
+                self._query_panel_info()
+            except DisplayProtocolError:
+                return None
+        return self._expansion_mode
+
+    def set_expansion_mode(self, enabled: bool) -> None:
+        self._send_control(0x91, bytes((1 if enabled else 0,)))
+        self._query_panel_info()
 
     def connect(self) -> DisplayInfo:
         if self.settings.check_conflicting_service and self._legacy_service_active():
@@ -136,7 +199,29 @@ class AicUsbDisplayBackend(DisplayBackend):
         self._dev = dev
         self._format = media_format
         self._frame_id = 0
-        self._info = DisplayInfo("USB Bar Display", width, height, fps or None)
+        self._device_version = None
+        self._expansion_mode = None
+
+        try:
+            self._ensure_control()
+            panel_width, panel_height, expansion = self._query_panel_info()
+            width, height = panel_width, panel_height
+            try:
+                self._device_version = self.get_device_version()
+            except DisplayProtocolError:
+                pass
+            self._expansion_mode = expansion
+        except DisplayProtocolError:
+            pass
+
+        self._info = DisplayInfo(
+            "USB Bar Display",
+            width,
+            height,
+            fps or None,
+            self._device_version,
+            self._expansion_mode,
+        )
         return self._info
 
     def _bulk_out(self, payload: bytes, timeout: int = 5000) -> None:
@@ -162,19 +247,16 @@ class AicUsbDisplayBackend(DisplayBackend):
         return decoded[separator + 1 :]
 
     def _authenticate(self, dev: Any) -> None:
-        # Assign before the handshake so the bulk helpers can use the device.
         self._dev = dev
         key = serialization.load_pem_public_key(_RSA_PUBLIC_KEY)
         challenge = os.urandom(secrets.randbelow(244) + 1)
         encrypted = key.encrypt(challenge, asym_padding.PKCS1v15())
-
         self._bulk_out(make_command_header(AUTH_DEVICE_MAGIC, 0x100))
         self._bulk_out(encrypted)
         response = self._bulk_in(256, timeout=3000)
         if response[: len(challenge)] != challenge:
             self._dev = None
             raise DisplayProtocolError("Display-Authentifizierung fehlgeschlagen.")
-
         self._bulk_out(make_command_header(AUTH_HOST_MAGIC, 0x100))
         signed = self._bulk_in(256, timeout=3000)
         plaintext = self._rsa_recover(key, signed)
@@ -206,8 +288,6 @@ class AicUsbDisplayBackend(DisplayBackend):
             for offset in range(0, len(frame), block_size):
                 self._bulk_out(frame[offset : offset + block_size], timeout=10000)
         except Exception as exc:
-            # One clear-halt retry handles transient USB endpoint stalls while
-            # still surfacing persistent failures to the stream controller.
             try:
                 if self._usb_util is not None:
                     self._dev.clear_halt(EP_OUT)
@@ -222,6 +302,9 @@ class AicUsbDisplayBackend(DisplayBackend):
         dev, util = self._dev, self._usb_util
         self._dev = None
         self._info = None
+        self._device_version = None
+        self._expansion_mode = None
+        self._control.close()
         if dev is not None and util is not None:
             try:
                 util.release_interface(dev, 0)
