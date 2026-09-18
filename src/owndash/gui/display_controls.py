@@ -27,6 +27,7 @@ class DisplayControlsWidget(QWidget):
 
         outer = QVBoxLayout(self)
         form = QFormLayout()
+        self._form = form
         outer.addLayout(form)
 
         self.device_label = QLabel(f"{info.name} · {info.width}×{info.height}", self)
@@ -45,6 +46,7 @@ class DisplayControlsWidget(QWidget):
         self.brightness_slider.setValue(100)
         self.brightness_value = QLabel("100 %", self)
         self.brightness_slider.valueChanged.connect(lambda value: self.brightness_value.setText(f"{value} %"))
+        self.brightness_slider.valueChanged.connect(self._brightness_changed)
         self.brightness_slider.sliderReleased.connect(self._apply_brightness)
         brightness_row = QWidget(self)
         brightness_layout = QVBoxLayout(brightness_row)
@@ -67,9 +69,9 @@ class DisplayControlsWidget(QWidget):
 
     def refresh_from_backend(self) -> None:
         caps = self.backend.get_capabilities()
-        self.brightness_slider.parentWidget().setVisible(caps.hardware_brightness)
-        self.expansion_check.setVisible(caps.expansion_mode)
-        self.version_label.setVisible(caps.device_version)
+        self._form.setRowVisible(self.brightness_slider.parentWidget(), caps.hardware_brightness)
+        self._form.setRowVisible(self.expansion_check, caps.expansion_mode)
+        self._form.setRowVisible(self.version_label, caps.device_version)
 
         self._refreshing = True
         try:
@@ -94,7 +96,15 @@ class DisplayControlsWidget(QWidget):
         finally:
             self._refreshing = False
 
+    def _brightness_changed(self, value: int) -> None:
+        # Keyboard, wheel and groove clicks do not emit sliderReleased.
+        # Dragging still sends only once, when the handle is released.
+        if not self.brightness_slider.isSliderDown():
+            self._apply_brightness()
+
     def _apply_brightness(self) -> None:
+        if self._refreshing or not self.backend.get_capabilities().hardware_brightness:
+            return
         try:
             self.backend.set_brightness(int(self.brightness_slider.value()))
             self.status_label.setText("")

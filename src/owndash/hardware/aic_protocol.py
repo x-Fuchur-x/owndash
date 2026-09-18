@@ -34,14 +34,14 @@ def parse_display_parameters(data: bytes) -> tuple[int, int, int, int]:
 
 
 def make_control_packet(command: int, payload: bytes = b"") -> bytes:
-    """Build a verified 5A A5 ArtInChip control packet."""
+    """Build the observed serial frame; not verified for the AIC USB backend."""
     if not 0 <= command <= 0xFF:
         raise ValueError("command out of range")
     return CONTROL_PREFIX + bytes((command, 0)) + struct.pack("<I", len(payload)) + payload
 
 
 def brightness_to_device_value(percent: int) -> int:
-    """Map a 0-100 UI brightness percentage to the device's 0-255 byte range."""
+    """Experimental byte scaling; the device brightness range is unverified."""
     if not 0 <= percent <= 100:
         raise ValueError("brightness percent out of range")
     return (percent * 255) // 100
@@ -57,7 +57,7 @@ def _validate_control_response(data: bytes, command: int, minimum_length: int) -
 
 
 def parse_device_version_response(data: bytes) -> str:
-    """Decode the verified UTF-8 device-version response payload."""
+    """Decode the provisional serial response layout, not a verified USB API."""
     _validate_control_response(data, 0x81, 5)
     try:
         return data[5:].decode("utf-8").rstrip("\x00")

@@ -1,5 +1,15 @@
 # Display Control & Capabilities Design
 
+> **Superseded design — correction, 2026-09-18:** The text below records the
+> original proposal, not current capabilities or verified hardware behavior.
+> The observed 5A A5 commands use a serial transport; no compatible serial
+> interface was found on the owner's 33C3:0E02 display. CDC transport and tty
+> permission code were removed. All optional AIC control capabilities are false.
+> The proposed 0–255 brightness mapping and response layouts are unverified for
+> this device. Do not execute the hardware-control checklist below. Boot-image
+> replacement remains open; no persistent write path has been established.
+> Current GUI tests exercise Qt offscreen with the required CI libraries.
+
 ## Goal
 
 Add a safe, capability-driven control layer for compatible ArtInChip/VSDISPLAY USB displays, starting with device information, hardware brightness, and Expansion Screen Mode. Keep startup-media upload as the next isolated phase after these controls are hardware-verified.

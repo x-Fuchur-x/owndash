@@ -1,5 +1,13 @@
 # Display Control & Capabilities Implementation Plan
 
+> **Superseded plan — correction, 2026-09-18:** Checked items below are historical,
+> not a statement of current hardware support. CDC transport and tty permissions
+> were removed; all optional 33C3:0E02 controls remain disabled. Serial packet
+> observations do not establish a USB control channel or a brightness range.
+> Do not follow the hardware-control checklist below. Boot-image replacement
+> needs device-specific protocol evidence before any persistent write.
+> Current GUI regression tests exercise Qt offscreen rather than source text.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add capability-driven ArtInChip device information, hardware brightness, and Expansion Screen Mode control while preserving the existing authenticated JPEG streaming path.

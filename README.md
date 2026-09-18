@@ -77,7 +77,7 @@ Use displays that Linux already recognizes as regular screens, including HDMI, D
 
 Compatible ArtInChip-based sensor displays can be driven directly over USB without appearing as a normal monitor. The official AppImage bundles the required `libusb-1.0.so.0` runtime.
 
-For the verified `33C3:0E02` device path, the current development branch also exposes capability-driven device information, hardware brightness control, and Expansion Screen Mode through the display-control channel. Unsupported controls stay hidden, and brightness `0%` is treated only as minimum backlight level — not as a claimed power-off or sleep state.
+The development branch includes capability-driven UI groundwork for optional display controls. For the `33C3:0E02` backend, hardware brightness, device-version queries, panel queries and Expansion Screen Mode remain disabled: a compatible control transport has not been verified. Unsupported controls stay hidden. No brightness range or power-off behavior is established for this device.
 
 Startup-image/video upload is intentionally not advertised yet; it is planned as a separate hardware-verified phase.
 
