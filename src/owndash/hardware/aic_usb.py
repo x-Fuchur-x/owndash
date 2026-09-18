@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import io
 import os
 import secrets
@@ -157,7 +158,11 @@ class AicUsbDisplayBackend(DisplayBackend):
     def _bulk_out(self, payload: bytes, timeout: int = 5000) -> None:
         if self._dev is None:
             raise DisplayProtocolError("Display ist nicht verbunden.")
-        self._dev.write(EP_OUT, payload, timeout=timeout)
+        written = self._dev.write(EP_OUT, payload, timeout=timeout)
+        if written != len(payload):
+            raise DisplayProtocolError(
+                f"Unvollständige USB-Übertragung: {written} von {len(payload)} Bytes."
+            )
 
     def _bulk_in(self, size: int, timeout: int = 5000) -> bytes:
         if self._dev is None:
@@ -218,7 +223,12 @@ class AicUsbDisplayBackend(DisplayBackend):
                 self._bulk_out(header)
                 for offset in range(0, len(frame), block_size):
                     self._bulk_out(frame[offset : offset + block_size], timeout=10000)
+            except DisplayProtocolError:
+                # Do not replay a frame after a potentially partial write.
+                raise
             except Exception as exc:
+                if getattr(exc, "errno", None) == errno.ENODEV:
+                    raise DisplayProtocolError(f"USB-Display wurde getrennt: {exc}") from exc
                 try:
                     if self._usb_util is not None:
                         self._dev.clear_halt(EP_OUT)
