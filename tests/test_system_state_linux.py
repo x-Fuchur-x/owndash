@@ -1,5 +1,5 @@
 from owndash.core.system_state import SystemState
-from owndash.service.system_state_linux import LinuxSystemStateAdapter
+from owndash.service.system_state_linux import LinuxSystemStateAdapter, _LogindDbusSource
 
 
 class FakeSource:
@@ -94,3 +94,9 @@ def test_unavailable_source_fails_open_without_exception():
 
     adapter.stop()
     assert source.stopped
+
+
+def test_systemd_jobnew_slot_has_exact_dbus_signature():
+    source = _LogindDbusSource()
+    signature = b"_on_job_new(uint,QDBusObjectPath,QString)"
+    assert source.metaObject().indexOfSlot(signature) >= 0
