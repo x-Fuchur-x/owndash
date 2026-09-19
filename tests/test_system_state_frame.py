@@ -1,7 +1,13 @@
+import math
+
 from PySide6.QtGui import QIcon, QImage
 
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import _portrait_layout, render_system_state_image
+from owndash.gui.system_state_frame import (
+    _portrait_layout,
+    _portrait_rail_docks,
+    render_system_state_image,
+)
 
 
 STRINGS = {
@@ -166,6 +172,34 @@ def test_portrait_v2_gives_hero_ring_and_status_reference_scale():
     assert layout.status_rect.width() >= 480 * 0.86
     assert layout.status_rect.top() > layout.hud_center.y()
     assert layout.bar_rect.width() >= 480 * 0.62
+
+
+def test_portrait_v3_wordmark_is_the_hero_element():
+    layout = _portrait_layout(480, 1920)
+
+    assert layout.wordmark_rect.width() >= 480 * 0.92
+    assert layout.wordmark_font_px >= 480 * 0.17
+    assert layout.wordmark_font_px > layout.status_font_px * 1.55
+
+
+def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
+    layout = _portrait_layout(480, 1920)
+    docks = _portrait_rail_docks(layout)
+    radius = layout.hud_diameter / 2.0
+
+    assert len(docks) == 4
+    for point in docks:
+        distance = math.hypot(
+            point.x() - layout.hud_center.x(),
+            point.y() - layout.hud_center.y(),
+        )
+        assert abs(distance - radius) <= radius * 0.015
+
+    upper_left, lower_left, upper_right, lower_right = docks
+    assert upper_left.y() < layout.hud_center.y() < lower_left.y()
+    assert upper_right.y() < layout.hud_center.y() < lower_right.y()
+    assert upper_left.x() < layout.hud_center.x() < upper_right.x()
+    assert lower_left.x() < layout.hud_center.x() < lower_right.x()
 
 
 def test_portrait_v2_keeps_status_and_floor_as_separate_visual_zones():
