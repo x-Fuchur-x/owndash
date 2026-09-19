@@ -194,7 +194,9 @@ class SafeShutdownWindow(MainWindow):
             return
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
-        self.statusBar().showMessage("Display wird nach Standby neu verbunden …", 3000)
+        self.statusBar().showMessage(
+            self._t("Display wird nach Standby neu verbunden …"), 3000
+        )
         QTimer.singleShot(200, self._start_display_stream)
 
     def _clear_resume_recovery_arm(self) -> None:
@@ -484,7 +486,8 @@ class SafeShutdownWindow(MainWindow):
             payload = self._render_system_state_payload(state)
         except Exception as exc:
             self.statusBar().showMessage(
-                f"Systemzustandsanzeige konnte nicht gerendert werden: {exc}", 4000
+                f"{self._t('Systemzustandsanzeige konnte nicht gerendert werden')}: {exc}",
+                4000,
             )
             return
         if not payload:
