@@ -68,6 +68,11 @@ class SafeShutdownWindow(MainWindow):
                 bool(caps and (caps.hardware_brightness or caps.device_version or caps.expansion_mode))
             )
 
+    def _prepare_display_switch(self) -> None:
+        if self.display_backend_key == "aic_usb":
+            self.display_timer.stop()
+            self._show_shutdown_frame()
+
     def _stop_display_stream(self) -> None:
         self._connected_display_info = None
         if hasattr(self, "display_controls_action"):

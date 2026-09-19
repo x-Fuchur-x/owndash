@@ -4,7 +4,7 @@ from pathlib import Path
 import platform
 import webbrowser
 
-from PySide6.QtCore import QMimeData, QObject, QTimer, Qt, Signal
+from PySide6.QtCore import QMimeData, QObject, QRectF, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QDrag, QKeySequence, QPalette, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -329,6 +329,8 @@ class MainWindow(QMainWindow):
         zoom_out.triggered.connect(lambda: self._zoom_canvas(0.85))
         zoom_reset = QAction("100 %", self)
         zoom_reset.triggered.connect(self._reset_zoom)
+        zoom_fit = QAction("Einpassen", self)
+        zoom_fit.triggered.connect(self.canvas.fit_canvas)
         zoom_in = QAction("+", self)
         zoom_in.setToolTip("Vorschau vergrößern")
         zoom_in.triggered.connect(lambda: self._zoom_canvas(1.15))
@@ -358,6 +360,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(zoom_out)
         toolbar.addAction(zoom_reset)
+        toolbar.addAction(zoom_fit)
         toolbar.addAction(zoom_in)
         toolbar.addSeparator()
         toolbar.addAction(self.display_action)
@@ -383,6 +386,7 @@ class MainWindow(QMainWindow):
         view_menu = self.menuBar().addMenu("Ansicht")
         view_menu.addAction(zoom_out)
         view_menu.addAction(zoom_reset)
+        view_menu.addAction(zoom_fit)
         view_menu.addAction(zoom_in)
         view_menu.addSeparator()
         settings_action = QAction("Einstellungen …", self)
@@ -1081,7 +1085,11 @@ class MainWindow(QMainWindow):
         for index, screen in enumerate(app.screens()):
             geometry = screen.geometry()
             device_id = f"screen:{index}:{screen.name()}"
-            devices.append((device_id, screen.name() or f"Monitor {index + 1}", geometry.width(), geometry.height(), geometry))
+            ratio = screen.devicePixelRatio()
+            name = screen.name() or f"Monitor {index + 1}"
+            if screen.model():
+                name = f"{screen.model()} ({name})"
+            devices.append((device_id, name, round(geometry.width() * ratio), round(geometry.height() * ratio), geometry))
         return devices
 
     def _open_display_settings(self) -> None:
@@ -1106,7 +1114,14 @@ class MainWindow(QMainWindow):
         profile = self._profile_from_canvas()
         rotation_combo.setCurrentIndex(max(0, rotation_combo.findData(profile.rotation)))
 
+        rotations = {"aic_usb": 270, "screen": 0, profile.display_backend: profile.rotation}
+        previous_backend = str(backend_combo.currentData())
+
         def populate_devices() -> None:
+            nonlocal previous_backend
+            rotations[previous_backend] = int(rotation_combo.currentData())
+            previous_backend = str(backend_combo.currentData())
+            rotation_combo.setCurrentIndex(rotation_combo.findData(rotations[previous_backend]))
             device_combo.clear()
             if backend_combo.currentData() == "aic_usb":
                 device_combo.addItem(self._t("Automatisch erkennen"), "auto")
@@ -1161,6 +1176,7 @@ class MainWindow(QMainWindow):
             or (self.display_streamer is not None and self.display_streamer.running)
         )
         if target_changed and was_running:
+            self._prepare_display_switch()
             self._stop_display_stream()
 
         self.display_backend_key = new_backend
@@ -1174,6 +1190,9 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(self._t("Display-Konfiguration aktualisiert"), 2500)
 
+    def _prepare_display_switch(self) -> None:
+        """Lifecycle hook while the departing device still owns the canvas."""
+
     def _set_profile_display_geometry(self, rotation: int) -> None:
         if self.display_backend_key == "screen":
             selected = next((d for d in self._available_screen_devices() if d[0] == self.display_device_id), None)
@@ -1184,6 +1203,30 @@ class MainWindow(QMainWindow):
         self._display_rotation = rotation
 
     def _resize_dashboard_canvas(self, width: int, height: int, *, scale_widgets: bool) -> None:
+        old_w, old_h = self.canvas.canvas_size.width, self.canvas.canvas_size.height
+        if scale_widgets and (width, height) != (old_w, old_h):
+            # Inactive pages share the canvas size, so fit them by the same
+            # transform as the visible page before a page switch can restore them.
+            for index, page in enumerate(self.dashboard_pages):
+                if index != self.active_page_index:
+                    for widget in page.widgets:
+                        self.canvas.layout_bounds = self.canvas.layout_bounds.united(
+                            QRectF(widget.x, widget.y, widget.width, widget.height))
+            factor, dx, dy = self.canvas.layout_fit_transform(width, height)
+            for index, page in enumerate(self.dashboard_pages):
+                if index == self.active_page_index:
+                    continue
+                for widget in page.widgets:
+                    widget.x = round(widget.x * factor + dx)
+                    widget.y = round(widget.y * factor + dy)
+                    widget.width = max(40, round(widget.width * factor))
+                    widget.height = max(40, round(widget.height * factor))
+                bg = page.background
+                if bg.image_fit == "manual":
+                    bg.image_x = bg.image_x * factor + dx
+                    bg.image_y = bg.image_y * factor + dy
+                    bg.image_width *= factor
+                    bg.image_height *= factor
         self.canvas.set_canvas_size(width, height, scale_widgets=scale_widgets)
         self.x_spin.setRange(0, width)
         self.y_spin.setRange(0, height)
@@ -1898,7 +1941,12 @@ class MainWindow(QMainWindow):
                     width=fixed.width,
                     height=fixed.height,
                 )
+                # Loading coordinates is not an interactive drag. Magnetic
+                # snapping here would silently move fitted/saved widgets.
+                snap = restored.snap_enabled
+                restored.snap_enabled = False
                 restored.setPos(fixed.x, fixed.y)
+                restored.snap_enabled = snap
                 restored.setZValue(fixed.z)
             self._refresh_layers()
             self._last_display_payload = None
@@ -2622,7 +2670,7 @@ class MainWindow(QMainWindow):
                 self.display_action.blockSignals(False)
                 return
 
-            self._screen_presenter = ScreenPresenter(geometry, self)
+            self._screen_presenter = ScreenPresenter(geometry, self, screen=selected_screen)
             self._screen_presenter.close_requested.connect(self._stop_display_stream)
             backend = ScreenDisplayBackend(
                 self._screen_presenter,
@@ -2907,12 +2955,14 @@ class MainWindow(QMainWindow):
 
     def _zoom_canvas(self, factor: float) -> None:
         current = self.canvas.transform().m11()
-        target = max(0.2, min(3.0, current * factor))
+        self.canvas.auto_fit = False
+        target = max(0.01, min(3.0, current * factor))
         self.canvas.resetTransform()
         self.canvas.scale(target, target)
         self.statusBar().showMessage(f"Vorschau: {target * 100:.0f} %", 1500)
 
     def _reset_zoom(self) -> None:
+        self.canvas.auto_fit = False
         self.canvas.resetTransform()
         self.statusBar().showMessage("Vorschau: 100 %", 1500)
 
@@ -3249,6 +3299,7 @@ class MainWindow(QMainWindow):
             name="Default",
             canvas_width=self.canvas.canvas_size.width,
             canvas_height=self.canvas.canvas_size.height,
+            layout_bounds=list(self.canvas.layout_bounds.getRect()),
             rotation=getattr(self, "_display_rotation", 270),
             display_backend=self.display_backend_key,
             display_device_id=self.display_device_id,
@@ -3323,6 +3374,7 @@ class MainWindow(QMainWindow):
         self.display_device_id = str(profile.display_device_id or "auto")
         self._display_rotation = int(profile.rotation)
         self._resize_dashboard_canvas(int(profile.canvas_width), int(profile.canvas_height), scale_widgets=False)
+        self.canvas.restore_layout_bounds(profile.layout_bounds)
 
         self.active_page_index = max(0, min(int(profile.active_page), len(self.dashboard_pages) - 1))
         self._apply_dashboard_page(self.dashboard_pages[self.active_page_index], show_status=False)

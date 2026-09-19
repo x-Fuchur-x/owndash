@@ -73,6 +73,12 @@ OwnDash currently supports two display paths:
 
 Use displays that Linux already recognizes as regular screens, including HDMI, DisplayPort and USB-C display outputs. OwnDash can show the dashboard in a dedicated output window with fullscreen safety controls.
 
+Monitor selection shows the model (when supplied by the system), connector and pixel dimensions calculated from Qt geometry and display scaling. Fullscreen output targets the selected screen explicitly. Switching from USB to a standard monitor defaults to 0° rotation; manual rotation remains available.
+
+Existing layouts are fitted proportionally and centered across dashboard pages. The editor automatically fits the working area; use **Fit** to return after manual zoom. Fitted layout bounds are saved with the profile to avoid shrinking the layout repeatedly when switching aspect ratios. Widget minimum dimensions (40 pixels) and fixed font sizes still apply, so very small widgets may need adjustment.
+
+Mixed-DPI output is tested with simulated Qt screens; compositor-specific fullscreen placement still needs confirmation on real hardware.
+
 ### Direct ArtInChip / VSDISPLAY USB output
 
 Compatible ArtInChip-based sensor displays can be driven directly over USB without appearing as a normal monitor. The official AppImage bundles the required `libusb-1.0.so.0` runtime.

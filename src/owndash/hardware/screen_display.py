@@ -26,9 +26,10 @@ class ScreenPresenter(QObject):
     frame_ready = Signal(bytes)
     close_requested = Signal()
 
-    def __init__(self, geometry, parent: QObject | None = None):  # noqa: ANN001
+    def __init__(self, geometry, parent: QObject | None = None, *, screen=None):  # noqa: ANN001
         super().__init__(parent)
         self.geometry = geometry
+        self.screen = screen
         self.window = FullscreenDisplayWindow()
         self.window.setWindowTitle("OwnDash Display")
         self.window.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool)
@@ -41,6 +42,11 @@ class ScreenPresenter(QObject):
         self.close_requested.connect(self._close)
 
     def open(self) -> None:
+        # Position alone is not a screen selection on Wayland. Set the native
+        # window's target before requesting fullscreen; retain geometry for X11.
+        if self.screen is not None:
+            self.window.winId()
+            self.window.windowHandle().setScreen(self.screen)
         self.window.setGeometry(self.geometry)
         self.label.setGeometry(self.window.rect())
         self.window.showFullScreen()
@@ -55,9 +61,10 @@ class ScreenPresenter(QObject):
         pixmap = QPixmap()
         if not pixmap.loadFromData(payload, "JPEG"):
             return
-        self.label.setPixmap(
-            pixmap.scaled(self.label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        )
+        ratio = self.window.devicePixelRatioF()
+        fitted = pixmap.scaled(self.label.size() * ratio, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        fitted.setDevicePixelRatio(ratio)
+        self.label.setPixmap(fitted)
 
     def _close(self) -> None:
         self.window.hide()

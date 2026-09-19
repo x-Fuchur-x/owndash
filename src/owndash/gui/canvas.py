@@ -802,6 +802,8 @@ class DashboardCanvas(QGraphicsView):
     def __init__(self, parent=None, size: CanvasSize | None = None):
         super().__init__(parent)
         self.canvas_size = size or CanvasSize()
+        self.auto_fit = True
+        self.layout_bounds = QRectF(0, 0, self.canvas_size.width, self.canvas_size.height)
         self.grid_size = 10
         self.grid_enabled = True
         self.snap_enabled = True
@@ -849,32 +851,82 @@ class DashboardCanvas(QGraphicsView):
         """Resize the logical dashboard and optionally scale the existing layout."""
         width = max(160, int(width))
         height = max(160, int(height))
-        old_w = float(self.canvas_size.width)
-        old_h = float(self.canvas_size.height)
         if width == self.canvas_size.width and height == self.canvas_size.height:
             return
 
-        sx = width / old_w if old_w else 1.0
-        sy = height / old_h if old_h else 1.0
+        factor, dx, dy = self.layout_fit_transform(width, height)
+        if scale_widgets:
+            bounds = self.layout_bounds
+            self.layout_bounds = QRectF(bounds.x() * factor + dx, bounds.y() * factor + dy,
+                                        bounds.width() * factor, bounds.height() * factor)
+        else:
+            self.layout_bounds = QRectF(0, 0, width, height)
+        # Set bounds before moving items: itemChange clamps to sceneRect.
+        self.canvas_size = CanvasSize(width, height)
+        self._scene.setSceneRect(QRectF(0, 0, width, height))
         if scale_widgets:
             for item in self.widget_items():
                 r = item.rect()
-                item.setPos(item.x() * sx, item.y() * sy)
-                item.setRect(0, 0, max(item.MIN_WIDTH, r.width() * sx), max(item.MIN_HEIGHT, r.height() * sy))
+                x, y = item.x() * factor + dx, item.y() * factor + dy
+                item.setRect(0, 0, max(item.MIN_WIDTH, r.width() * factor), max(item.MIN_HEIGHT, r.height() * factor))
+                snap = item.snap_enabled
+                item.snap_enabled = False
+                item.setPos(x, y)
+                item.snap_enabled = snap
 
-        if self._background_item is not None and scale_widgets:
-            r = self._background_item.rect()
-            self._background_item.setPos(self._background_item.x() * sx, self._background_item.y() * sy)
-            self._background_item.setRect(0, 0, r.width() * sx, r.height() * sy)
+        if self._background_item is not None:
+            if self.background_config.image_fit == "manual" and scale_widgets:
+                item = self._background_item
+                r = item.rect()
+                item.setPos(item.x() * factor + dx, item.y() * factor + dy)
+                item.setRect(0, 0, r.width() * factor, r.height() * factor)
+                cfg = self.background_config
+                cfg.image_x, cfg.image_y = item.x(), item.y()
+                cfg.image_width, cfg.image_height = item.rect().width(), item.rect().height()
+            elif scale_widgets:
+                self._apply_background_geometry()
 
-        self.canvas_size = CanvasSize(width, height)
-        self._scene.setSceneRect(QRectF(0, 0, width, height))
+        self.fit_canvas()
         self._static_export_signature = None
         self._static_export_layer = None
         self._static_jpeg_signature = None
         self._static_jpeg_payload = None
         self._aurora_export_image = None
         self.viewport().update()
+
+    def layout_fit_transform(self, width: int, height: int) -> tuple[float, float, float]:
+        # Remember the fitted area, excluding letterbox margins. Otherwise each
+        # monitor switch would scale those margins too and shrink the layout again.
+        for item in self.widget_items():
+            self.layout_bounds = self.layout_bounds.united(item.rect().translated(item.pos()))
+        bounds = self.layout_bounds
+        factor = min(width / bounds.width(), height / bounds.height())
+        return (factor, (width - bounds.width() * factor) / 2 - bounds.x() * factor,
+                (height - bounds.height() * factor) / 2 - bounds.y() * factor)
+
+    def restore_layout_bounds(self, values: object) -> None:
+        self.layout_bounds = QRectF(self.sceneRect())
+        if not isinstance(values, list) or len(values) != 4:
+            return
+        if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in values):
+            return
+        bounds = QRectF(*values)
+        if bounds.width() > 0 and bounds.height() > 0 and self.sceneRect().contains(bounds):
+            self.layout_bounds = bounds
+
+    def fit_canvas(self) -> None:
+        """Show the entire working area without changing the dashboard itself."""
+        self.auto_fit = True
+        self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001
+        super().resizeEvent(event)
+        if self.auto_fit:
+            QTimer.singleShot(0, self._fit_if_enabled)
+
+    def _fit_if_enabled(self) -> None:
+        if self.auto_fit:
+            self.fit_canvas()
 
     def _animate(self) -> None:
         elapsed = time.monotonic() - self._animation_clock

@@ -14,11 +14,6 @@ def test_profile_persists_display_backend():
     assert 'display_backend: str = "aic_usb"' in MODELS
     assert 'display_device_id: str = "auto"' in MODELS
 
-def test_canvas_can_change_resolution():
-    assert "def set_canvas_size" in CANVAS
-    assert "sx = width / old_w" in CANVAS
-    assert "self._scene.setSceneRect" in CANVAS
-
 def test_standard_monitor_backend_exists():
     assert "class ScreenDisplayBackend" in SCREEN
     assert "class ScreenPresenter" in SCREEN

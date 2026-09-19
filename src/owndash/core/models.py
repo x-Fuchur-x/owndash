@@ -112,6 +112,7 @@ class Profile:
     auto_cycle_seconds: int = 10
     display_backend: str = "aic_usb"
     display_device_id: str = "auto"
+    layout_bounds: list[float] | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, ensure_ascii=False)
@@ -143,7 +144,7 @@ class Profile:
         allowed = {
             "name", "canvas_width", "canvas_height", "rotation", "theme",
             "active_page", "auto_cycle", "auto_cycle_seconds",
-            "display_backend", "display_device_id",
+            "display_backend", "display_device_id", "layout_bounds",
         }
         profile_args = {key: value for key, value in raw.items() if key in allowed}
         return cls(background=background, widgets=widgets, pages=pages, **profile_args)
