@@ -1,3 +1,5 @@
+from PySide6.QtCore import SLOT
+
 from owndash.core.system_state import SystemState
 from owndash.service import system_state_linux
 from owndash.service.system_state_linux import LinuxSystemStateAdapter, _LogindDbusSource
@@ -178,6 +180,20 @@ def test_systemd_jobnew_slot_has_exact_dbus_signature():
     source = _LogindDbusSource()
     signature = "_on_job_new(uint,QDBusObjectPath,QString)"
     assert source.metaObject().indexOfSlot(signature) >= 0
+
+
+def test_qdbus_connections_use_qt_slot_wrapper(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_ID", "test-session")
+    FakeDBusConnection.bus = FakeBus()
+    monkeypatch.setattr(system_state_linux, "QDBusConnection", FakeDBusConnection)
+    monkeypatch.setattr(system_state_linux, "QDBusInterface", FakeDBusInterface)
+
+    source = _LogindDbusSource()
+    assert source.start(lambda _kind, _enabled: None) is True
+
+    slots = [connection[-1] for connection in FakeDBusConnection.bus.connections]
+    assert SLOT("_on_prepare_for_sleep(bool)") in slots
+    assert "_on_prepare_for_sleep(bool)" not in slots
 
 
 def test_start_emits_current_locked_hint_without_polling(monkeypatch):
