@@ -1,7 +1,7 @@
 from PySide6.QtGui import QIcon, QImage
 
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import render_system_state_image
+from owndash.gui.system_state_frame import _portrait_layout, render_system_state_image
 
 
 STRINGS = {
@@ -155,6 +155,25 @@ def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections()
     assert cyan_left >= 28
     assert magenta_right >= 28
     assert neon_floor >= 45
+
+
+def test_portrait_v2_gives_hero_ring_and_status_reference_scale():
+    layout = _portrait_layout(480, 1920)
+
+    assert layout.hud_diameter >= 480 * 0.90
+    assert layout.wordmark_font_px >= 480 * 0.115
+    assert layout.status_font_px >= 480 * 0.095
+    assert layout.status_rect.width() >= 480 * 0.86
+    assert layout.status_rect.top() > layout.hud_center.y()
+    assert layout.bar_rect.width() >= 480 * 0.62
+
+
+def test_portrait_v2_keeps_status_and_floor_as_separate_visual_zones():
+    layout = _portrait_layout(480, 1920)
+
+    assert layout.status_rect.bottom() < layout.bar_rect.top()
+    assert layout.bar_rect.bottom() < 1920 * 0.74
+    assert layout.floor_horizon >= 1920 * 0.82
 
 
 def test_active_state_is_not_a_state_screen():
