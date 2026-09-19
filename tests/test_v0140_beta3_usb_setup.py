@@ -16,6 +16,18 @@ def test_beta3_usb_setup_verifies_access_after_installation():
     assert ".accessible" in USB
 
 
+def test_usb_uaccess_rule_runs_before_systemd_seat_acl_rule():
+    """TAG+=uaccess must be present before systemd's later seat ACL processing."""
+    assert 'RULE_NAME = "70-owndash-usb.rules"' in USB
+
+
+def test_usb_setup_migrates_legacy_late_rule():
+    """Re-running graphical USB setup must remove the old too-late 99-* rule."""
+    assert 'LEGACY_RULE_NAME = "99-owndash-usb.rules"' in USB
+    assert "rm -f" in USB
+    assert "LEGACY_RULE_NAME" in USB
+
+
 WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 
 
