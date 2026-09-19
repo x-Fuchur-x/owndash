@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/owndash-hero.svg" alt="OwnDash — Your display. Your design." width="100%">
+  <img src="docs/images/owndash-hero.png" alt="OwnDash — Your display. Your design." width="100%">
 </p>
 
 <p align="center">
