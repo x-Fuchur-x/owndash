@@ -15,12 +15,13 @@ def test_beta6_version():
 
 def test_udev_rule_is_bundled():
     assert '"resources/*.rules"' in PROJECT
-    rule = ROOT/"src/owndash/resources/99-owndash-usb.rules"
+    rule = ROOT/"src/owndash/resources/70-owndash-usb.rules"
     assert rule.exists()
     text = rule.read_text(encoding="utf-8")
     assert 'ATTR{idVendor}=="33c3"' in text
     assert 'ATTR{idProduct}=="0e02"' in text
     assert 'TAG+="uaccess"' in text
+    assert not (ROOT/"src/owndash/resources/99-owndash-usb.rules").exists()
 
 def test_usb_probe_and_graphical_setup_are_unprivileged_by_default():
     assert "def probe_artinchip_usb()" in USB
