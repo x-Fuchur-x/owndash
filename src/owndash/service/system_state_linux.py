@@ -86,6 +86,9 @@ class _LogindDbusSource(QObject):
             )
             self._session_path = self._get_session_path()
             if self._session_path:
+                # Lock/Unlock are useful best-effort request signals. LockedHint
+                # is the authoritative session state, so also subscribe to its
+                # PropertiesChanged updates without introducing a polling loop.
                 self._connect(
                     self._LOGIN_SERVICE, self._session_path,
                     self._LOGIN_SESSION, "Lock", "_on_lock()",
@@ -94,9 +97,14 @@ class _LogindDbusSource(QObject):
                     self._LOGIN_SERVICE, self._session_path,
                     self._LOGIN_SESSION, "Unlock", "_on_unlock()",
                 )
-                # Signals cover future changes. Read LockedHint exactly once so
-                # an already locked desktop is represented immediately at app
-                # startup without introducing any polling.
+                self._connect(
+                    self._LOGIN_SERVICE, self._session_path,
+                    "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                    "_on_session_properties_changed(QString,QVariantMap,QStringList)",
+                )
+                # Read LockedHint exactly once so an already locked desktop is
+                # represented immediately at app startup. Future changes arrive
+                # through PropertiesChanged, so no polling is required.
                 locked = self._session_locked_hint()
                 if locked is not None:
                     self._emit("lock", locked)
@@ -208,6 +216,26 @@ class _LogindDbusSource(QObject):
     @Slot()
     def _on_unlock(self) -> None:
         self._emit("lock", False)
+
+    @Slot(str, "QVariantMap", "QStringList")
+    def _on_session_properties_changed(
+        self,
+        interface: str,
+        changed: dict,
+        invalidated: list[str],
+    ) -> None:
+        if str(interface) != self._LOGIN_SESSION:
+            return
+        if "LockedHint" in changed:
+            value = changed["LockedHint"]
+            value = value.variant() if hasattr(value, "variant") else value
+            if isinstance(value, bool):
+                self._emit("lock", value)
+            return
+        if "LockedHint" in invalidated:
+            locked = self._session_locked_hint()
+            if locked is not None:
+                self._emit("lock", locked)
 
     @Slot("uint", QDBusObjectPath, str)
     def _on_job_new(self, _job_id: int, _job_path: object, unit: str) -> None:
