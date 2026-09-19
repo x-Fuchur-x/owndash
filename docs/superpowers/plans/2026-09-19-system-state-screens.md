@@ -4,46 +4,45 @@
 
 **Goal:** Add reliable Linux/Bazzite system-state awareness so OwnDash can show dedicated standby, shutdown, restart, locked, and idle screens and restore the previous dashboard after resume/unlock/activity.
 
-**Architecture:** Introduce a platform-neutral state model and coordinator in `core`, a Linux/systemd-logind adapter in `service`, and a dedicated state-screen renderer in `gui`. The main window wires these pieces into the existing display-output path while preserving the existing application-close screen. System integration remains optional and must never block suspend, restart, or shutdown.
+**Architecture:** Add a platform-neutral state model/coordinator in `core`, a mockable Linux/systemd-logind adapter in `service`, and a dedicated system-state renderer in `gui`. The main window wires state changes into the existing display output path while preserving the current application-close screen. Integration is optional and never blocks suspend, restart, or shutdown.
 
-**Tech Stack:** Python 3.11+, PySide6 6.8+, Qt DBus (`PySide6.QtDBus`) where available, pytest, existing OwnDash display backends and i18n system.
+**Tech Stack:** Python 3.11+, PySide6 6.8+, Qt DBus (`PySide6.QtDBus`) when available, pytest, existing OwnDash display backends and i18n.
 
 **Spec:** `docs/superpowers/specs/2026-09-19-system-state-screens-design.md`
 
 ## Global Constraints
 
-- Linux/Bazzite support only for Beta 5; Windows/macOS system-state integration stays out of scope.
-- Supported persistent states: `ACTIVE`, `IDLE`, `LOCKED`, `SUSPENDING`, `SHUTTING_DOWN`, `RESTARTING`.
+- Beta 5 system-state integration targets Linux/Bazzite only.
+- Persistent states: `ACTIVE`, `IDLE`, `LOCKED`, `SUSPENDING`, `SHUTTING_DOWN`, `RESTARTING`.
 - Priority: shutdown/restart > suspend > locked > idle > active.
-- Resume, unlock, and activity return restore the previous dashboard immediately; no welcome screen.
-- System-state integration must be optional and fail open to normal dashboard operation.
-- Suspend/restart/shutdown must never be delayed indefinitely by rendering or device I/O.
-- Provide two presets: `OwnDash` and `Bazzite-inspired`; do not bundle official Bazzite logo/artwork.
-- All visible state text and settings labels use the existing English/German localization system.
-- Preserve the current application-close screen for quitting OwnDash while the computer remains running.
+- Resume, unlock, and return from idle restore the prior dashboard immediately; no welcome screen.
+- Missing D-Bus/systemd-logind must fall back to normal dashboard behavior.
+- Suspend/restart/shutdown must never be held up indefinitely by rendering or device I/O.
+- Presets: `OwnDash` and `Bazzite-inspired`; no official Bazzite logo/artwork is bundled.
+- Visible state text/settings are localized in English and German.
+- Quitting OwnDash while the PC remains running keeps the existing application-close screen.
 
 ## Review Focus
 
-- Duplicate/out-of-order system events must not corrupt the active state or overwrite the saved dashboard restoration target.
-- A USB display that disconnects during suspend/resume must recover through normal reconnect logic without crashing.
-- Missing Qt DBus/systemd-logind must leave OwnDash fully usable and must not produce a startup failure.
-- Portrait bar displays (notably 480x1920) and landscape displays must both render readable state screens.
-- Shutdown/restart event handling must be bounded in time so slow or failed display writes never stall the OS transition.
+- Duplicate/out-of-order events must not corrupt state or overwrite the saved dashboard restoration target.
+- USB disconnect during suspend/resume must recover through normal reconnect handling.
+- Missing Qt DBus/logind must never prevent OwnDash startup.
+- 480x1920 portrait/bar output and landscape output must both remain readable.
+- Final-frame writes for shutdown/restart/suspend must be bounded and non-blocking from the OS point of view.
 
 ---
 
-### Task 1: Add the normalized state model and priority resolver
+### Task 1: Normalized state model and priority resolver
 
 **Files:**
 - Create: `src/owndash/core/system_state.py`
 - Create: `tests/test_system_state.py`
 
 **Interfaces:**
-- Produces: `SystemState(Enum)`, `SystemStateSnapshot`, `resolve_visible_state(active_states: set[SystemState]) -> SystemState`, `SystemStateCoordinator`.
-- `SystemStateCoordinator.set_condition(state: SystemState, enabled: bool) -> SystemState | None` returns a newly visible state only when visibility changes.
-- `SystemStateCoordinator.restore_target` stores an opaque runtime token supplied by the GUI only while a temporary state is active.
+- Produces: `SystemState(Enum)`, `resolve_visible_state(active_states: set[SystemState]) -> SystemState`, and `SystemStateCoordinator`.
+- `SystemStateCoordinator.set_condition(state: SystemState, enabled: bool) -> SystemState | None` emits a value only when the effective visible state changes.
 
-- [ ] **Step 1: Write failing tests for priority and duplicate-event behavior**
+- [ ] **Step 1: Write failing priority/duplicate tests**
 
 ```python
 from owndash.core.system_state import SystemState, SystemStateCoordinator, resolve_visible_state
@@ -55,22 +54,22 @@ def test_state_priority():
 
 
 def test_duplicate_condition_does_not_emit_transition():
-    coordinator = SystemStateCoordinator()
-    assert coordinator.set_condition(SystemState.LOCKED, True) is SystemState.LOCKED
-    assert coordinator.set_condition(SystemState.LOCKED, True) is None
+    c = SystemStateCoordinator()
+    assert c.set_condition(SystemState.LOCKED, True) is SystemState.LOCKED
+    assert c.set_condition(SystemState.LOCKED, True) is None
 ```
 
-- [ ] **Step 2: Run the focused test and verify failure**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_system_state.py -v`
 
-Expected: import/module failure because `owndash.core.system_state` does not exist.
+Expected: module/import failure.
 
-- [ ] **Step 3: Implement the minimal normalized model**
+- [ ] **Step 3: Implement enum, explicit priority map, resolver, and coordinator**
 
-Create an enum with exactly `ACTIVE`, `IDLE`, `LOCKED`, `SUSPENDING`, `SHUTTING_DOWN`, `RESTARTING`, an explicit priority map, a resolver, and a coordinator that keeps a condition set and emits only effective visible-state changes.
+The coordinator owns the active-condition set and current visible state only; it does not render or touch hardware.
 
-- [ ] **Step 4: Add tests for recovery transitions**
+- [ ] **Step 4: Add recovery tests**
 
 ```python
 def test_lock_overrides_idle_then_unlock_returns_to_idle():
@@ -81,7 +80,7 @@ def test_lock_overrides_idle_then_unlock_returns_to_idle():
     assert c.set_condition(SystemState.LOCKED, False) is SystemState.IDLE
 
 
-def test_clearing_last_temporary_state_returns_active():
+def test_clearing_suspend_returns_active():
     c = SystemStateCoordinator()
     c.set_condition(SystemState.SUSPENDING, True)
     assert c.set_condition(SystemState.SUSPENDING, False) is SystemState.ACTIVE
@@ -91,8 +90,6 @@ def test_clearing_last_temporary_state_returns_active():
 
 Run: `pytest tests/test_system_state.py -v`
 
-Expected: PASS.
-
 ```bash
 git add src/owndash/core/system_state.py tests/test_system_state.py
 git commit -m "feat: add normalized system state model"
@@ -100,40 +97,36 @@ git commit -m "feat: add normalized system state model"
 
 ---
 
-### Task 2: Add a mockable Linux system-state adapter
+### Task 2: Mockable Linux/systemd-logind adapter
 
 **Files:**
 - Create: `src/owndash/service/system_state_linux.py`
 - Create: `tests/test_system_state_linux.py`
 
 **Interfaces:**
-- Consumes: `SystemState` from Task 1.
-- Produces: `LinuxSystemStateAdapter(QObject)` with Qt signals `condition_changed(object, bool)` and `availability_changed(bool)` plus `start()`, `stop()`, and `is_available`.
-- Linux adapter listens to systemd-logind manager/session signals through `PySide6.QtDBus` when present; imports must be guarded so OwnDash starts even when Qt DBus support is unavailable.
+- Consumes: `SystemState`.
+- Produces: `LinuxSystemStateAdapter(QObject)` with `condition_changed(object, bool)`, `availability_changed(bool)`, `start()`, `stop()`, and `is_available`.
+- The production source uses `PySide6.QtDBus` when available; imports/connection failures are guarded.
 
-- [ ] **Step 1: Write failing tests around a fake signal source**
+- [ ] **Step 1: Write failing tests around an injected fake source**
 
-Test the adapter’s translation layer independently from a real system bus. Inject a tiny fake source that emits semantic events such as `prepare_for_sleep(True)`, `locked(True)`, and shutdown/restart preparation.
+Exercise semantic events for sleep preparation/resume, lock/unlock, shutdown, restart, and unavailable service without requiring a real system bus.
 
-- [ ] **Step 2: Verify focused tests fail**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_system_state_linux.py -v`
 
-Expected: module/import failure.
+- [ ] **Step 3: Implement source abstraction + logind translation**
 
-- [ ] **Step 3: Implement the adapter with a narrow source abstraction**
+Translate `PrepareForSleep(true/false)` to setting/clearing `SUSPENDING`; session lock/unlock to `LOCKED`. For power-off/reboot, use the strongest available logind/systemd signal/metadata. If the platform cannot reliably distinguish reboot from power-off, do not guess: surface a neutral shutdown classification and log the limitation; the integration layer must only show `RESTARTING` when the adapter has positive reboot evidence.
 
-Keep D-Bus connection code separate from event normalization. Translate sleep preparation to `SUSPENDING`; resume clears it. Translate session lock/unlock to `LOCKED`. Keep shutdown and restart as separate conditions when the source can distinguish them; if the platform cannot distinguish a power-off preparation from restart reliably, expose a small injectable classifier and log the ambiguity rather than guessing silently.
+- [ ] **Step 4: Add duplicate/out-of-order and missing-service tests**
 
-- [ ] **Step 4: Add missing-service and duplicate-signal tests**
-
-Test that `start()` leaves `is_available == False` instead of raising when the system bus/logind cannot be reached, and that repeated identical source signals produce no malformed state sequence.
+Repeated identical signals must be harmless. `start()` on a system without usable Qt DBus/logind leaves `is_available == False` and raises no startup exception.
 
 - [ ] **Step 5: Run tests and commit**
 
 Run: `pytest tests/test_system_state_linux.py -v`
-
-Expected: PASS.
 
 ```bash
 git add src/owndash/service/system_state_linux.py tests/test_system_state_linux.py
@@ -142,31 +135,32 @@ git commit -m "feat: add Linux system state adapter"
 
 ---
 
-### Task 3: Add idle detection without coupling it to logind
+### Task 3: System idle detection using the session idle hint
 
 **Files:**
 - Create: `src/owndash/service/idle_state.py`
 - Create: `tests/test_idle_state.py`
 
 **Interfaces:**
-- Produces: `IdleStateMonitor(QObject)` with `idle_changed(bool)` and configurable timeout in seconds.
-- Idle monitoring uses Qt/application activity timestamps and is independent from lock/suspend detection, so it remains testable without D-Bus.
+- Produces: `IdleStateMonitor(QObject)` with `idle_changed(bool)`, `start()`, `stop()`, and configurable minimum idle duration.
+- Production input comes from the logind session `IdleHint`/`IdleSinceHintMonotonic` properties (or an equivalent KDE/system source if logind does not expose usable values), not from OwnDash-window input events. This ensures moving the mouse or using another app exits idle correctly.
+- The source is injectable for deterministic tests.
 
-- [ ] **Step 1: Write tests with an injected monotonic clock**
+- [ ] **Step 1: Write failing tests with a fake idle source/clock**
 
-Verify activity resets the deadline, no idle transition occurs before the timeout, one transition occurs after timeout, and the next activity emits `False` immediately.
+Verify no transition before the configured duration, one `True` when system idle exceeds the threshold, and immediate `False` when the session reports active again.
 
-- [ ] **Step 2: Run failing tests**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_idle_state.py -v`
 
-- [ ] **Step 3: Implement the timer/clock-based monitor**
+- [ ] **Step 3: Implement the monitor with source polling/signal updates**
 
-Use an injectable clock and explicit `record_activity()`/`check()` methods for deterministic tests; wire a `QTimer` only as the production scheduler.
+Use the system session idle hint and a small Qt timer only to evaluate duration. Keep the clock/source injectable so CI never depends on the host desktop session.
 
-- [ ] **Step 4: Add disabled/zero-timeout tests**
+- [ ] **Step 4: Add unavailable/disabled/invalid-timeout tests**
 
-Ensure disabled idle handling never emits idle and invalid timeout values are clamped to a documented minimum rather than creating a busy loop.
+Unavailable idle information means “do not enter OwnDash idle mode,” not a crash. Disabled idle mode emits nothing. Clamp an invalid timeout to a documented safe minimum.
 
 - [ ] **Step 5: Run tests and commit**
 
@@ -174,12 +168,12 @@ Run: `pytest tests/test_idle_state.py -v`
 
 ```bash
 git add src/owndash/service/idle_state.py tests/test_idle_state.py
-git commit -m "feat: add idle state monitoring"
+git commit -m "feat: add system idle monitoring"
 ```
 
 ---
 
-### Task 4: Generalize the shutdown artwork into a system-state renderer
+### Task 4: Resolution-independent system-state renderer
 
 **Files:**
 - Create: `src/owndash/gui/system_state_frame.py`
@@ -188,27 +182,26 @@ git commit -m "feat: add idle state monitoring"
 - Modify: `tests/test_display_switch_shutdown.py`
 
 **Interfaces:**
-- Consumes: `SystemState`.
 - Produces: `render_system_state_image(width: int, height: int, state: SystemState, theme: str, icon: QIcon, strings: dict[str, str], *, clock_text: str | None = None, date_text: str | None = None, sensor_text: str | None = None) -> QImage`.
-- `render_shutdown_image(...)` remains available as a compatibility wrapper for the existing application-close behavior.
+- Existing `render_shutdown_image(...)` remains available as the application-close compatibility wrapper.
 
-- [ ] **Step 1: Write failing portrait/landscape rendering tests**
+- [ ] **Step 1: Write failing portrait/landscape tests**
 
-Verify exact output dimensions for 480x1920, 1920x480, and a conventional landscape size, plus non-null images for every persistent state and both theme names.
+Verify exact image sizes for 480x1920, 1920x480, and a conventional landscape resolution; render every persistent state with both presets.
 
-- [ ] **Step 2: Run failing renderer tests**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_system_state_frame.py tests/test_display_switch_shutdown.py -v`
 
-- [ ] **Step 3: Implement shared resolution-independent rendering**
+- [ ] **Step 3: Implement shared rendering**
 
-Reuse the proven scaling/typography ideas from `shutdown_frame.py`, but make content state-driven. `OwnDash` keeps the neon/HUD identity. `Bazzite-inspired` uses dark blue/violet styling and only OwnDash-owned assets.
+Reuse the proven scaling/typography ideas from `shutdown_frame.py`. OwnDash preset uses the existing neon/HUD identity. Bazzite-inspired uses dark blue/violet styling with OwnDash-owned assets only.
 
-- [ ] **Step 4: Add state-specific content tests**
+- [ ] **Step 4: Add state-content/fallback tests**
 
-Check that locked frames accept clock/date, idle accepts minimal sensor text, suspend/shutdown/restart use distinct localized titles, and unsupported theme values fall back to `OwnDash` instead of crashing.
+Locked accepts clock/date; idle accepts minimal sensor text; suspend/shutdown/restart have distinct localized titles. Unknown theme strings fall back to OwnDash.
 
-- [ ] **Step 5: Preserve the existing application-close wrapper and commit**
+- [ ] **Step 5: Run tests and commit**
 
 Run: `pytest tests/test_system_state_frame.py tests/test_display_switch_shutdown.py -v`
 
@@ -219,13 +212,13 @@ git commit -m "feat: add system state screen renderer"
 
 ---
 
-### Task 5: Persist system-state preferences and add localized strings
+### Task 5: Preferences and localization
 
 **Files:**
 - Modify: `src/owndash/core/preferences.py`
 - Modify: `src/owndash/i18n.py`
 - Create: `tests/test_system_state_preferences.py`
-- Modify: existing i18n tests if present; otherwise add `tests/test_system_state_i18n.py`
+- Create: `tests/test_system_state_i18n.py`
 
 **Interfaces:**
 - Extend `AppPreferences` with:
@@ -235,23 +228,23 @@ git commit -m "feat: add system state screen renderer"
   - `idle_timeout_minutes: int = 30`
   - `lock_screen_state: bool = True`
 
-- [ ] **Step 1: Write preference migration tests**
+- [ ] **Step 1: Write failing settings migration/validation tests**
 
-Verify old settings JSON without the new keys loads the new defaults, valid `bazzite-inspired` persists, invalid theme falls back to `owndash`, and unreasonable timeout values are clamped to a safe range.
+Old Beta 4 JSON receives new defaults; `bazzite-inspired` round-trips; invalid themes fall back to `owndash`; invalid timeout values are clamped.
 
-- [ ] **Step 2: Run failing preference tests**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_system_state_preferences.py -v`
 
-- [ ] **Step 3: Extend `AppPreferences.from_raw()` and serialization**
+- [ ] **Step 3: Implement preference parsing/serialization**
 
-Keep backwards compatibility with Beta 4 settings files.
+Keep existing settings files backwards-compatible.
 
-- [ ] **Step 4: Add English/German strings**
+- [ ] **Step 4: Add English/German keys and tests**
 
-At minimum add localized keys for Standby, Entering standby, System locked, Shutting down, Restarting, System state screens, Theme, OwnDash, Bazzite-inspired, Idle mode, Idle timeout, and Lock screen handling.
+Cover Standby, Entering standby, System locked, Shutting down, Restarting, System state screens, Theme, OwnDash, Bazzite-inspired, Idle mode, Idle timeout, and Lock screen handling.
 
-- [ ] **Step 5: Run preference/i18n tests and commit**
+- [ ] **Step 5: Run tests and commit**
 
 Run: `pytest tests/test_system_state_preferences.py tests/test_system_state_i18n.py -v`
 
@@ -262,31 +255,30 @@ git commit -m "feat: add system state preferences and translations"
 
 ---
 
-### Task 6: Add settings UI controls
+### Task 6: Settings UI
 
 **Files:**
 - Modify: `src/owndash/gui/main_window.py`
 - Create: `tests/test_system_state_settings_ui.py`
 
 **Interfaces:**
-- Consumes the new `AppPreferences` fields from Task 5.
-- Produces UI controls that persist through the existing preferences save path.
+- Consumes the Task 5 preference fields and persists through the existing save path.
 
-- [ ] **Step 1: Write a failing GUI test for loading/saving controls**
+- [ ] **Step 1: Write a failing load/save GUI test**
 
-Instantiate the settings UI with non-default preferences and verify the enabled toggle, theme selector, idle toggle, timeout value, and lock-screen toggle reflect stored values; then change them and verify the saved `AppPreferences` values.
+Instantiate settings with non-default values; assert master toggle, theme selector, idle toggle, timeout, and lock toggle reflect them; edit and verify saved preference values.
 
-- [ ] **Step 2: Run the focused GUI test**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_system_state_settings_ui.py -v`
 
-- [ ] **Step 3: Add a compact System State Screens settings section**
+- [ ] **Step 3: Add a compact System State Screens settings group**
 
-Follow the existing settings layout conventions. Disable subordinate idle/lock controls when system-state screens are globally disabled. Theme choices must be exactly OwnDash and Bazzite-inspired.
+Theme choices are exactly OwnDash and Bazzite-inspired. Disabling the master switch disables dependent controls without erasing their values.
 
-- [ ] **Step 4: Add dependency-state tests**
+- [ ] **Step 4: Add dependency-state test**
 
-Verify disabling the master toggle disables dependent controls without destroying their stored values.
+Assert dependent widgets disable/re-enable correctly while preserving values.
 
 - [ ] **Step 5: Run tests and commit**
 
@@ -299,44 +291,43 @@ git commit -m "feat: add system state screen settings"
 
 ---
 
-### Task 7: Wire state transitions into the existing display lifecycle
+### Task 7: Integrate system states with the display lifecycle
 
 **Files:**
 - Modify: `src/owndash/gui/main_window.py`
-- Modify: `src/owndash/hardware/aic_usb.py` only if a bounded final-frame timeout/cancel hook is required by the existing API
-- Modify: `src/owndash/hardware/screen_display.py` only if standard monitor output needs an explicit one-frame override
+- Modify: `src/owndash/hardware/aic_usb.py` only when the existing finite-transfer API lacks the bounded one-shot operation needed here
+- Modify: `src/owndash/hardware/screen_display.py` only when standard monitor output lacks a one-frame override
 - Create: `tests/test_system_state_integration.py`
 
 **Interfaces:**
-- Consumes: `SystemStateCoordinator`, `LinuxSystemStateAdapter`, `IdleStateMonitor`, `render_system_state_image()`.
-- Main window owns runtime restoration data: active dashboard/page plus current output destination.
-- A temporary state frame is written through the same backend-selection logic as normal frames.
+- Consumes `SystemStateCoordinator`, `LinuxSystemStateAdapter`, `IdleStateMonitor`, and `render_system_state_image()`.
+- Main window owns restoration information: active dashboard/page and output destination.
 
-- [ ] **Step 1: Write failing integration tests with fake adapter/backends**
+- [ ] **Step 1: Write failing integration tests with fake system/display adapters**
 
-Cover active -> idle -> active, active -> locked -> active, idle -> locked priority, locked -> suspend, suspend -> resume restoration, and shutdown vs restart frame selection.
+Cover active→idle→active, active→locked→active, idle→locked priority, locked→suspend, suspend→resume restoration, positive reboot evidence→Restarting, and shutdown→Shutting down.
 
-- [ ] **Step 2: Run failing integration tests**
+- [ ] **Step 2: Run and verify failure**
 
 Run: `pytest tests/test_system_state_integration.py -v`
 
-- [ ] **Step 3: Wire the coordinator and adapter at application startup**
+- [ ] **Step 3: Wire manager/adapter/idle monitor at startup**
 
-Only start Linux integration when system-state screens are enabled. A failed adapter start must log and continue. Hook idle monitoring to user activity and preference changes.
+Start only when system-state screens are enabled. Adapter failure logs and continues. Preference changes update idle/lock behavior without restarting OwnDash.
 
-- [ ] **Step 4: Add one-shot temporary-frame output and restoration**
+- [ ] **Step 4: Add one-shot state-frame output + restoration**
 
-Before entering the first non-active visible state, capture the current dashboard/page and display target exactly once. Render/send state frames on visibility changes. When visible state returns to `ACTIVE`, restore the captured target and resume normal dashboard updates immediately.
+When leaving ACTIVE for the first temporary state, capture dashboard/page/destination once. Render/send on effective state changes. On return to ACTIVE, restore the captured target and immediately resume ordinary dashboard rendering.
 
-- [ ] **Step 5: Bound suspend/shutdown/restart display work**
+- [ ] **Step 5: Bound critical final-frame work**
 
-Ensure the last-frame attempt uses the backend’s existing finite USB timeouts. Do not add blocking retry loops. If a write fails or the device disappears, record/log the failure and let the OS transition continue.
+Use existing finite USB transfer timeouts; do not add retry loops that can block suspend/restart/shutdown. A failed write or disappearing display is logged and the OS transition proceeds.
 
 - [ ] **Step 6: Add failure-path tests**
 
-Test missing adapter availability, display write exception, USB disconnect around suspend/resume, duplicate suspend signals, and restoration after a failed final-frame write.
+Exercise missing adapter, display write exception, USB disconnect around suspend/resume, duplicate suspend events, ambiguous shutdown metadata, and restoration after a failed final-frame write.
 
-- [ ] **Step 7: Run integration + existing display tests and commit**
+- [ ] **Step 7: Run integration + display regressions and commit**
 
 Run: `pytest tests/test_system_state_integration.py tests/test_monitor_output.py tests/test_display_switch_shutdown.py tests/test_aic_usb_transfers.py -v`
 
@@ -347,64 +338,59 @@ git commit -m "feat: integrate system state screens with display lifecycle"
 
 ---
 
-### Task 8: Full regression, packaging check, documentation, and Bazzite manual validation
+### Task 8: Regression, AppImage, documentation, and Bazzite validation
 
 **Files:**
 - Modify: `README.md`
 - Modify: `README_DE.md`
 - Modify: `ROADMAP.md`
 - Modify: `CHANGELOG.md`
-- Modify: `packaging/appimage/build-appimage.sh` only if Qt DBus libraries/plugins need explicit bundling
-- Modify: `.github/workflows/appimage.yml` only if packaging verification requires it
+- Modify: `packaging/appimage/build-appimage.sh` only if Qt DBus needs explicit bundling
+- Modify: `.github/workflows/appimage.yml` only if packaging verification needs it
 
-**Interfaces:**
-- No new runtime interface; this task proves and documents the completed feature.
-
-- [ ] **Step 1: Run the complete automated suite**
+- [ ] **Step 1: Run the full automated suite**
 
 Run: `pytest -q`
 
-Expected: all tests pass, with the existing Beta 4 suite plus the new system-state tests.
+Expected: all existing and new tests pass.
 
-- [ ] **Step 2: Build the AppImage and inspect Qt DBus availability**
+- [ ] **Step 2: Build AppImage and verify Qt DBus inside the packaged runtime**
 
-Run the repository’s documented AppImage build path. Launch the AppImage on Bazzite and confirm `PySide6.QtDBus` loads inside the packaged runtime. If it does not, update only the AppImage bundling inputs needed to include the Qt DBus component and rebuild.
+Use the repository’s normal AppImage build path. On Bazzite, launch the result and verify `PySide6.QtDBus` is usable. If packaging omits the needed Qt component, add only the required bundling change and rebuild.
 
-- [ ] **Step 3: Manually validate on Bazzite + KDE Plasma**
+- [ ] **Step 3: Manual Bazzite + KDE Plasma validation**
 
-Check both direct ArtInChip/VSDISPLAY USB output and standard monitor output:
+Validate both direct ArtInChip/VSDISPLAY output and standard monitor output:
 
-1. idle timeout enters the minimal screen and activity restores instantly;
-2. KDE lock shows the locked screen and unlock restores the previous page;
+1. system idle enters the minimal screen after the configured delay and any normal desktop activity restores instantly;
+2. KDE lock/unlock selects Locked and restores the previous page;
 3. suspend sends Standby before sleep;
-4. record whether the physical 8.8-inch display retains the frame, powers off, or resets while asleep;
+4. record real hardware behavior while asleep: last frame retained, display powers off, or controller resets;
 5. resume restores the previous dashboard;
-6. restart shows Restarting and shutdown shows Shutting down;
-7. quitting OwnDash while the PC remains running still shows the existing OwnDash-closed screen;
-8. no OS transition is noticeably delayed by OwnDash.
+6. reboot shows Restarting only when reliably detected; power-off shows Shutting down;
+7. quitting OwnDash while the PC continues running still uses the existing OwnDash-closed screen;
+8. no OS transition is noticeably delayed.
 
 - [ ] **Step 4: Update documentation**
 
-Document Linux/Bazzite support, the two visual presets, the fact that Bazzite-inspired is unofficial and uses no official Bazzite assets, hardware-dependent suspend-frame persistence, and the settings users can change.
+Document Linux/Bazzite support, both presets, unofficial Bazzite-inspired status/no official assets, hardware-dependent suspend-frame persistence, settings, and any reboot-detection limitation found during validation.
 
-- [ ] **Step 5: Run a final regression and commit**
+- [ ] **Step 5: Final regression + AppImage build**
 
-Run: `pytest -q`
+Run: `pytest -q`, then perform one final AppImage build.
 
-Then run the AppImage build one final time.
+- [ ] **Step 6: Commit docs/packaging changes**
 
 ```bash
 git add README.md README_DE.md ROADMAP.md CHANGELOG.md packaging/appimage/build-appimage.sh .github/workflows/appimage.yml
 git commit -m "docs: document system state screens"
 ```
 
-- [ ] **Step 6: Verify branch scope before PR**
-
-Run:
+- [ ] **Step 7: Verify branch scope before PR**
 
 ```bash
 git diff main...HEAD --stat
 git log --oneline main..HEAD
 ```
 
-Confirm the branch contains only the approved System State Screens design, plan, implementation, tests, packaging adjustments if required, and documentation.
+Confirm the branch contains only the approved System State Screens design, plan, implementation, tests, any required packaging changes, and documentation.
