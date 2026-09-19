@@ -43,7 +43,7 @@ jobs:
           anchor = '''def _draw_dock_node(painter: QPainter, point: QPointF, color: QColor, short: float) -> None:\n    halo = QColor(color)\n    halo.setAlpha(38)\n    painter.setPen(Qt.NoPen)\n    painter.setBrush(halo)\n    painter.drawEllipse(point, short * 0.026, short * 0.026)\n    color.setAlpha(245)\n    painter.setBrush(color)\n    painter.drawEllipse(point, short * 0.0065, short * 0.0065)\n\n\n'''
           if anchor not in text:
               raise SystemExit("dock-node anchor missing")
-          replacement = '''def _draw_rail_ring_bridges(\n    painter: QPainter,\n    layout: _PortraitLayout,\n    short: float,\n    palette: _Theme,\n) -> None:\n    """Weld every side rail into the outer HUD ring with permanent arcs.\n\n    The animated outer segments are allowed to rotate through gaps. These\n    short fixed arcs sit exactly at the four rail docks so no animation phase\n    can visually disconnect the frame from the hero circle.\n    """\n    diameter = layout.hud_diameter * 0.988\n    ring = QRectF(\n        layout.hud_center.x() - diameter / 2.0,\n        layout.hud_center.y() - diameter / 2.0,\n        diameter,\n        diameter,\n    )\n    for degrees in (35.0, 145.0, 215.0, 325.0):\n        color = _neon_color_for_angle(palette, degrees)\n        halo = QColor(color)\n        halo.setAlpha(34)\n        painter.setBrush(Qt.NoBrush)\n        painter.setPen(QPen(halo, max(7.0, short * 0.050), Qt.SolidLine, Qt.RoundCap))\n        painter.drawArc(ring, int((degrees - 8.0) * 16), int(16.0 * 16))\n        color.setAlpha(242)\n        painter.setPen(QPen(color, max(2.2, short * 0.018), Qt.SolidLine, Qt.RoundCap))\n        painter.drawArc(ring, int((degrees - 8.0) * 16), int(16.0 * 16))\n\n\n'''
+          replacement = '''def _draw_rail_ring_bridges(\n    painter: QPainter,\n    layout: _PortraitLayout,\n    short: float,\n    palette: _Theme,\n) -> None:\n    """Weld every side rail into the outer HUD ring with permanent arcs.\n\n    The animated outer segments are allowed to rotate through gaps. These\n    short fixed arcs sit exactly at the four rail docks so no animation phase\n    can visually disconnect the frame from the hero circle.\n    """\n    radius = layout.hud_diameter * 0.494\n    for degrees in (35.0, 145.0, 215.0, 325.0):\n        color = _neon_color_for_angle(palette, degrees)\n        path = QPainterPath(_point_on_circle(layout.hud_center, radius, degrees - 8.0))\n        for offset in (-6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0):\n            path.lineTo(_point_on_circle(layout.hud_center, radius, degrees + offset))\n        halo = QColor(color)\n        halo.setAlpha(34)\n        painter.setBrush(Qt.NoBrush)\n        painter.setPen(QPen(halo, max(7.0, short * 0.050), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))\n        painter.drawPath(path)\n        color.setAlpha(242)\n        painter.setPen(QPen(color, max(2.2, short * 0.018), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))\n        painter.drawPath(path)\n\n\n'''
           text = text.replace(anchor, replacement, 1)
 
           for old in (
@@ -66,12 +66,12 @@ jobs:
           path.write_text(text)
           PY
 
-      - name: Verify focused tests before commit
+      - name: Verify full suite before commit
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libegl1 libopengl0 >/dev/null
           python -m pip install -q pytest .
-          QT_QPA_PLATFORM=offscreen pytest -q tests/test_system_state_frame.py tests/test_system_state_frame_v6.py
+          QT_QPA_PLATFORM=offscreen pytest -q
 
       - name: Commit V6 renderer
         run: |
