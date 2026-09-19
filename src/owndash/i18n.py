@@ -8,6 +8,11 @@ from PySide6.QtWidgets import (
 )
 
 EN: dict[str, str] = {
+    "Ausgabe umgestellt": "Output switched",
+    "Dashboard pausiert": "Dashboard paused",
+    "OwnDash beendet": "OwnDash closed",
+    "Ausgabe auf anderen Bildschirm umgestellt": "Output switched to another display",
+    "Bis gleich.": "See you soon.",
     "GPU · VRAM-Auslastung": "GPU · VRAM usage",
     "GPU · VRAM belegt": "GPU · VRAM used",
     "GPU · VRAM gesamt": "GPU · VRAM total",

@@ -52,14 +52,26 @@ def running_window(monkeypatch, tmp_path):
 
 def test_switch_sends_old_size_shutdown_frame_before_usb_close(running_window, monkeypatch):
     window, backend, streamer = running_window
-    expected = window._render_shutdown_frame_payload()
+    rendered = []
+    render = window._render_shutdown_frame_payload
+    def record_render(reason="quit"):
+        assert reason == "switch"
+        payload = render(reason=reason)
+        rendered.append(payload)
+        return payload
+    monkeypatch.setattr(window, "_render_shutdown_frame_payload", record_render)
+    old_size = (window.canvas.canvas_size.width, window.canvas.canvas_size.height)
     def choose(dialog):
         backend_combo = dialog.findChildren(QComboBox)[0]
         backend_combo.setCurrentIndex(backend_combo.findData("screen"))
         return QDialog.Accepted
     monkeypatch.setattr(QDialog, "exec", choose)
     window._open_display_settings()
-    assert backend.events[0] == ("frame", expected)
+    assert len(rendered) == 1
+    assert backend.events[0] == ("frame", rendered[0])
+    from PySide6.QtGui import QImage
+    decoded = QImage.fromData(rendered[0])
+    assert (decoded.width(), decoded.height()) == old_size
     assert backend.events[1][0] == "close"
     assert window.display_backend_key == "screen"
     assert not streamer.running

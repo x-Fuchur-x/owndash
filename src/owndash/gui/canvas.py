@@ -10,7 +10,7 @@ from PySide6.QtCore import QBuffer, QIODevice, QPointF, QRectF, Qt, QTimer, Sign
 from PySide6.QtGui import QColor, QBrush, QImage, QKeySequence, QLinearGradient, QPainter, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
-from owndash.core.models import BackgroundConfig
+from owndash.core.models import BackgroundConfig, content_scale
 from owndash.themes import Theme
 from owndash.sensors.catalog import metric_definition, read_metric
 from owndash.widgets.registry import widget_type
@@ -178,21 +178,21 @@ class WidgetItem(QGraphicsRectItem):
             if "n" in handle:
                 height = start.height() - delta.y()
                 y = self._resize_start_pos.y() + delta.y()
-            width = max(self.MIN_WIDTH, width)
-            height = max(self.MIN_HEIGHT, height)
+            width = max(self.MIN_WIDTH * content_scale(self.options), width)
+            height = max(self.MIN_HEIGHT * content_scale(self.options), height)
             if self.snap_enabled:
                 width = round(width / self.snap_size) * self.snap_size
                 height = round(height / self.snap_size) * self.snap_size
                 x = round(x / self.snap_size) * self.snap_size
                 y = round(y / self.snap_size) * self.snap_size
             scene_rect = self.scene().sceneRect() if self.scene() else QRectF(0, 0, 480, 1920)
-            x = max(0.0, min(x, scene_rect.width() - self.MIN_WIDTH))
-            y = max(0.0, min(y, scene_rect.height() - self.MIN_HEIGHT))
+            x = max(0.0, min(x, scene_rect.width() - self.MIN_WIDTH * content_scale(self.options)))
+            y = max(0.0, min(y, scene_rect.height() - self.MIN_HEIGHT * content_scale(self.options)))
             width = min(width, scene_rect.width() - x)
             height = min(height, scene_rect.height() - y)
             self.prepareGeometryChange()
             self.setPos(x, y)
-            self.setRect(0, 0, max(self.MIN_WIDTH, width), max(self.MIN_HEIGHT, height))
+            self.setRect(0, 0, max(self.MIN_WIDTH * content_scale(self.options), width), max(self.MIN_HEIGHT * content_scale(self.options), height))
             event.accept()
             self.update()
             return
@@ -227,7 +227,7 @@ class WidgetItem(QGraphicsRectItem):
             self.setPos(self.pos())
 
     def _bar(self, painter: QPainter, percent: float | None, top: float, accent: QColor, track: QColor) -> None:
-        r = self.rect().adjusted(18, top, -18, -18)
+        r = self._content_rect().adjusted(18, top, -18, -18)
         r.setHeight(12)
         painter.setPen(Qt.NoPen)
         painter.setBrush(track)
@@ -288,7 +288,7 @@ class WidgetItem(QGraphicsRectItem):
         font.setBold(True)
         font.setPointSize(max(7, min(24, int(self.options.get("title_size", 10)))))
         painter.setFont(font)
-        painter.drawText(self.rect().adjusted(16, 12, -16, -12), Qt.AlignTop | Qt.AlignHCenter, self.label)
+        painter.drawText(self._content_rect().adjusted(16, 12, -16, -12), Qt.AlignTop | Qt.AlignHCenter, self.label)
 
         unit = str(self.options.get("gauge_unit", "%"))
         metric_key = str(self.options.get("metric_key", ""))
@@ -302,7 +302,7 @@ class WidgetItem(QGraphicsRectItem):
         font.setPointSize(max(12, min(42, int(self.options.get("value_size", 18)) + 6)))
         painter.setFont(font)
 
-        r = self.rect().adjusted(28, 48, -28, -24)
+        r = self._content_rect().adjusted(28, 48, -28, -24)
         if style == "bar":
             bar = QRectF(r.left(), r.center().y() - 14, r.width(), 28)
             painter.setPen(Qt.NoPen)
@@ -350,15 +350,15 @@ class WidgetItem(QGraphicsRectItem):
         font.setBold(True)
         font.setPointSize(max(7, min(24, int(self.options.get("title_size", 10)))))
         painter.setFont(font)
-        painter.drawText(self.rect().adjusted(16, 10, -16, -10), Qt.AlignTop | Qt.AlignLeft, label)
+        painter.drawText(self._content_rect().adjusted(16, 10, -16, -10), Qt.AlignTop | Qt.AlignLeft, label)
 
         painter.setPen(value_color)
         font.setPointSize(max(10, min(30, int(self.options.get("value_size", 18)))))
         painter.setFont(font)
         current_text = "—" if current is None else f"{current:.1f} {unit}".strip()
-        painter.drawText(self.rect().adjusted(16, 34, -16, -10), Qt.AlignTop | Qt.AlignRight, current_text)
+        painter.drawText(self._content_rect().adjusted(16, 34, -16, -10), Qt.AlignTop | Qt.AlignRight, current_text)
 
-        plot = self.rect().adjusted(18, 62, -18, -18)
+        plot = self._content_rect().adjusted(18, 62, -18, -18)
         painter.setPen(QPen(track, 1))
         painter.drawLine(plot.left(), plot.bottom(), plot.right(), plot.bottom())
         if len(self._history) < 2:
@@ -505,8 +505,21 @@ class WidgetItem(QGraphicsRectItem):
             return self._mix_color(warning, danger, (value - warn) / (critical - warn)), 0.72
         return danger, 1.0
 
+    def _content_rect(self) -> QRectF:
+        scale = content_scale(self.options)
+        r = self.rect()
+        return QRectF(0, 0, r.width() / scale, r.height() / scale)
+
     def paint(self, painter: QPainter, option, widget=None) -> None:  # noqa: ANN001
-        del option, widget
+        painter.save()
+        scale = content_scale(self.options)
+        painter.scale(scale, scale)
+        self._paint_contents(painter)
+        painter.restore()
+        if self.isSelected() and not self._export_mode:
+            self._paint_selection_handles(painter, _color(self.options.get("accent"), "#53b3ff"))
+
+    def _paint_contents(self, painter: QPainter) -> None:
         painter.setRenderHint(QPainter.Antialiasing, True)
 
         background = _color(self.options.get("background"), "#1c222c")
@@ -576,20 +589,20 @@ class WidgetItem(QGraphicsRectItem):
             for width in (10, 6, 3):
                 painter.setPen(QPen(glow_color, width))
                 painter.setBrush(Qt.NoBrush)
-                painter.drawRoundedRect(self.rect().adjusted(2, 2, -2, -2), radius, radius)
+                painter.drawRoundedRect(self._content_rect().adjusted(2, 2, -2, -2), radius, radius)
             painter.restore()
 
         background.setAlphaF((opacity / 100.0) * effect_alpha)
         selected_border = QColor(accent) if self.isSelected() else QColor(border)
         painter.setPen(QPen(selected_border, 2))
         painter.setBrush(background)
-        painter.drawRoundedRect(self.rect(), radius, radius)
+        painter.drawRoundedRect(self._content_rect(), radius, radius)
 
         # Moving light effects are drawn inside the widget before its content.
         if animation in {"scanner", "shimmer", "radar"} and strength > 0:
             painter.save()
-            painter.setClipPath(self.shape())
-            rect = self.rect()
+            painter.setClipRect(self._content_rect())
+            rect = self._content_rect()
             travel = (math.sin(phase * 0.72) * 0.5 + 0.5)
             if animation == "scanner":
                 x = rect.left() + travel * rect.width()
@@ -626,20 +639,10 @@ class WidgetItem(QGraphicsRectItem):
 
         if self.kind.startswith("gauge_"):
             self._paint_gauge(painter, accent, track, title_color, value_color)
-            if self.isSelected() and not self._export_mode:
-                painter.setPen(QPen(QColor(255, 255, 255), 1, Qt.DashLine))
-                painter.setBrush(QBrush(accent))
-                for handle_rect in self._handle_rects().values():
-                    painter.drawRect(handle_rect)
             return
 
         if self.kind in {"chart", "sparkline"}:
             self._paint_chart(painter, accent, track, title_color, value_color)
-            if self.isSelected() and not self._export_mode:
-                painter.setPen(QPen(QColor(255, 255, 255), 1, Qt.DashLine))
-                painter.setBrush(QBrush(accent))
-                for handle_rect in self._handle_rects().values():
-                    painter.drawRect(handle_rect)
             return
 
         title, value, percent = self._content()
@@ -648,19 +651,17 @@ class WidgetItem(QGraphicsRectItem):
         font.setPointSize(max(7, min(28, int(self.options.get("title_size", 10)))))
         font.setBold(True)
         painter.setFont(font)
-        painter.drawText(self.rect().adjusted(18, 12, -18, -12), Qt.AlignTop | Qt.AlignLeft, title)
+        painter.drawText(self._content_rect().adjusted(18, 12, -18, -12), Qt.AlignTop | Qt.AlignLeft, title)
 
         painter.setPen(value_color)
         font.setPointSize(max(9, min(48, int(self.options.get("value_size", 18)))))
         font.setBold(True)
         painter.setFont(font)
-        painter.drawText(self.rect().adjusted(18, 42, -18, -34), Qt.AlignTop | Qt.AlignLeft, value)
+        painter.drawText(self._content_rect().adjusted(18, 42, -18, -34), Qt.AlignTop | Qt.AlignLeft, value)
 
-        if percent is not None and self.rect().height() >= 110:
-            self._bar(painter, percent, self.rect().height() - 34, accent, track)
+        if percent is not None and self._content_rect().height() >= 110:
+            self._bar(painter, percent, self._content_rect().height() - 34, accent, track)
 
-        if self.isSelected() and not self._export_mode:
-            self._paint_selection_handles(painter, accent)
 
 
 class BackgroundImageItem(QGraphicsRectItem):
@@ -868,7 +869,8 @@ class DashboardCanvas(QGraphicsView):
             for item in self.widget_items():
                 r = item.rect()
                 x, y = item.x() * factor + dx, item.y() * factor + dy
-                item.setRect(0, 0, max(item.MIN_WIDTH, r.width() * factor), max(item.MIN_HEIGHT, r.height() * factor))
+                item.options["_content_scale"] = content_scale(item.options) * factor
+                item.setRect(0, 0, r.width() * factor, r.height() * factor)
                 snap = item.snap_enabled
                 item.snap_enabled = False
                 item.setPos(x, y)
@@ -1098,7 +1100,7 @@ class DashboardCanvas(QGraphicsView):
         if apply_to_widgets:
             options = theme.widget_options()
             for item in self.widget_items():
-                semantic_keys = {"text", "image_path", "locked", "metric_key", "gauge_metric", "gauge_min", "gauge_max", "gauge_unit", "gauge_style", "warn", "critical", "chart_style", "history_points", "chart_min", "chart_max"}
+                semantic_keys = {"_content_scale", "text", "image_path", "locked", "metric_key", "gauge_metric", "gauge_min", "gauge_max", "gauge_unit", "gauge_style", "warn", "critical", "chart_style", "history_points", "chart_min", "chart_max"}
                 preserved = {key: value for key, value in item.options.items() if key in semantic_keys}
                 item.set_style_options({**options, **preserved})
 
@@ -1256,7 +1258,7 @@ class DashboardCanvas(QGraphicsView):
         created = []
         for data in self._clipboard_widgets:
             pos = QPointF(data["x"] + self._paste_offset, data["y"] + self._paste_offset)
-            item = self.add_widget(data["kind"], data["label"], pos, options=data["options"], width=int(data["width"]), height=int(data["height"]))
+            item = self.add_widget(data["kind"], data["label"], pos, options=data["options"], width=data["width"], height=data["height"])
             item.setZValue(float(data["z"]) + 0.01)
             item.setSelected(True)
             created.append(item)

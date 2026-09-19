@@ -50,6 +50,7 @@ from owndash.core.config import default_profile_path, load_profile, save_profile
 from owndash.core.preferences import AppPreferences, load_preferences, save_preferences
 from owndash.appearance import apply_appearance
 from owndash.i18n import resolved_language, retranslate_tree, tr
+from owndash.core.models import content_scale
 from owndash.core.models import BackgroundConfig, DashboardPage, Profile, WidgetConfig
 from owndash.core.display_devices import logical_size
 from owndash.core.streaming import DisplayStreamer
@@ -1217,10 +1218,11 @@ class MainWindow(QMainWindow):
                 if index == self.active_page_index:
                     continue
                 for widget in page.widgets:
-                    widget.x = round(widget.x * factor + dx)
-                    widget.y = round(widget.y * factor + dy)
-                    widget.width = max(40, round(widget.width * factor))
-                    widget.height = max(40, round(widget.height * factor))
+                    widget.x = widget.x * factor + dx
+                    widget.y = widget.y * factor + dy
+                    widget.width = widget.width * factor
+                    widget.height = widget.height * factor
+                    widget.options["_content_scale"] = content_scale(widget.options) * factor
                 bg = page.background
                 if bg.image_fit == "manual":
                     bg.image_x = bg.image_x * factor + dx
@@ -1230,8 +1232,8 @@ class MainWindow(QMainWindow):
         self.canvas.set_canvas_size(width, height, scale_widgets=scale_widgets)
         self.x_spin.setRange(0, width)
         self.y_spin.setRange(0, height)
-        self.w_spin.setRange(40, width)
-        self.h_spin.setRange(40, height)
+        self.w_spin.setRange(1, width)
+        self.h_spin.setRange(1, height)
 
     def _build_tray(self) -> None:
         """Keep live dashboards moving after the editor window is closed."""
@@ -1311,9 +1313,9 @@ class MainWindow(QMainWindow):
         self.y_spin = FocusSafeSpinBox()
         self.y_spin.setRange(0, 1920)
         self.w_spin = FocusSafeSpinBox()
-        self.w_spin.setRange(40, 480)
+        self.w_spin.setRange(1, 480)
         self.h_spin = FocusSafeSpinBox()
-        self.h_spin.setRange(40, 1920)
+        self.h_spin.setRange(1, 1920)
         form.addRow("X", self.x_spin)
         form.addRow("Y", self.y_spin)
         form.addRow("Breite", self.w_spin)
@@ -1891,10 +1893,10 @@ class MainWindow(QMainWindow):
         widgets = [
             WidgetConfig(
                 kind=item.kind,
-                x=round(item.x()),
-                y=round(item.y()),
-                width=round(item.rect().width()),
-                height=round(item.rect().height()),
+                x=item.x(),
+                y=item.y(),
+                width=item.rect().width(),
+                height=item.rect().height(),
                 title=item.label,
                 z=float(item.zValue()),
                 options=dict(item.options),
@@ -3041,10 +3043,15 @@ class MainWindow(QMainWindow):
         if item is None or self._restoring:
             return
         before = self._profile_from_canvas().to_json()
-        x = min(self.x_spin.value(), self.canvas.canvas_size.width - 40)
-        y = min(self.y_spin.value(), self.canvas.canvas_size.height - 40)
-        width = max(40, min(self.w_spin.value(), self.canvas.canvas_size.width - x))
-        height = max(40, min(self.h_spin.value(), self.canvas.canvas_size.height - y))
+        # Integer controls must not round untouched fractional fitted geometry.
+        def edited(control, previous):
+            return previous if control.value() == round(previous) else control.value()
+
+        minimum = 40 * content_scale(item.options)
+        x = min(edited(self.x_spin, item.x()), self.canvas.canvas_size.width - minimum)
+        y = min(edited(self.y_spin, item.y()), self.canvas.canvas_size.height - minimum)
+        width = max(minimum, min(edited(self.w_spin, item.rect().width()), self.canvas.canvas_size.width - x))
+        height = max(minimum, min(edited(self.h_spin, item.rect().height()), self.canvas.canvas_size.height - y))
         item.setPos(x, y)
         item.setRect(0, 0, width, height)
         self._sync_properties(item)

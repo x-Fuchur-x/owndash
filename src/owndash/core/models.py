@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from dataclasses import asdict, dataclass, field
 import json
 from typing import Any
@@ -41,23 +43,32 @@ class BackgroundConfig:
         return cls(color=legacy_color or cls().color)
 
 
+def content_scale(options: dict) -> float:
+    """Legacy profiles use unscaled widget contents."""
+    try:
+        value = float((options or {}).get("_content_scale", 1.0))
+        return value if math.isfinite(value) and value > 0 else 1.0
+    except (TypeError, ValueError):
+        return 1.0
+
+
 @dataclass(slots=True)
 class WidgetConfig:
     kind: str
-    x: int
-    y: int
-    width: int
-    height: int
+    x: float
+    y: float
+    width: float
+    height: float
     title: str = ""
     enabled: bool = True
     z: float = 0.0
     options: dict[str, Any] = field(default_factory=dict)
 
     def normalized(self, canvas_width: int, canvas_height: int) -> "WidgetConfig":
-        width = max(40, min(int(self.width), canvas_width))
-        height = max(40, min(int(self.height), canvas_height))
-        x = max(0, min(int(self.x), canvas_width - width))
-        y = max(0, min(int(self.y), canvas_height - height))
+        width = min(canvas_width, max(40 * content_scale(self.options), float(self.width)))
+        height = min(canvas_height, max(40 * content_scale(self.options), float(self.height)))
+        x = max(0, min(float(self.x), canvas_width - width))
+        y = max(0, min(float(self.y), canvas_height - height))
         return WidgetConfig(
             kind=str(self.kind),
             x=x,

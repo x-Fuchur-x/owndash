@@ -75,7 +75,7 @@ Use displays that Linux already recognizes as regular screens, including HDMI, D
 
 Monitor selection shows the model (when supplied by the system), connector and pixel dimensions calculated from Qt geometry and display scaling. Fullscreen output targets the selected screen explicitly. Switching from USB to a standard monitor defaults to 0° rotation; manual rotation remains available.
 
-Existing layouts are fitted proportionally and centered across dashboard pages. The editor automatically fits the working area; use **Fit** to return after manual zoom. Fitted layout bounds are saved with the profile to avoid shrinking the layout repeatedly when switching aspect ratios. Widget minimum dimensions (40 pixels) and fixed font sizes still apply, so very small widgets may need adjustment.
+Existing layouts are fitted proportionally and centered across dashboard pages. The editor automatically fits the working area; use **Fit** to return after manual zoom. Fitted layout bounds are saved with the profile to avoid shrinking the layout repeatedly when switching aspect ratios. Widget contents (fonts, spacing, borders and effects) scale together with their geometry. The content scale and fractional positions are saved with the profile; existing profiles retain their original appearance. Shutdown artwork uses the display resolution and output rotation, with larger branding and an adaptive landscape/portrait layout.
 
 Mixed-DPI output is tested with simulated Qt screens; compositor-specific fullscreen placement still needs confirmation on real hardware.
 
