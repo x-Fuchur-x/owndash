@@ -3,6 +3,8 @@ name: Build AppImage
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "fix/system-state-dbus-pyside"
     tags:
       - "v*"
 
@@ -118,8 +120,44 @@ jobs:
               echo "Debian 12 compatibility test passed."
             '
 
+      - name: Split AppImage for transfer
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
+          mkdir -p dist/chunks
+          split -b 75M -a 2 "$APPIMAGE" dist/chunks/owndash-v5.part-
+          for part in aa ab ac ad; do test -f "dist/chunks/owndash-v5.part-$part"; done
+
       - uses: actions/upload-artifact@v7
         with:
           name: OwnDash-AppImage
           path: dist/*.AppImage
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-v5-part-aa
+          path: dist/chunks/owndash-v5.part-aa
+          compression-level: 0
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-v5-part-ab
+          path: dist/chunks/owndash-v5.part-ab
+          compression-level: 0
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-v5-part-ac
+          path: dist/chunks/owndash-v5.part-ac
+          compression-level: 0
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-v5-part-ad
+          path: dist/chunks/owndash-v5.part-ad
+          compression-level: 0
           if-no-files-found: error
