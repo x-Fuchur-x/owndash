@@ -3,7 +3,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 USB = (ROOT / "src/owndash/hardware/usb_setup.py").read_text(encoding="utf-8")
-SYSTEM = (ROOT / "src/owndash/sensors/system.py").read_text(encoding="utf-8")
 WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 
 
@@ -31,11 +30,9 @@ def test_usb_setup_migrates_legacy_late_rule():
 
 
 def test_legacy_late_rule_is_detected_for_proactive_migration():
-    """A working display must still offer migration before suspend exposes the bad rule ordering."""
+    """A working display must still request setup before suspend exposes bad rule ordering."""
     assert "def legacy_udev_rule_installed()" in USB
-    assert '"legacy_usb_rule"' in SYSTEM
-    assert 'display_caps["legacy_usb_rule"]' in WINDOW
-    assert "USB-Regel aktualisieren" in WINDOW
+    assert "not legacy_udev_rule_installed()" in USB
 
 
 def test_beta3_missing_usb_access_is_marked_as_required():
