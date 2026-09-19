@@ -38,7 +38,14 @@ def legacy_udev_rule_installed() -> bool:
 
 
 def probe_artinchip_usb() -> UsbAccessStatus:
-    """Detect the supported USB controller without requiring PyUSB access."""
+    """Detect the supported USB controller without requiring PyUSB access.
+
+    A legacy 99-* OwnDash uaccess rule is treated as not ready even when the
+    current device node happens to be accessible. That rule is too late in the
+    udev chain for reliable logind seat ACLs after USB re-enumeration, so the
+    setup assistant should proactively offer the one-click migration before a
+    suspend/resume cycle exposes the problem.
+    """
     sys_usb = Path("/sys/bus/usb/devices")
     if not sys_usb.is_dir():
         return UsbAccessStatus(False, False, None)
@@ -56,7 +63,11 @@ def probe_artinchip_usb() -> UsbAccessStatus:
             return UsbAccessStatus(True, False, None)
 
         node = Path(f"/dev/bus/usb/{bus:03d}/{dev:03d}")
-        accessible = node.exists() and os.access(node, os.R_OK | os.W_OK)
+        accessible = (
+            node.exists()
+            and os.access(node, os.R_OK | os.W_OK)
+            and not legacy_udev_rule_installed()
+        )
         return UsbAccessStatus(True, accessible, str(node))
 
     return UsbAccessStatus(False, False, None)
