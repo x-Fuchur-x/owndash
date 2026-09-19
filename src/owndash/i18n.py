@@ -117,6 +117,8 @@ EN: dict[str, str] = {
     "Display ist gestoppt": "Display is stopped", "Display-Ausgabe beendet": "Display output stopped",
     "Display nicht verbunden": "Display not connected",
     "Display konnte nicht gestartet werden": "Display could not be started",
+    "Display wird nach Standby neu verbunden …": "Reconnecting display after standby …",
+    "Systemzustandsanzeige konnte nicht gerendert werden": "System state screen could not be rendered",
     "OwnDash läuft weiter": "OwnDash keeps running",
     "OwnDash bleibt im Hintergrund geöffnet.": "OwnDash remains open in the background.",
     "Das Display und seine Animationen laufen im Hintergrund weiter.":
