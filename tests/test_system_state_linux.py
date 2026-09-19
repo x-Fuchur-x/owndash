@@ -216,3 +216,9 @@ def test_locked_hint_property_changes_track_actual_lock_state(monkeypatch):
         [],
     )
     assert events == [("lock", False)]
+
+
+def test_locked_hint_properties_slot_has_exact_dbus_signature():
+    source = _LogindDbusSource()
+    signature = "_on_session_properties_changed(QString,QVariantMap,QStringList)"
+    assert source.metaObject().indexOfSlot(signature) >= 0
