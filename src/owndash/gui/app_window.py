@@ -265,12 +265,10 @@ class SafeShutdownWindow(MainWindow):
         self._resume_reconnect_attempt = 0
         if status.connected:
             message = self._t(
-                "Das USB-Display wurde nach Standby erkannt, aber die Zugriffsrechte wurden nicht rechtzeitig wiederhergestellt. Bitte richte den USB-Zugriff erneut ein."
+                "Das USB-Display wurde erkannt, OwnDash benötigt aber noch Zugriffsrechte."
             )
         else:
-            message = self._t(
-                "Das USB-Display ist nach Standby nicht wieder erschienen. Bitte prüfe Verbindung und Stromversorgung."
-            )
+            message = self._t("Display nicht verbunden")
         QMessageBox.warning(
             self,
             self._t("Display konnte nicht gestartet werden"),
