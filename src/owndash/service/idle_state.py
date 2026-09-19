@@ -163,7 +163,9 @@ class IdleStateMonitor(QObject):
     """
 
     idle_changed = Signal(bool)
-    MIN_IDLE_SECONDS = 60
+    # The service layer accepts short values for deterministic tests and future
+    # integrations. The user-facing preference is stricter (minutes, >= 1).
+    MIN_IDLE_SECONDS = 5
     MAX_IDLE_SECONDS = 24 * 60 * 60
 
     def __init__(
