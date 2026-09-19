@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from owndash.core.preferences import AppPreferences
 from owndash.core.system_state import SystemState
@@ -15,6 +15,7 @@ class RecordingStreamer:
         self.running = True
         self.final_frames: list[tuple[bytes, float]] = []
         self.frames: list[bytes] = []
+        self.stop_timeouts: list[float] = []
 
     def submit_final(self, payload: bytes, timeout: float = 1.0) -> bool:
         self.final_frames.append((bytes(payload), float(timeout)))
@@ -22,6 +23,10 @@ class RecordingStreamer:
 
     def submit(self, payload: bytes) -> None:
         self.frames.append(bytes(payload))
+
+    def stop(self, timeout: float = 2.5) -> None:
+        self.stop_timeouts.append(float(timeout))
+        self.running = False
 
 
 @pytest.fixture
@@ -146,3 +151,42 @@ def test_runtime_preferences_update_idle_and_lock_policy(state_window):
     assert window._idle_state_monitor.enabled is False
     assert window._system_state_runtime.idle_enabled is False
     assert window._system_state_runtime.lock_enabled is False
+
+
+def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window, monkeypatch):
+    window = state_window
+    streamer = RecordingStreamer()
+    window.display_backend_key = "aic_usb"
+    window.display_streamer = streamer
+    window.display_connected = True
+    window.display_timer.start(250)
+    window.live_timer.start(1000)
+
+    warnings = []
+    reconnects = []
+    delayed = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: warnings.append(args))
+    monkeypatch.setattr(window, "_start_display_stream", lambda: reconnects.append(True))
+
+    def single_shot(delay, callback):
+        if int(delay) <= 500:
+            callback()
+        else:
+            delayed.append((int(delay), callback))
+
+    monkeypatch.setattr(QTimer, "singleShot", staticmethod(single_shot))
+
+    window._handle_system_state_condition(SystemState.SUSPENDING, True)
+    window._display_error(RuntimeError("USB disappeared during suspend"))
+
+    assert warnings == []
+    assert window.display_streamer is None
+    assert window.display_connected is False
+    assert streamer.stop_timeouts == [0.2]
+    assert window._resume_reconnect_pending is True
+
+    window._handle_system_state_condition(SystemState.SUSPENDING, False)
+
+    assert reconnects == [True]
+    assert window._resume_reconnect_pending is False
+    assert window._resume_recovery_armed is False
