@@ -30,6 +30,16 @@ def image_digest(image: QImage) -> bytes:
     return bytes(image.constBits())
 
 
+def _count_pixels(image: QImage, x0: int, y0: int, x1: int, y1: int, predicate) -> int:
+    total = 0
+    for y in range(max(0, y0), min(image.height(), y1), 3):
+        for x in range(max(0, x0), min(image.width(), x1), 3):
+            color = image.pixelColor(x, y)
+            if predicate(color.red(), color.green(), color.blue()):
+                total += 1
+    return total
+
+
 def test_all_states_render_exact_size_in_portrait_and_landscape():
     states = [
         SystemState.IDLE,
@@ -105,6 +115,46 @@ def test_terminal_states_ignore_animation_phase_for_stable_final_frame():
         phase_a = render(480, 1920, state, animation_phase=0.0)
         phase_b = render(480, 1920, state, animation_phase=0.75)
         assert image_digest(phase_a) == image_digest(phase_b)
+
+
+def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections():
+    image = render(
+        480,
+        1920,
+        SystemState.LOCKED,
+        animation_phase=0.25,
+        clock_text="11:42",
+        date_text="19.09.2026",
+    )
+
+    cyan_left = _count_pixels(
+        image,
+        0,
+        100,
+        55,
+        1420,
+        lambda r, g, b: b > 100 and g > 90 and b > r * 1.35,
+    )
+    magenta_right = _count_pixels(
+        image,
+        425,
+        100,
+        480,
+        1420,
+        lambda r, g, b: r > 105 and b > 80 and r > g * 1.25,
+    )
+    neon_floor = _count_pixels(
+        image,
+        45,
+        1580,
+        435,
+        1910,
+        lambda r, g, b: max(r, g, b) > 75 and max(r, g, b) - min(r, g, b) > 38,
+    )
+
+    assert cyan_left >= 28
+    assert magenta_right >= 28
+    assert neon_floor >= 45
 
 
 def test_active_state_is_not_a_state_screen():
