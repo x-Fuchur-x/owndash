@@ -221,6 +221,37 @@ def test_usb_disconnect_during_suspend_waits_for_device_and_access_before_reconn
     assert warnings == []
 
 
+def test_usb_resume_recovery_warns_only_once_after_bounded_retries(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    warnings = []
+    scheduled = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: warnings.append(args))
+    monkeypatch.setattr(
+        app_window_module,
+        "probe_artinchip_usb",
+        lambda: SimpleNamespace(connected=True, accessible=False),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        QTimer,
+        "singleShot",
+        staticmethod(lambda delay, callback: scheduled.append((int(delay), callback))),
+    )
+
+    window._schedule_usb_resume_reconnect()
+    safety = 0
+    while scheduled and safety < 20:
+        _delay, callback = scheduled.pop(0)
+        callback()
+        safety += 1
+
+    assert safety < 20
+    assert len(warnings) == 1
+    assert window._resume_reconnect_pending is False
+    assert window._resume_recovery_armed is False
+
+
 def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypatch):
     window = state_window
     window.language = "en"
@@ -232,13 +263,34 @@ def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypa
     assert window.statusBar().currentMessage() == "Reconnecting display after standby …"
 
 
+def test_lock_hud_animation_is_low_rate_and_uses_nonblocking_frames(state_window):
+    window = state_window
+    streamer = RecordingStreamer()
+    window.display_streamer = streamer
+    window.display_connected = True
+
+    window._handle_system_state_condition(SystemState.LOCKED, True)
+
+    assert window._system_state_animation_timer.isActive()
+    assert window._system_state_animation_timer.interval() >= 500
+    initial_final_frames = len(streamer.final_frames)
+
+    window._advance_system_state_animation()
+
+    assert len(streamer.final_frames) == initial_final_frames
+    assert len(streamer.frames) == 1
+
+    window._handle_system_state_condition(SystemState.SUSPENDING, True)
+    assert not window._system_state_animation_timer.isActive()
+
+
 def test_system_state_render_error_uses_active_language(state_window, monkeypatch):
     window = state_window
     window.language = "en"
     window.display_streamer = RecordingStreamer()
     window.display_connected = True
 
-    def fail_render(_state):
+    def fail_render(_state, **_kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(window, "_render_system_state_payload", fail_render)
