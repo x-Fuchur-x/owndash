@@ -44,6 +44,7 @@ OwnDash is built for people who want a dedicated system display without turning 
 - **Sensor-driven behavior** — animations, rules and alert states can react to live values.
 - **Two output paths** — standard Linux monitors and compatible direct USB displays.
 - **Beginner-friendly setup** — first-run compatibility checks, diagnostics and graphical USB-permission setup.
+- **Optional update notifications** — OwnDash can check for newer releases without downloading or installing anything automatically.
 - **Linux-native approach** — built around common Linux interfaces instead of one specific distribution.
 - **English and German UI** — plus System, Light and Dark appearance modes.
 - **Open source** — MIT licensed and designed to grow with additional hardware backends over time.
@@ -83,7 +84,7 @@ Mixed-DPI output is tested with simulated Qt screens; compositor-specific fullsc
 
 Compatible ArtInChip-based sensor displays can be driven directly over USB without appearing as a normal monitor. The official AppImage bundles the required `libusb-1.0.so.0` runtime.
 
-The development branch includes capability-driven UI groundwork for optional display controls. For the `33C3:0E02` backend, hardware brightness, device-version queries, panel queries and Expansion Screen Mode remain disabled: a compatible control transport has not been verified. Unsupported controls stay hidden. No brightness range or power-off behavior is established for this device.
+OwnDash includes capability-driven UI groundwork for optional display controls. For the `33C3:0E02` backend, hardware brightness, device-version queries, panel queries and Expansion Screen Mode remain disabled because a compatible control transport has not been verified. Unsupported controls stay hidden. No brightness range or power-off behavior is established for this device.
 
 Startup-image/video upload is intentionally not advertised yet; it is planned as a separate hardware-verified phase.
 
@@ -95,7 +96,7 @@ Other proprietary USB-only display families need their own backend and protocol 
 
 The official release is a **self-contained x86-64 AppImage**. Python knowledge is not required, and no separate installation of Python or PySide6 is required when using the official AppImage.
 
-**Current file:** `OwnDash-0.14.0-Beta-3-x86_64.AppImage`
+**Current release asset:** `OwnDash-0.14.0-Beta-4-x86_64.AppImage`
 
 1. Download the AppImage from the [OwnDash 0.14.0 Beta 4 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4).
 2. Make it executable if your desktop requires it.
@@ -124,11 +125,11 @@ OwnDash includes **Help → System and sensor information** for detailed capabil
 - Graphical Linux desktop environment
 - Official release builds produced on a **Debian 12 compatibility baseline**
 
-GitHub CI builds the official Beta 3 AppImage on Debian 12, verifies the GLIBC compatibility baseline, and performs a clean Debian 12 AppImage startup smoke test. Hardware, sensors, graphics and USB capabilities can still vary between systems.
+GitHub CI builds the official AppImage on Debian 12, verifies the GLIBC compatibility baseline, and performs a clean Debian 12 AppImage startup smoke test. Hardware, sensors, graphics and USB capabilities can still vary between systems.
 
 ## Tested hardware & platform
 
-Beta 3 has been practically tested with:
+OwnDash 0.14.0 Beta 4 has been practically tested with:
 
 - Bazzite Linux
 - KDE Plasma

@@ -4,23 +4,36 @@ OwnDash is evolving from a Linux dashboard editor with direct ArtInChip / VSDISP
 
 This roadmap describes direction rather than fixed delivery dates. Priorities may change as hardware testing, community feedback, and technical constraints uncover better paths.
 
+## Completed in 0.14.0 Beta 4
+
+Beta 4 closed several items that were previously listed as upcoming work:
+
+- Proportional widget-content scaling across geometry, fonts, spacing, borders and effects
+- Persisted fitted geometry and content scaling across saves, reloads and theme changes
+- Improved monitor selection, HiDPI resolution reporting and editor fitting
+- Adaptive portrait/landscape pause screens with contextual status and localization
+- Safe pause-frame handling when switching away from direct USB output
+- Improved USB write validation and disconnect handling
+- Optional, non-blocking update checks with user-facing release notifications
+- Capability-driven UI groundwork for optional device controls, with unsupported controls kept hidden
+
+Released features and full historical details remain documented in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Now — 0.14.x Beta Stabilization
 
 The current priority is making the public beta increasingly predictable across real Linux systems and supported display paths.
 
-- Safe display shutdown and a defined end state when OwnDash is fully quit
 - Beta bug fixes and regression prevention
-- Continued real-device validation
+- Continued real-device validation, especially output switching and shutdown/end-state behavior
 - Linux distribution, desktop, sensor, and display compatibility improvements
 - AppImage packaging and release reliability
 - Diagnostics and setup polish where beta feedback shows friction
+- Validation of mixed-DPI and compositor-specific fullscreen behavior on additional real systems
 
-## Next — 0.15 Update & Device Experience
+## Next — 0.15 Device Experience
 
-Make OwnDash easier to maintain and make connected displays easier to understand and control.
+Make connected displays easier to understand and control without exposing unsupported hardware functions.
 
-- Background update check with a clear user-facing notification when a new OwnDash release is available
-- Release information and a safe path to obtain the new version
 - Capability-driven device information for compatible ArtInChip displays
 - Hardware brightness control where the selected backend and hardware expose a verified mechanism
 - Expansion Screen Mode where the connected device reports support
@@ -28,6 +41,7 @@ Make OwnDash easier to maintain and make connected displays easier to understand
 - Clearer diagnostics for unavailable, unsupported, or permission-limited devices
 - More consistent display-management UX across direct USB and standard-monitor output
 - Persistent startup-image support after a separate real-hardware verification phase
+- Update-notification polish based on beta feedback, while keeping downloads and installation user-controlled
 
 ## Planned — 0.16 Dashboard Studio
 
@@ -86,7 +100,3 @@ Before 1.0, the project aims to have:
 - Clearly documented Linux and hardware compatibility expectations
 - Predictable first-run, diagnostics, update, and display-management behavior
 - A defined stable feature set that can evolve without breaking existing dashboards unnecessarily
-
-## Completed work
-
-Released features and historical version details are maintained in [`CHANGELOG.md`](CHANGELOG.md).
