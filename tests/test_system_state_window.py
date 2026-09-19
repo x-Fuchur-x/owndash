@@ -223,6 +223,7 @@ def test_usb_disconnect_during_suspend_waits_for_device_and_access_before_reconn
 
 def test_usb_resume_recovery_warns_only_once_after_bounded_retries(state_window, monkeypatch):
     window = state_window
+    window.language = "en"
     window.display_backend_key = "aic_usb"
     warnings = []
     scheduled = []
@@ -248,6 +249,10 @@ def test_usb_resume_recovery_warns_only_once_after_bounded_retries(state_window,
 
     assert safety < 20
     assert len(warnings) == 1
+    assert warnings[0][1] == "Display could not be started"
+    assert "USB display" in warnings[0][2]
+    assert "access permission" in warnings[0][2]
+    assert "USB-Display" not in warnings[0][2]
     assert window._resume_reconnect_pending is False
     assert window._resume_recovery_armed is False
 
