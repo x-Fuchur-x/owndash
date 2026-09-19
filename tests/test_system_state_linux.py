@@ -1,4 +1,5 @@
 from owndash.core.system_state import SystemState
+from owndash.service import system_state_linux
 from owndash.service.system_state_linux import LinuxSystemStateAdapter, _LogindDbusSource
 
 
@@ -18,6 +19,77 @@ class FakeSource:
     def emit(self, kind, enabled=True):
         assert self.callback is not None
         self.callback(kind, enabled)
+
+
+class FakeReply:
+    def __init__(self, *arguments):
+        self._arguments = list(arguments)
+
+    def arguments(self):
+        return list(self._arguments)
+
+
+class FakeVariant:
+    def __init__(self, value):
+        self._value = value
+
+    def variant(self):
+        return self._value
+
+
+class FakeObjectPath:
+    def __init__(self, path):
+        self._path = path
+
+    def path(self):
+        return self._path
+
+
+class FakeBusInterface:
+    def isServiceRegistered(self, _service):
+        return True
+
+
+class FakeBus:
+    def __init__(self):
+        self.connections = []
+
+    def isConnected(self):
+        return True
+
+    def interface(self):
+        return FakeBusInterface()
+
+    def connect(self, service, path, interface, name, receiver, slot):
+        self.connections.append((service, path, interface, name, receiver, slot))
+        return True
+
+    def disconnect(self, *_args):
+        return True
+
+
+class FakeDBusConnection:
+    bus = FakeBus()
+
+    @classmethod
+    def systemBus(cls):
+        return cls.bus
+
+
+class FakeDBusInterface:
+    def __init__(self, _service, path, interface, _bus):
+        self.path = path
+        self.interface = interface
+
+    def isValid(self):
+        return True
+
+    def call(self, method, *args):
+        if method == "GetSession":
+            return FakeReply(FakeObjectPath("/org/freedesktop/login1/session/test"))
+        if method == "Get" and args[-1] == "LockedHint":
+            return FakeReply(FakeVariant(True))
+        return FakeReply()
 
 
 def test_translates_sleep_and_lock_events():
@@ -100,3 +172,16 @@ def test_systemd_jobnew_slot_has_exact_dbus_signature():
     source = _LogindDbusSource()
     signature = "_on_job_new(uint,QDBusObjectPath,QString)"
     assert source.metaObject().indexOfSlot(signature) >= 0
+
+
+def test_start_emits_current_locked_hint_without_polling(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_ID", "test-session")
+    FakeDBusConnection.bus = FakeBus()
+    monkeypatch.setattr(system_state_linux, "QDBusConnection", FakeDBusConnection)
+    monkeypatch.setattr(system_state_linux, "QDBusInterface", FakeDBusInterface)
+
+    source = _LogindDbusSource()
+    events = []
+
+    assert source.start(lambda kind, enabled: events.append((kind, enabled))) is True
+    assert ("lock", True) in events
