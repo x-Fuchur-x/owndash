@@ -178,9 +178,9 @@ def test_portrait_v2_gives_hero_ring_and_status_reference_scale():
 def test_portrait_v3_wordmark_is_the_hero_element():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.wordmark_rect.width() >= 480 * 0.92
-    assert layout.wordmark_font_px >= 480 * 0.17
-    assert layout.wordmark_font_px > layout.status_font_px * 1.55
+    assert layout.wordmark_rect.width() >= 480 * 0.84
+    assert layout.wordmark_font_px >= 480 * 0.16
+    assert layout.wordmark_font_px > layout.status_font_px * 1.40
 
 
 def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
@@ -207,8 +207,8 @@ def test_portrait_v4_has_stronger_logo_status_and_tighter_vertical_composition()
     layout = _portrait_layout(480, 1920)
 
     assert layout.hud_diameter >= 480 * 0.96
-    assert layout.wordmark_rect.width() >= 480 * 0.94
-    assert layout.wordmark_font_px >= 480 * 0.19
+    assert layout.wordmark_rect.width() >= 480 * 0.84
+    assert layout.wordmark_font_px >= 480 * 0.16
     assert layout.status_font_px >= 480 * 0.108
     assert layout.status_rect.top() <= 1920 * 0.438
     assert layout.context_top <= 1920 * 0.605
@@ -246,6 +246,15 @@ def test_portrait_v4_wordmark_has_a_crisp_bright_core():
     )
 
     assert bright_core >= 115
+
+
+def test_portrait_v5_wordmark_has_breathing_room_inside_ring():
+    layout = _portrait_layout(480, 1920)
+
+    assert 480 * 0.165 <= layout.wordmark_font_px <= 480 * 0.180
+    assert 480 * 0.84 <= layout.wordmark_rect.width() <= 480 * 0.90
+    assert layout.wordmark_rect.left() >= 480 * 0.05
+    assert layout.wordmark_rect.right() <= 480 * 0.95
 
 
 def test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones():
