@@ -1,0 +1,3 @@
+# OwnDash direct userspace access for supported ArtInChip/VSDISPLAY USB displays.
+# Keep this before systemd's later seat/uaccess ACL processing.
+SUBSYSTEM=="usb", ATTR{idVendor}=="33c3", ATTR{idProduct}=="0e02", TAG+="uaccess"
