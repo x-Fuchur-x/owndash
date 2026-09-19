@@ -21,8 +21,8 @@ The Linux backend uses Qt D-Bus with `systemd-logind` and systemd Manager signal
 OwnDash currently listens for:
 
 - `PrepareForSleep` for suspend and resume
-- session `Lock` / `Unlock`
-- session `LockedHint` once at startup, so starting OwnDash while the desktop is already locked is handled correctly
+- session `Lock` / `Unlock` as best-effort lock/unlock request signals
+- session `LockedHint` once at startup and then through D-Bus `PropertiesChanged`, so the actual session lock state stays synchronized without polling
 - `PrepareForShutdown` for terminal shutdown handling
 - systemd `JobNew` plus logind `ScheduledShutdown` as positive evidence for restart/reboot
 
@@ -81,7 +81,7 @@ Two built-in static visual treatments are currently available:
 
 The Bazzite-inspired theme is an original OwnDash visual treatment and does not bundle or reproduce third-party Bazzite logos or artwork.
 
-System-state labels and settings participate in OwnDash's German/English localization system.
+System-state labels, runtime status messages and settings participate in OwnDash's German/English localization system.
 
 ## Settings
 
@@ -97,6 +97,6 @@ Settings are stored in the normal OwnDash preferences file. Existing Beta 4 pref
 
 ## Compatibility and testing
 
-Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, static frame rendering, preference migration, D-Bus signal signatures, initial lock-state detection, timer pause/restore behavior and direct-USB resume recovery.
+Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, static frame rendering, preference migration, exact D-Bus signal signatures, initial and live `LockedHint` lock-state detection, timer pause/restore behavior, localized lifecycle status messages and direct-USB resume recovery.
 
 Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. Release acceptance therefore includes a physical Bazzite/KDE + VSDISPLAY test in addition to automated CI and AppImage checks.
