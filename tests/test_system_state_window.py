@@ -221,7 +221,7 @@ def test_usb_disconnect_during_suspend_waits_for_device_and_access_before_reconn
     assert warnings == []
 
 
-def test_usb_resume_recovery_warns_only_once_after_bounded_retries(state_window, monkeypatch):
+def test_usb_resume_recovery_finishes_quietly_after_bounded_retries(state_window, monkeypatch):
     window = state_window
     window.language = "en"
     window.display_backend_key = "aic_usb"
@@ -248,13 +248,68 @@ def test_usb_resume_recovery_warns_only_once_after_bounded_retries(state_window,
         safety += 1
 
     assert safety < 20
-    assert len(warnings) == 1
-    assert warnings[0][1] == "Display could not be started"
-    assert "USB display" in warnings[0][2]
-    assert "access permission" in warnings[0][2]
-    assert "USB-Display" not in warnings[0][2]
+    assert warnings == []
     assert window._resume_reconnect_pending is False
     assert window._resume_recovery_armed is False
+    assert "USB" in window.statusBar().currentMessage()
+
+
+def test_usb_start_migrates_legacy_rule_before_opening_stream(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    migrations = []
+    starts = []
+
+    monkeypatch.setattr(
+        app_window_module,
+        "legacy_udev_rule_installed",
+        lambda: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        app_window_module,
+        "install_udev_rule",
+        lambda: (migrations.append(True) or True, "USB access ready"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.Yes,
+    )
+    monkeypatch.setattr(
+        app_window_module.MainWindow,
+        "_start_display_stream",
+        lambda _self: starts.append(True),
+    )
+
+    window._start_display_stream()
+
+    assert migrations == [True]
+    assert starts == [True]
+
+
+def test_system_state_renderer_uses_physical_portrait_before_usb_rotation(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    window._display_rotation = 270
+    logical_w = int(window.canvas.canvas_size.width)
+    logical_h = int(window.canvas.canvas_size.height)
+    calls = []
+
+    def fake_render(width, height, *_args, **_kwargs):
+        calls.append((int(width), int(height)))
+        image = QImage(int(width), int(height), QImage.Format_RGB32)
+        image.fill(0)
+        return image
+
+    monkeypatch.setattr(app_window_module, "render_system_state_image", fake_render)
+
+    payload = window._render_system_state_payload(SystemState.LOCKED)
+    transport = QImage.fromData(payload)
+
+    assert calls == [(logical_h, logical_w)]
+    assert (transport.width(), transport.height()) == (logical_w, logical_h)
 
 
 def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypatch):
