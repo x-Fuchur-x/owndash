@@ -5,7 +5,7 @@ from threading import Thread
 import webbrowser
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen, QTransform
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -25,7 +25,11 @@ from owndash.appearance import apply_appearance
 from owndash.core.preferences import save_preferences
 from owndash.core.system_state import SystemState
 from owndash.core.updates import ReleaseInfo, fetch_available_update
-from owndash.hardware.usb_setup import probe_artinchip_usb
+from owndash.hardware.usb_setup import (
+    install_udev_rule,
+    legacy_udev_rule_installed,
+    probe_artinchip_usb,
+)
 from owndash.i18n import resolved_language
 from owndash.service.idle_state import IdleStateMonitor
 from owndash.service.system_state_linux import LinuxSystemStateAdapter
@@ -46,7 +50,7 @@ class UpdateBridge(QObject):
 class SafeShutdownWindow(MainWindow):
     """OwnDash lifecycle extensions for shutdown, updates and system states."""
 
-    _RESUME_RECONNECT_DELAYS_MS = (600, 1000, 1600, 2400, 3200)
+    _RESUME_RECONNECT_DELAYS_MS = (600, 800, 1000, 1200, 1400)
     _SYSTEM_STATE_ANIMATION_INTERVAL_MS = 750
 
     def _build_toolbar(self) -> None:
@@ -146,6 +150,37 @@ class SafeShutdownWindow(MainWindow):
             self.display_timer.stop()
             self._show_shutdown_frame(reason="switch")
 
+    def _start_display_stream(self) -> None:
+        """Start output only after migrating the obsolete late uaccess rule.
+
+        The old 99-* rule can appear to work until suspend causes the USB device
+        to enumerate again. Requiring the existing one-click setup before a USB
+        stream starts prevents that known-bad configuration from surviving into
+        the next resume cycle.
+        """
+        if self.display_backend_key == "aic_usb" and legacy_udev_rule_installed():
+            answer = QMessageBox.question(
+                self,
+                self._t("USB-Zugriff"),
+                self._t("Das USB-Display wurde erkannt, OwnDash benötigt aber noch Zugriffsrechte."),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                self.display_action.blockSignals(True)
+                self.display_action.setChecked(False)
+                self.display_action.blockSignals(False)
+                return
+            ok, message = install_udev_rule()
+            if not ok:
+                QMessageBox.warning(self, self._t("USB-Zugriff"), self._t(message))
+                self.display_action.blockSignals(True)
+                self.display_action.setChecked(False)
+                self.display_action.blockSignals(False)
+                return
+            self.statusBar().showMessage(self._t(message), 4000)
+        super()._start_display_stream()
+
     def _stop_display_stream(self) -> None:
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
@@ -218,7 +253,7 @@ class SafeShutdownWindow(MainWindow):
         present without the logind ACL, then accessible. Probing these states
         before opening PyUSB prevents transient conditions from surfacing as
         user-facing errors. This timer chain exists only after resume and stops
-        immediately on success or after the bounded delay list is exhausted.
+        immediately on success or after roughly five seconds.
         """
         if self.display_backend_key != "aic_usb":
             self._resume_reconnect_pending = False
@@ -269,12 +304,10 @@ class SafeShutdownWindow(MainWindow):
             )
         else:
             message = self._t("Display nicht verbunden")
-        QMessageBox.warning(
-            self,
-            self._t("Display konnte nicht gestartet werden"),
-            message,
-        )
-        self.statusBar().showMessage(self._t("Display nicht verbunden"), 5000)
+        # Resume must stay unobtrusive. A failed bounded recovery leaves the
+        # display stopped and reports the state in the main window instead of
+        # throwing a modal dialog over the freshly unlocked desktop.
+        self.statusBar().showMessage(message, 8000)
 
     def _clear_resume_recovery_arm(self) -> None:
         if not self._resume_reconnect_pending:
@@ -546,9 +579,16 @@ class SafeShutdownWindow(MainWindow):
             date_text = now.strftime("%d.%m.%Y")
         else:
             date_text = now.strftime("%Y-%m-%d")
+
+        logical_w = int(self.canvas.canvas_size.width)
+        logical_h = int(self.canvas.canvas_size.height)
+        rotation = int(getattr(self, "_display_rotation", 0)) % 360
+        rotate_for_transport = self.display_backend_key == "aic_usb" and rotation in {90, 270}
+        render_w, render_h = (logical_h, logical_w) if rotate_for_transport else (logical_w, logical_h)
+
         image = render_system_state_image(
-            int(self.canvas.canvas_size.width),
-            int(self.canvas.canvas_size.height),
+            render_w,
+            render_h,
             state,
             self.preferences.system_state_theme,
             icon,
@@ -557,6 +597,14 @@ class SafeShutdownWindow(MainWindow):
             date_text=date_text if state is SystemState.LOCKED else None,
             animation_phase=animation_phase,
         )
+        if rotate_for_transport:
+            # The USB backend rotates the JPEG into panel orientation. Build the
+            # state art in the physical portrait orientation first, then apply
+            # the inverse transport rotation so the backend lands on that exact
+            # composition instead of rotating a landscape layout into portrait.
+            pre_angle = 90 if rotation == 270 else -90
+            image = image.transformed(QTransform().rotate(pre_angle), Qt.SmoothTransformation)
+
         encoded = QByteArray()
         buffer = QBuffer(encoded)
         if not buffer.open(QBuffer.WriteOnly):
