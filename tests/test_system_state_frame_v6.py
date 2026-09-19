@@ -6,6 +6,8 @@ from owndash.core.system_state import SystemState
 from owndash.gui.system_state_frame import _portrait_layout, render_system_state_image
 
 
+# V6 physical-display regression checks intentionally sample the 480×1920
+# composition used by the real VSDISPLAY panel.
 STRINGS = {
     "standby": "Standby",
     "entering_standby": "Entering standby",
