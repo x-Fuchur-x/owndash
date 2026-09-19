@@ -1,4 +1,7 @@
-from owndash.service.idle_state import IdleStateMonitor
+from PySide6.QtCore import SLOT
+
+from owndash.service import idle_state
+from owndash.service.idle_state import IdleStateMonitor, _LogindIdleSource
 
 
 class FakeIdleSource:
@@ -32,6 +35,62 @@ class ManualClock:
 
     def __call__(self):
         return self.value
+
+
+class FakeReply:
+    def __init__(self, *arguments):
+        self._arguments = list(arguments)
+
+    def arguments(self):
+        return list(self._arguments)
+
+
+class FakeObjectPath:
+    def __init__(self, path):
+        self._path = path
+
+    def path(self):
+        return self._path
+
+
+class FakeBus:
+    def __init__(self):
+        self.connections = []
+
+    def isConnected(self):
+        return True
+
+    def connect(self, service, path, interface, name, receiver, slot):
+        self.connections.append((service, path, interface, name, receiver, slot))
+        return True
+
+    def disconnect(self, *_args):
+        return True
+
+
+class FakeDBusConnection:
+    bus = FakeBus()
+
+    @classmethod
+    def systemBus(cls):
+        return cls.bus
+
+
+class FakeDBusInterface:
+    def __init__(self, _service, _path, _interface, _bus):
+        pass
+
+    def isValid(self):
+        return True
+
+    def call(self, method, *args):
+        if method == "GetSession":
+            return FakeReply(FakeObjectPath("/org/freedesktop/login1/session/test"))
+        if method == "Get" and args[-1] == "IdleHint":
+            return FakeReply(False)
+        if method == "Get" and args[-1] == "IdleSinceHintMonotonic":
+            return FakeReply(0)
+        return FakeReply()
 
 
 def test_does_not_enter_idle_before_threshold_then_enters_once():
@@ -116,3 +175,17 @@ def test_stop_clears_state_without_spurious_signal():
     assert source.stopped
     assert monitor.is_idle is False
     assert events == [True]
+
+
+def test_logind_idle_connection_uses_qt_slot_wrapper(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_ID", "test-session")
+    FakeDBusConnection.bus = FakeBus()
+    monkeypatch.setattr(idle_state, "QDBusConnection", FakeDBusConnection)
+    monkeypatch.setattr(idle_state, "QDBusInterface", FakeDBusInterface)
+
+    source = _LogindIdleSource()
+    assert source.start(lambda: None) is True
+
+    slots = [connection[-1] for connection in FakeDBusConnection.bus.connections]
+    assert slots == [SLOT("_on_properties_changed(QString,QVariantMap,QStringList)")]
+    assert "_on_properties_changed(QString,QVariantMap,QStringList)" not in slots
