@@ -5,6 +5,7 @@ from PySide6.QtGui import QIcon, QImage
 from owndash.core.system_state import SystemState
 from owndash.gui.system_state_frame import (
     _portrait_layout,
+    _portrait_rail_approaches,
     _portrait_rail_docks,
     render_system_state_image,
 )
@@ -200,6 +201,51 @@ def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
     assert upper_right.y() < layout.hud_center.y() < lower_right.y()
     assert upper_left.x() < layout.hud_center.x() < upper_right.x()
     assert lower_left.x() < layout.hud_center.x() < lower_right.x()
+
+
+def test_portrait_v4_has_stronger_logo_status_and_tighter_vertical_composition():
+    layout = _portrait_layout(480, 1920)
+
+    assert layout.hud_diameter >= 480 * 0.96
+    assert layout.wordmark_rect.width() >= 480 * 0.94
+    assert layout.wordmark_font_px >= 480 * 0.19
+    assert layout.status_font_px >= 480 * 0.108
+    assert layout.status_rect.top() <= 1920 * 0.438
+    assert layout.context_top <= 1920 * 0.605
+
+
+def test_portrait_v4_rail_approaches_are_tangent_to_the_ring():
+    layout = _portrait_layout(480, 1920)
+    docks = _portrait_rail_docks(layout)
+    approaches = _portrait_rail_approaches(layout)
+
+    assert len(approaches) == len(docks) == 4
+    for dock, approach in zip(docks, approaches):
+        radius_x = dock.x() - layout.hud_center.x()
+        radius_y = dock.y() - layout.hud_center.y()
+        tangent_x = dock.x() - approach.x()
+        tangent_y = dock.y() - approach.y()
+        dot = radius_x * tangent_x + radius_y * tangent_y
+        radius = math.hypot(radius_x, radius_y)
+        tangent = math.hypot(tangent_x, tangent_y)
+        assert tangent >= 480 * 0.045
+        assert abs(dot) <= radius * tangent * 0.08
+
+
+def test_portrait_v4_wordmark_has_a_crisp_bright_core():
+    image = render(480, 1920, SystemState.LOCKED, animation_phase=0.25)
+    layout = _portrait_layout(480, 1920)
+    rect = layout.wordmark_rect
+    bright_core = _count_pixels(
+        image,
+        int(rect.left()),
+        int(rect.top()),
+        int(rect.right()),
+        int(rect.bottom()),
+        lambda r, g, b: max(r, g, b) >= 210 and (r + g + b) >= 430,
+    )
+
+    assert bright_core >= 115
 
 
 def test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones():
