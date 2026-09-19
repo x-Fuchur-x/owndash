@@ -1,4 +1,4 @@
-"""Resolution-independent HUD screens for Linux system states."""
+"""Resolution-independent neon HUD screens for Linux system states."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,8 +6,8 @@ import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
+    QBrush,
     QColor,
-    QConicalGradient,
     QFont,
     QFontMetricsF,
     QIcon,
@@ -25,50 +25,50 @@ from owndash.core.system_state import SystemState
 @dataclass(frozen=True, slots=True)
 class _Theme:
     top: str
+    middle: str
     bottom: str
-    card: str
-    border: str
     primary: str
     secondary: str
     muted: str
-    glow: str
-    accent2: str
-    accent3: str
+    cyan: str
+    green: str
+    magenta: str
+    rail: str
 
 
 _THEMES = {
     "owndash": _Theme(
-        top="#071827",
-        bottom="#02060d",
-        card="#06111d",
-        border="#1d6fa5",
-        primary="#f3fbff",
-        secondary="#a9dfff",
-        muted="#7893a8",
-        glow="#21c8ff",
-        accent2="#43ef8b",
-        accent3="#ff2ba6",
+        top="#071824",
+        middle="#020912",
+        bottom="#01040a",
+        primary="#f5fbff",
+        secondary="#b9d6e8",
+        muted="#668093",
+        cyan="#00e5ff",
+        green="#50f38a",
+        magenta="#ff2aab",
+        rail="#39d9ff",
     ),
     "bazzite-inspired": _Theme(
-        top="#11112a",
-        bottom="#050610",
-        card="#0d0f22",
-        border="#6057d8",
-        primary="#f6f3ff",
-        secondary="#c9c3ff",
-        muted="#8e8aa9",
-        glow="#6fd8ff",
-        accent2="#7c6cff",
-        accent3="#d253ff",
+        top="#11142b",
+        middle="#07091a",
+        bottom="#02040d",
+        primary="#f8f6ff",
+        secondary="#cbc8ff",
+        muted="#8581a8",
+        cyan="#55d9ff",
+        green="#8d7cff",
+        magenta="#d95cff",
+        rail="#6f8dff",
     ),
 }
 
 _STATE_ACCENTS = {
-    SystemState.IDLE: "#4daec9",
-    SystemState.LOCKED: "#4f8cff",
-    SystemState.SUSPENDING: "#31c7ef",
-    SystemState.SHUTTING_DOWN: "#e78d56",
-    SystemState.RESTARTING: "#a57cff",
+    SystemState.IDLE: "#50f38a",
+    SystemState.LOCKED: "#00e5ff",
+    SystemState.SUSPENDING: "#63d8ff",
+    SystemState.SHUTTING_DOWN: "#ff9c62",
+    SystemState.RESTARTING: "#cf7cff",
 }
 
 _STATE_KEYS = {
@@ -132,194 +132,315 @@ def _draw_centered(
     painter.drawText(rect, Qt.AlignCenter | Qt.TextWordWrap, text)
 
 
-def _draw_state_mark(
+def _draw_gradient_wordmark(
     painter: QPainter,
+    image: QImage,
     rect: QRectF,
-    accent: QColor,
-    icon: QIcon,
-    state: SystemState,
+    palette: _Theme,
+    px: float,
 ) -> None:
-    """Draw an OwnDash-owned center mark; no third-party branding assets."""
-    if not icon.isNull():
-        side = int(min(rect.width(), rect.height()) * 0.56)
-        target = QRectF(
-            rect.center().x() - side / 2,
-            rect.center().y() - side / 2,
-            side,
-            side,
-        )
-        painter.drawPixmap(target.toRect(), icon.pixmap(side, side))
-        return
+    gradient = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
+    gradient.setColorAt(0.0, QColor(palette.cyan))
+    gradient.setColorAt(0.48, QColor(palette.green))
+    gradient.setColorAt(1.0, QColor(palette.magenta))
+    painter.setFont(_fit_font(image, APP_NAME, rect, px, bold=True))
+    painter.setPen(QPen(QBrush(gradient), 1.0))
+    painter.drawText(rect, Qt.AlignCenter, APP_NAME)
 
-    center = rect.center()
-    radius = min(rect.width(), rect.height()) * 0.24
-    pen = QPen(accent, max(2.0, radius * 0.085), Qt.SolidLine, Qt.RoundCap)
-    painter.setPen(pen)
+
+def _neon_color_for_angle(palette: _Theme, degrees: float) -> QColor:
+    normalized = degrees % 360.0
+    # Left side cyan, upper arc green, right/lower-right magenta: the same
+    # visual rhythm as the supplied OwnDash reference without embedding it as
+    # a raster asset.
+    if 55.0 <= normalized < 155.0:
+        return QColor(palette.green)
+    if 155.0 <= normalized < 285.0:
+        return QColor(palette.cyan)
+    return QColor(palette.magenta)
+
+
+def _draw_segmented_ring(
+    painter: QPainter,
+    center: QPointF,
+    diameter: float,
+    short: float,
+    palette: _Theme,
+    *,
+    segments: int,
+    coverage: float,
+    width_scale: float,
+    phase_degrees: float,
+    alpha: int,
+) -> None:
+    ring = QRectF(
+        center.x() - diameter / 2,
+        center.y() - diameter / 2,
+        diameter,
+        diameter,
+    )
+    step = 360.0 / float(segments)
+    span = step * coverage
+    for index in range(segments):
+        start = index * step + phase_degrees
+        color = _neon_color_for_angle(palette, start + span / 2)
+        color.setAlpha(alpha)
+        painter.setPen(
+            QPen(
+                color,
+                max(1.2, short * width_scale),
+                Qt.SolidLine,
+                Qt.RoundCap,
+            )
+        )
+        painter.drawArc(ring, int(start * 16), int(span * 16))
+
+
+def _draw_hud_rings(
+    painter: QPainter,
+    center: QPointF,
+    diameter: float,
+    short: float,
+    palette: _Theme,
+    state: SystemState,
+    phase: float,
+) -> None:
+    animated = state in _ANIMATED_STATES
+    phase = (phase % 1.0) if animated else 0.0
+
+    glow = QRadialGradient(center, diameter * 0.68)
+    glow0 = QColor(palette.cyan)
+    glow0.setAlpha(30)
+    glow1 = QColor(palette.green)
+    glow1.setAlpha(10)
+    clear = QColor(palette.magenta)
+    clear.setAlpha(0)
+    glow.setColorAt(0.0, glow0)
+    glow.setColorAt(0.52, glow1)
+    glow.setColorAt(1.0, clear)
+    painter.save()
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(glow)
+    painter.drawEllipse(
+        QRectF(
+            center.x() - diameter * 0.64,
+            center.y() - diameter * 0.64,
+            diameter * 1.28,
+            diameter * 1.28,
+        )
+    )
+    painter.restore()
+
+    faint = QColor(palette.secondary)
+    faint.setAlpha(38)
     painter.setBrush(Qt.NoBrush)
-    circle = QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2)
+    for scale in (1.00, 0.88, 0.73):
+        d = diameter * scale
+        painter.setPen(QPen(faint, max(1.0, short * 0.0024)))
+        painter.drawEllipse(
+            QRectF(center.x() - d / 2, center.y() - d / 2, d, d)
+        )
 
-    if state is SystemState.LOCKED:
-        painter.drawRoundedRect(
-            QRectF(center.x() - radius * 0.65, center.y() - radius * 0.05,
-                   radius * 1.3, radius * 0.95),
-            radius * 0.12,
-            radius * 0.12,
+    _draw_segmented_ring(
+        painter,
+        center,
+        diameter * 0.98,
+        short,
+        palette,
+        segments=12,
+        coverage=0.54,
+        width_scale=0.014,
+        phase_degrees=phase * 360.0,
+        alpha=238,
+    )
+    _draw_segmented_ring(
+        painter,
+        center,
+        diameter * 0.85,
+        short,
+        palette,
+        segments=16,
+        coverage=0.30,
+        width_scale=0.007,
+        phase_degrees=18.0 - phase * 190.0,
+        alpha=175,
+    )
+    _draw_segmented_ring(
+        painter,
+        center,
+        diameter * 0.70,
+        short,
+        palette,
+        segments=24,
+        coverage=0.18,
+        width_scale=0.0045,
+        phase_degrees=phase * 105.0,
+        alpha=130,
+    )
+
+    tick_outer = diameter * 0.535
+    tick_inner = diameter * 0.505
+    highlighted = int(phase * 32.0) % 32 if animated else -1
+    for index in range(32):
+        angle = math.radians(index * 11.25 - 90.0)
+        p1 = QPointF(
+            center.x() + math.cos(angle) * tick_inner,
+            center.y() + math.sin(angle) * tick_inner,
         )
-        painter.drawArc(
-            QRectF(center.x() - radius * 0.43, center.y() - radius * 0.62,
-                   radius * 0.86, radius * 0.86),
-            0,
-            180 * 16,
+        p2 = QPointF(
+            center.x() + math.cos(angle) * tick_outer,
+            center.y() + math.sin(angle) * tick_outer,
         )
-    elif state is SystemState.RESTARTING:
-        painter.drawArc(circle, 35 * 16, 285 * 16)
-        p = QPointF(center.x() + radius * 0.72, center.y() - radius * 0.7)
-        painter.drawLine(p, QPointF(p.x() - radius * 0.38, p.y() - radius * 0.05))
-        painter.drawLine(p, QPointF(p.x() - radius * 0.06, p.y() + radius * 0.38))
-    elif state is SystemState.SHUTTING_DOWN:
-        painter.drawArc(circle, -45 * 16, 270 * 16)
-        painter.drawLine(
-            QPointF(center.x(), center.y() - radius * 1.08),
-            QPointF(center.x(), center.y() + radius * 0.05),
+        color = QColor(palette.green if index == highlighted else palette.secondary)
+        color.setAlpha(230 if index == highlighted else 64)
+        painter.setPen(
+            QPen(
+                color,
+                max(1.0, short * (0.006 if index == highlighted else 0.0024)),
+                Qt.SolidLine,
+                Qt.RoundCap,
+            )
         )
-    elif state is SystemState.SUSPENDING:
-        painter.drawArc(circle, 35 * 16, 285 * 16)
-        painter.drawLine(
-            QPointF(center.x() - radius * 0.22, center.y() - radius * 0.45),
-            QPointF(center.x() + radius * 0.20, center.y() - radius * 0.45),
-        )
-        painter.drawLine(
-            QPointF(center.x() - radius * 0.38, center.y() + radius * 0.05),
-            QPointF(center.x() + radius * 0.38, center.y() + radius * 0.05),
-        )
-    else:  # IDLE
-        painter.drawEllipse(circle)
-        painter.drawPoint(center)
+        painter.drawLine(p1, p2)
 
 
-def _draw_tech_grid(painter: QPainter, card: QRectF, short: float, color: str) -> None:
-    """Very subtle geometry that gives the state screen depth without assets."""
-    grid = QColor(color)
-    grid.setAlpha(18)
+def _draw_side_rails(painter: QPainter, width: int, height: int, short: float, palette: _Theme) -> None:
+    """Full-height angled rails and indicator dots from the supplied reference."""
+    left = QColor(palette.cyan)
+    right = QColor(palette.magenta)
+    left.setAlpha(205)
+    right.setAlpha(205)
+    line_width = max(1.0, short * 0.004)
+
+    def rail(x: float, side: int, color: QColor) -> None:
+        inward = side * short * 0.075
+        y0 = height * 0.02
+        y1 = height * 0.11
+        y2 = height * 0.19
+        y3 = height * 0.77
+        y4 = height * 0.84
+        painter.setPen(QPen(color, line_width, Qt.SolidLine, Qt.SquareCap))
+        painter.drawLine(QPointF(x, y0), QPointF(x, y1))
+        painter.drawLine(QPointF(x, y1), QPointF(x + inward, y2))
+        painter.drawLine(QPointF(x + inward, y2), QPointF(x + inward, y3))
+        painter.drawLine(QPointF(x + inward, y3), QPointF(x, y4))
+
+    rail(short * 0.04, 1, left)
+    rail(width - short * 0.04, -1, right)
+
+    dot_y = height * 0.095
+    for index in range(8):
+        alpha = 110 + index * 14
+        lc = QColor(palette.cyan)
+        rc = QColor(palette.magenta)
+        lc.setAlpha(min(230, alpha))
+        rc.setAlpha(min(230, alpha))
+        radius = max(1.2, short * 0.0045)
+        y = dot_y + index * short * 0.038
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(lc)
+        painter.drawEllipse(QPointF(short * 0.075, y), radius, radius)
+        painter.setBrush(rc)
+        painter.drawEllipse(QPointF(width - short * 0.075, y), radius, radius)
+
+    # Bottom brackets repeat the upper technical language without boxing the
+    # whole screen inside a card.
+    painter.setBrush(Qt.NoBrush)
+    painter.setPen(QPen(left, line_width))
+    painter.drawLine(QPointF(short * 0.04, height * 0.90), QPointF(short * 0.04, height * 0.965))
+    painter.drawLine(QPointF(short * 0.04, height * 0.90), QPointF(short * 0.095, height * 0.865))
+    painter.setPen(QPen(right, line_width))
+    painter.drawLine(QPointF(width - short * 0.04, height * 0.90), QPointF(width - short * 0.04, height * 0.965))
+    painter.drawLine(QPointF(width - short * 0.04, height * 0.90), QPointF(width - short * 0.095, height * 0.865))
+
+
+def _draw_floor_reflection(painter: QPainter, width: int, height: int, short: float, palette: _Theme) -> None:
+    horizon = height * 0.835
+    horizon_gradient = QLinearGradient(width * 0.10, horizon, width * 0.90, horizon)
+    horizon_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
+    c1 = QColor(palette.cyan)
+    c1.setAlpha(180)
+    c2 = QColor(palette.green)
+    c2.setAlpha(180)
+    c3 = QColor(palette.magenta)
+    c3.setAlpha(180)
+    horizon_gradient.setColorAt(0.28, c1)
+    horizon_gradient.setColorAt(0.50, c2)
+    horizon_gradient.setColorAt(0.72, c3)
+    horizon_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+    painter.setPen(QPen(QBrush(horizon_gradient), max(1.0, short * 0.004)))
+    painter.drawLine(QPointF(width * 0.10, horizon), QPointF(width * 0.90, horizon))
+
+    floor_glow = QRadialGradient(QPointF(width * 0.50, horizon), width * 0.62)
+    glow_cyan = QColor(palette.cyan)
+    glow_cyan.setAlpha(54)
+    glow_green = QColor(palette.green)
+    glow_green.setAlpha(28)
+    clear = QColor(palette.magenta)
+    clear.setAlpha(0)
+    floor_glow.setColorAt(0.0, glow_cyan)
+    floor_glow.setColorAt(0.36, glow_green)
+    floor_glow.setColorAt(1.0, clear)
     painter.save()
-    painter.setPen(QPen(grid, max(1.0, short * 0.0015)))
-    step = max(22.0, short * 0.11)
-    x = card.left() + step
-    while x < card.right():
-        painter.drawLine(QPointF(x, card.top()), QPointF(x, card.bottom()))
-        x += step
-    y = card.top() + step
-    while y < card.bottom():
-        painter.drawLine(QPointF(card.left(), y), QPointF(card.right(), y))
-        y += step
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(floor_glow)
+    painter.drawEllipse(
+        QRectF(width * 0.05, horizon - short * 0.12, width * 0.90, short * 1.02)
+    )
     painter.restore()
 
+    reflections = (
+        (0.34, palette.cyan, 0.52),
+        (0.49, palette.green, 0.74),
+        (0.66, palette.magenta, 0.50),
+    )
+    for x_ratio, value, length in reflections:
+        color = QColor(value)
+        color.setAlpha(110)
+        fade = QLinearGradient(0, horizon, 0, min(height, horizon + short * length))
+        fade.setColorAt(0.0, color)
+        tail = QColor(value)
+        tail.setAlpha(0)
+        fade.setColorAt(1.0, tail)
+        painter.setPen(QPen(QBrush(fade), max(2.0, short * 0.012), Qt.SolidLine, Qt.RoundCap))
+        x = width * x_ratio
+        painter.drawLine(QPointF(x, horizon), QPointF(x, min(height, horizon + short * length)))
 
-def _draw_corner_brackets(painter: QPainter, card: QRectF, short: float, color: str) -> None:
-    accent = QColor(color)
-    accent.setAlpha(115)
-    length = max(14.0, short * 0.08)
-    inset = max(8.0, short * 0.025)
-    painter.save()
-    painter.setPen(QPen(accent, max(1.0, short * 0.004), Qt.SolidLine, Qt.RoundCap))
-    for sx, sy in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
-        x = card.left() + inset if sx > 0 else card.right() - inset
-        y = card.top() + inset if sy > 0 else card.bottom() - inset
-        painter.drawLine(QPointF(x, y), QPointF(x + sx * length, y))
-        painter.drawLine(QPointF(x, y), QPointF(x, y + sy * length))
-    painter.restore()
 
-
-def _draw_hud(
+def _draw_progress_bar(
     painter: QPainter,
     rect: QRectF,
     short: float,
     palette: _Theme,
-    accent: QColor,
-    icon: QIcon,
     state: SystemState,
     phase: float,
 ) -> None:
-    """Draw a futuristic concentric HUD around the OwnDash/state mark."""
-    center = rect.center()
-    diameter = min(rect.width(), rect.height()) * 0.94
-    base = QRectF(center.x() - diameter / 2, center.y() - diameter / 2, diameter, diameter)
-    animated = state in _ANIMATED_STATES
-    phase = float(phase % 1.0) if animated else 0.0
-    rotation = phase * 360.0
-
-    glow = QRadialGradient(center, diameter * 0.58)
-    g0 = QColor(palette.glow)
-    g0.setAlpha(48 if animated else 38)
-    glow.setColorAt(0.0, g0)
-    g1 = QColor(palette.glow)
-    g1.setAlpha(0)
-    glow.setColorAt(1.0, g1)
-    painter.save()
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(glow)
-    painter.drawEllipse(base.adjusted(-diameter * 0.10, -diameter * 0.10, diameter * 0.10, diameter * 0.10))
-    painter.restore()
-
-    # Faint continuous rings provide structure behind the segmented arcs.
-    painter.save()
-    faint = QColor(palette.secondary)
-    faint.setAlpha(48)
+    outline = QColor(palette.secondary)
+    outline.setAlpha(165)
+    radius = rect.height() / 2
     painter.setBrush(Qt.NoBrush)
-    for scale in (0.98, 0.82, 0.66):
-        r = diameter * scale
-        ring = QRectF(center.x() - r / 2, center.y() - r / 2, r, r)
-        painter.setPen(QPen(faint, max(1.0, short * 0.003)))
-        painter.drawEllipse(ring)
-    painter.restore()
+    painter.setPen(QPen(outline, max(1.0, short * 0.0035)))
+    painter.drawRoundedRect(rect, radius, radius)
 
-    # Three differently phased segmented rings create movement using only a
-    # handful of vector draw calls. Terminal/suspend screens freeze at phase 0.
-    colors = (palette.glow, palette.accent2, palette.accent3)
-    ring_scales = (0.92, 0.78, 0.69)
-    segment_counts = (7, 9, 12)
-    speeds = (1.0, -0.55, 0.32)
-    for ring_index, (scale, count, speed) in enumerate(zip(ring_scales, segment_counts, speeds)):
-        r = diameter * scale
-        ring = QRectF(center.x() - r / 2, center.y() - r / 2, r, r)
-        segment = 360.0 / count
-        arc_span = segment * (0.48 if ring_index == 0 else 0.32)
-        line_width = max(1.5, short * (0.010 - ring_index * 0.002))
-        for index in range(count):
-            color = QColor(colors[(index + ring_index) % len(colors)])
-            color.setAlpha(215 if ring_index == 0 else 145)
-            painter.setPen(QPen(color, line_width, Qt.SolidLine, Qt.RoundCap))
-            start = index * segment + rotation * speed + ring_index * 17.0
-            painter.drawArc(ring, int(start * 16), int(arc_span * 16))
+    fill_ratio = 0.62
+    if state in _ANIMATED_STATES:
+        fill_ratio = 0.42 + 0.22 * (0.5 + 0.5 * math.sin(phase * math.tau))
+    elif state is SystemState.RESTARTING:
+        fill_ratio = 0.78
+    elif state is SystemState.SHUTTING_DOWN:
+        fill_ratio = 0.88
+    elif state is SystemState.SUSPENDING:
+        fill_ratio = 0.70
 
-    # HUD ticks. The highlighted tick walks around only in idle/lock mode.
-    tick_radius = diameter * 0.49
-    tick_inner = tick_radius - max(5.0, short * 0.025)
-    highlighted = int(phase * 24.0) % 24 if animated else -1
-    for index in range(24):
-        angle = math.radians(index * 15.0 - 90.0)
-        p1 = QPointF(center.x() + math.cos(angle) * tick_inner, center.y() + math.sin(angle) * tick_inner)
-        p2 = QPointF(center.x() + math.cos(angle) * tick_radius, center.y() + math.sin(angle) * tick_radius)
-        tick = QColor(palette.accent2 if index == highlighted else palette.secondary)
-        tick.setAlpha(230 if index == highlighted else 74)
-        painter.setPen(QPen(tick, max(1.0, short * (0.006 if index == highlighted else 0.003)), Qt.SolidLine, Qt.RoundCap))
-        painter.drawLine(p1, p2)
-
-    # State accent brackets visually bind the message to the HUD.
-    bracket = QColor(accent)
-    bracket.setAlpha(210)
-    painter.setPen(QPen(bracket, max(1.5, short * 0.006), Qt.SolidLine, Qt.RoundCap))
-    half = diameter * 0.18
-    painter.drawLine(QPointF(center.x() - half, base.top() + diameter * 0.06), QPointF(center.x() + half, base.top() + diameter * 0.06))
-    painter.drawLine(QPointF(center.x() - half, base.bottom() - diameter * 0.06), QPointF(center.x() + half, base.bottom() - diameter * 0.06))
-
-    inner = QRectF(
-        center.x() - diameter * 0.22,
-        center.y() - diameter * 0.22,
-        diameter * 0.44,
-        diameter * 0.44,
-    )
-    _draw_state_mark(painter, inner, accent, icon, state)
+    inner = rect.adjusted(short * 0.008, short * 0.008, -short * 0.008, -short * 0.008)
+    filled = QRectF(inner.left(), inner.top(), inner.width() * fill_ratio, inner.height())
+    gradient = QLinearGradient(filled.left(), filled.center().y(), rect.right(), filled.center().y())
+    gradient.setColorAt(0.0, QColor(palette.cyan))
+    gradient.setColorAt(0.48, QColor(palette.green))
+    gradient.setColorAt(1.0, QColor(palette.magenta))
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(gradient)
+    painter.drawRoundedRect(filled, inner.height() / 2, inner.height() / 2)
 
 
 def render_system_state_image(
@@ -335,11 +456,13 @@ def render_system_state_image(
     sensor_text: str | None = None,
     animation_phase: float = 0.0,
 ) -> QImage:
-    """Render one system-state frame.
+    """Render one full-bleed OwnDash system-state frame.
 
-    The renderer has no timers, I/O, or global state. ``animation_phase`` only
-    changes IDLE/LOCKED vector geometry; terminal and suspend states stay fully
-    deterministic so their final frame is safe to freeze while the PC sleeps.
+    The supplied reference is used as a composition target: dark full-screen
+    field, side rails, a large tri-color circular HUD, gradient OwnDash wordmark,
+    a narrow status bar and floor-like neon reflections. No reference raster or
+    third-party branding is embedded. ``animation_phase`` only changes IDLE and
+    LOCKED geometry; terminal/suspend frames remain deterministic.
     """
     width = int(width)
     height = int(height)
@@ -360,101 +483,154 @@ def render_system_state_image(
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setRenderHint(QPainter.SmoothPixmapTransform)
 
-    background = QLinearGradient(0, 0, width, height)
+    background = QLinearGradient(0, 0, width * 0.78, height)
     background.setColorAt(0.0, QColor(palette.top))
-    background.setColorAt(0.55, QColor(palette.card))
+    background.setColorAt(0.48, QColor(palette.middle))
     background.setColorAt(1.0, QColor(palette.bottom))
     painter.fillRect(image.rect(), background)
 
     short = float(min(width, height))
-    margin = max(10.0, short * 0.035)
-    card = QRectF(margin, margin, width - 2 * margin, height - 2 * margin)
-    card_color = QColor(palette.card)
-    card_color.setAlpha(224)
-    painter.setBrush(card_color)
-    painter.setPen(QPen(QColor(palette.border), max(1.0, short * 0.004)))
-    painter.drawRoundedRect(card, short * 0.045, short * 0.045)
-
-    _draw_tech_grid(painter, card, short, palette.secondary)
-    _draw_corner_brackets(painter, card, short, palette.glow)
-
-    title, detail = _state_text(state, strings)
     portrait = height >= width * 1.35
+    title, detail = _state_text(state, strings)
+
+    # Full-bleed rails deliberately replace the old rounded card. The reference
+    # feels like one piece of hardware rather than a dialog drawn inside a panel.
+    _draw_side_rails(painter, width, height, short, palette)
 
     if portrait:
-        hud_rect = QRectF(width * 0.07, height * 0.075, width * 0.86, height * 0.34)
-        _draw_hud(painter, hud_rect, short, palette, accent, icon, state, phase)
+        center = QPointF(width * 0.50, height * 0.35)
+        diameter = width * 0.82
+        _draw_hud_rings(painter, center, diameter, short, palette, state, phase)
 
+        if not icon.isNull():
+            icon_side = max(18, int(width * 0.085))
+            target = QRectF(
+                center.x() - icon_side / 2,
+                center.y() - diameter * 0.23,
+                icon_side,
+                icon_side,
+            )
+            painter.setOpacity(0.82)
+            painter.drawPixmap(target.toRect(), icon.pixmap(icon_side, icon_side))
+            painter.setOpacity(1.0)
+
+        _draw_gradient_wordmark(
+            painter,
+            image,
+            QRectF(width * 0.10, center.y() - height * 0.025, width * 0.80, height * 0.055),
+            palette,
+            width * 0.095,
+        )
+
+        state_rect = QRectF(width * 0.09, center.y() + height * 0.045, width * 0.82, height * 0.055)
         _draw_centered(
-            painter, image,
-            QRectF(width * 0.07, height * 0.425, width * 0.86, height * 0.085),
-            title.upper(), width * 0.105, palette.primary, bold=True,
+            painter,
+            image,
+            state_rect,
+            title.upper(),
+            width * 0.052,
+            accent.name(),
+            bold=True,
         )
         if detail:
             _draw_centered(
-                painter, image,
-                QRectF(width * 0.10, height * 0.505, width * 0.80, height * 0.055),
-                detail, width * 0.050, palette.secondary,
+                painter,
+                image,
+                QRectF(width * 0.12, center.y() + height * 0.094, width * 0.76, height * 0.038),
+                detail,
+                width * 0.034,
+                palette.secondary,
             )
 
-        y = 0.59
+        bar = QRectF(width * 0.24, height * 0.535, width * 0.52, max(12.0, width * 0.035))
+        _draw_progress_bar(painter, bar, short, palette, state, phase)
+
+        context_y = height * 0.58
         if clock_text:
             _draw_centered(
-                painter, image,
-                QRectF(width * 0.10, height * y, width * 0.80, height * 0.085),
-                clock_text, width * 0.090, palette.primary, bold=True,
+                painter,
+                image,
+                QRectF(width * 0.12, context_y, width * 0.76, height * 0.050),
+                clock_text,
+                width * 0.070,
+                palette.primary,
+                bold=True,
             )
-            y += 0.090
+            context_y += height * 0.052
         if date_text and state is SystemState.LOCKED:
             _draw_centered(
-                painter, image,
-                QRectF(width * 0.10, height * y, width * 0.80, height * 0.052),
-                date_text, width * 0.043, palette.secondary,
+                painter,
+                image,
+                QRectF(width * 0.15, context_y, width * 0.70, height * 0.030),
+                date_text,
+                width * 0.030,
+                palette.secondary,
             )
-            y += 0.060
+            context_y += height * 0.036
         if sensor_text and state in _ANIMATED_STATES:
             _draw_centered(
-                painter, image,
-                QRectF(width * 0.08, height * y, width * 0.84, height * 0.055),
-                sensor_text, width * 0.038, palette.muted,
+                painter,
+                image,
+                QRectF(width * 0.08, context_y, width * 0.84, height * 0.035),
+                sensor_text,
+                width * 0.027,
+                palette.muted,
             )
 
-        # Small luminous divider echoes the supplied boot-image aesthetic while
-        # remaining an original, resolution-independent vector element.
-        divider = QLinearGradient(width * 0.22, 0, width * 0.78, 0)
-        divider.setColorAt(0.0, QColor(palette.glow))
-        divider.setColorAt(0.5, QColor(palette.accent2))
-        divider.setColorAt(1.0, QColor(palette.accent3))
-        painter.setPen(QPen(divider, max(2.0, short * 0.007), Qt.SolidLine, Qt.RoundCap))
-        painter.drawLine(QPointF(width * 0.28, height * 0.81), QPointF(width * 0.72, height * 0.81))
+        # Tiny vertical telemetry ticks under the main ring mirror the reference
+        # without competing with the state text.
+        for index in range(17):
+            x = width * 0.31 + index * width * 0.024
+            color = QColor(palette.cyan if index < 6 else palette.green if index < 11 else palette.magenta)
+            color.setAlpha(70 + (index % 4) * 28)
+            painter.setPen(QPen(color, max(1.0, short * 0.003), Qt.SolidLine, Qt.RoundCap))
+            painter.drawLine(
+                QPointF(x, height * 0.705),
+                QPointF(x, height * (0.708 + 0.004 * (index % 3))),
+            )
 
+        _draw_floor_reflection(painter, width, height, short, palette)
         _draw_centered(
-            painter, image,
-            QRectF(width * 0.10, height * 0.845, width * 0.80, height * 0.05),
-            APP_NAME, width * 0.050, palette.secondary, bold=True,
-        )
-        _draw_centered(
-            painter, image,
-            QRectF(width * 0.10, height * 0.91, width * 0.80, height * 0.030),
-            f"Version {__version__}", width * 0.027, palette.muted,
+            painter,
+            image,
+            QRectF(width * 0.18, height * 0.925, width * 0.64, height * 0.026),
+            f"{APP_NAME} · {__version__}",
+            width * 0.022,
+            palette.muted,
         )
     else:
-        hud_rect = QRectF(width * 0.035, height * 0.08, width * 0.36, height * 0.84)
-        _draw_hud(painter, hud_rect, short, palette, accent, icon, state, phase)
-        text_x = width * 0.40
-        text_w = width * 0.54
+        # Landscape screens use the same visual language but compress the HUD
+        # vertically instead of falling back to a card-based layout.
+        center = QPointF(width * 0.36, height * 0.48)
+        diameter = min(height * 0.82, width * 0.42)
+        _draw_hud_rings(painter, center, diameter, short, palette, state, phase)
+        _draw_gradient_wordmark(
+            painter,
+            image,
+            QRectF(width * 0.54, height * 0.23, width * 0.38, height * 0.16),
+            palette,
+            short * 0.13,
+        )
         _draw_centered(
-            painter, image,
-            QRectF(text_x, height * 0.16, text_w, height * 0.21),
-            title.upper(), short * 0.135, palette.primary, bold=True,
+            painter,
+            image,
+            QRectF(width * 0.53, height * 0.41, width * 0.40, height * 0.14),
+            title.upper(),
+            short * 0.085,
+            accent.name(),
+            bold=True,
         )
         if detail:
             _draw_centered(
-                painter, image,
-                QRectF(text_x, height * 0.385, text_w, height * 0.12),
-                detail, short * 0.066, palette.secondary,
+                painter,
+                image,
+                QRectF(width * 0.55, height * 0.54, width * 0.36, height * 0.09),
+                detail,
+                short * 0.045,
+                palette.secondary,
             )
-
+        bar = QRectF(width * 0.60, height * 0.69, width * 0.25, max(10.0, short * 0.035))
+        _draw_progress_bar(painter, bar, short, palette, state, phase)
         context = " · ".join(
             part for part in (
                 clock_text or "",
@@ -464,20 +640,13 @@ def render_system_state_image(
         )
         if context:
             _draw_centered(
-                painter, image,
-                QRectF(text_x, height * 0.54, text_w, height * 0.13),
-                context, short * 0.055, palette.secondary,
+                painter,
+                image,
+                QRectF(width * 0.52, height * 0.79, width * 0.42, height * 0.09),
+                context,
+                short * 0.038,
+                palette.secondary,
             )
-        _draw_centered(
-            painter, image,
-            QRectF(text_x, height * 0.73, text_w, height * 0.075),
-            f"{APP_NAME} · Version {__version__}", short * 0.039, palette.muted,
-        )
 
-    painter.setPen(QPen(accent, max(2.0, short * 0.007), Qt.SolidLine, Qt.RoundCap))
-    painter.drawLine(
-        QPointF(card.left() + card.width() * 0.30, card.bottom() - short * 0.035),
-        QPointF(card.right() - card.width() * 0.30, card.bottom() - short * 0.035),
-    )
     painter.end()
     return image
