@@ -93,6 +93,20 @@ def test_locked_and_idle_accept_optional_context():
     assert image_digest(locked) != image_digest(idle)
 
 
+def test_lock_and_idle_hud_phase_changes_visual_frame():
+    for state in (SystemState.LOCKED, SystemState.IDLE):
+        phase_a = render(480, 1920, state, animation_phase=0.0, clock_text="11:42")
+        phase_b = render(480, 1920, state, animation_phase=0.5, clock_text="11:42")
+        assert image_digest(phase_a) != image_digest(phase_b)
+
+
+def test_terminal_states_ignore_animation_phase_for_stable_final_frame():
+    for state in (SystemState.SUSPENDING, SystemState.SHUTTING_DOWN, SystemState.RESTARTING):
+        phase_a = render(480, 1920, state, animation_phase=0.0)
+        phase_b = render(480, 1920, state, animation_phase=0.75)
+        assert image_digest(phase_a) == image_digest(phase_b)
+
+
 def test_active_state_is_not_a_state_screen():
     try:
         render(640, 360, SystemState.ACTIVE)
