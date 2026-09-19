@@ -190,3 +190,29 @@ def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window
     assert reconnects == [True]
     assert window._resume_reconnect_pending is False
     assert window._resume_recovery_armed is False
+
+
+def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypatch):
+    window = state_window
+    window.language = "en"
+    window.display_backend_key = "aic_usb"
+    monkeypatch.setattr(QTimer, "singleShot", staticmethod(lambda *_args: None))
+
+    window._schedule_usb_resume_reconnect()
+
+    assert window.statusBar().currentMessage() == "Reconnecting display after standby …"
+
+
+def test_system_state_render_error_uses_active_language(state_window, monkeypatch):
+    window = state_window
+    window.language = "en"
+    window.display_streamer = RecordingStreamer()
+    window.display_connected = True
+
+    def fail_render(_state):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(window, "_render_system_state_payload", fail_render)
+    window._send_system_state_frame(SystemState.LOCKED)
+
+    assert window.statusBar().currentMessage() == "System state screen could not be rendered: boom"
