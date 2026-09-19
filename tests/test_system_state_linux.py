@@ -191,3 +191,28 @@ def test_start_emits_current_locked_hint_without_polling(monkeypatch):
 
     assert source.start(lambda kind, enabled: events.append((kind, enabled))) is True
     assert ("lock", True) in events
+
+
+def test_locked_hint_property_changes_track_actual_lock_state(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_ID", "test-session")
+    FakeDBusConnection.bus = FakeBus()
+    monkeypatch.setattr(system_state_linux, "QDBusConnection", FakeDBusConnection)
+    monkeypatch.setattr(system_state_linux, "QDBusInterface", FakeDBusInterface)
+
+    source = _LogindDbusSource()
+    events = []
+    assert source.start(lambda kind, enabled: events.append((kind, enabled))) is True
+
+    assert any(
+        interface == "org.freedesktop.DBus.Properties"
+        and name == "PropertiesChanged"
+        for _service, _path, interface, name, _receiver, _slot in FakeDBusConnection.bus.connections
+    )
+
+    events.clear()
+    source._on_session_properties_changed(
+        source._LOGIN_SESSION,
+        {"LockedHint": FakeVariant(False)},
+        [],
+    )
+    assert events == [("lock", False)]
