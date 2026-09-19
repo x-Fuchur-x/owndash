@@ -24,11 +24,16 @@ Released features and full historical details remain documented in [`CHANGELOG.m
 The current priority is making the public beta increasingly predictable across real Linux systems and supported display paths.
 
 - Beta bug fixes and regression prevention
+- Event-driven system-state screens for idle, lock, suspend, shutdown and restart, with physical Bazzite/KDE + VSDISPLAY validation before release
+- Static system-state output that pauses unnecessary sensor refresh, display rendering and dashboard cycling while a state screen is visible
+- Direct-USB suspend/resume recovery with a bounded one-shot reconnect instead of background polling
 - Continued real-device validation, especially output switching and shutdown/end-state behavior
 - Linux distribution, desktop, sensor, and display compatibility improvements
 - AppImage packaging and release reliability
 - Diagnostics and setup polish where beta feedback shows friction
 - Validation of mixed-DPI and compositor-specific fullscreen behavior on additional real systems
+
+The system-state implementation and its fallback/resource behavior are documented in [`docs/system-state-screens.md`](docs/system-state-screens.md).
 
 ## Next — 0.15 Device Experience
 
