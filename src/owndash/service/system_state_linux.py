@@ -39,6 +39,7 @@ class _LogindDbusSource(QObject):
     _LOGIN_SERVICE = "org.freedesktop.login1"
     _LOGIN_PATH = "/org/freedesktop/login1"
     _LOGIN_MANAGER = "org.freedesktop.login1.Manager"
+    _LOGIN_SESSION = "org.freedesktop.login1.Session"
     _SYSTEMD_SERVICE = "org.freedesktop.systemd1"
     _SYSTEMD_PATH = "/org/freedesktop/systemd1"
     _SYSTEMD_MANAGER = "org.freedesktop.systemd1.Manager"
@@ -87,12 +88,18 @@ class _LogindDbusSource(QObject):
             if self._session_path:
                 self._connect(
                     self._LOGIN_SERVICE, self._session_path,
-                    "org.freedesktop.login1.Session", "Lock", "_on_lock()",
+                    self._LOGIN_SESSION, "Lock", "_on_lock()",
                 )
                 self._connect(
                     self._LOGIN_SERVICE, self._session_path,
-                    "org.freedesktop.login1.Session", "Unlock", "_on_unlock()",
+                    self._LOGIN_SESSION, "Unlock", "_on_unlock()",
                 )
+                # Signals cover future changes. Read LockedHint exactly once so
+                # an already locked desktop is represented immediately at app
+                # startup without introducing any polling.
+                locked = self._session_locked_hint()
+                if locked is not None:
+                    self._emit("lock", locked)
             if not ok:
                 self.stop()
                 return False
@@ -138,6 +145,28 @@ class _LogindDbusSource(QObject):
             return ""
         path = reply.arguments()[0]
         return path.path() if hasattr(path, "path") else str(path)
+
+    def _session_locked_hint(self) -> bool | None:
+        if not self._session_path or self._bus is None or QDBusInterface is None:
+            return None
+        props = QDBusInterface(
+            self._LOGIN_SERVICE,
+            self._session_path,
+            "org.freedesktop.DBus.Properties",
+            self._bus,
+        )
+        if not props.isValid():
+            return None
+        try:
+            reply = props.call("Get", self._LOGIN_SESSION, "LockedHint")
+            if not reply.arguments():
+                return None
+            value = reply.arguments()[0]
+            value = value.variant() if hasattr(value, "variant") else value
+            return value if isinstance(value, bool) else None
+        except Exception:
+            log.debug("Could not inspect session LockedHint", exc_info=True)
+            return None
 
     def _scheduled_shutdown_kind(self) -> str | None:
         if self._bus is None or QDBusInterface is None:
