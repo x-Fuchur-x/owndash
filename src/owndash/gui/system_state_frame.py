@@ -102,27 +102,27 @@ _ANIMATED_STATES = {SystemState.IDLE, SystemState.LOCKED}
 
 
 def _portrait_layout(width: int, height: int) -> _PortraitLayout:
-    """Return the bold v3 portrait composition used by tall USB panels."""
+    """Return the tighter v4 hero composition used by tall USB panels."""
     width = int(width)
     height = int(height)
     if width <= 0 or height <= 0:
         raise ValueError("portrait layout dimensions must be positive")
 
-    center = QPointF(width * 0.50, height * 0.292)
-    diameter = width * 0.96
+    center = QPointF(width * 0.50, height * 0.280)
+    diameter = width * 0.97
     return _PortraitLayout(
         hud_center=center,
         hud_diameter=diameter,
-        wordmark_rect=QRectF(width * 0.025, center.y() - height * 0.041, width * 0.95, height * 0.082),
-        wordmark_font_px=width * 0.18,
-        status_rect=QRectF(width * 0.025, height * 0.455, width * 0.95, height * 0.070),
-        status_font_px=width * 0.095,
-        detail_rect=QRectF(width * 0.08, height * 0.523, width * 0.84, height * 0.043),
+        wordmark_rect=QRectF(width * 0.02, center.y() - height * 0.045, width * 0.96, height * 0.090),
+        wordmark_font_px=width * 0.205,
+        status_rect=QRectF(width * 0.025, height * 0.420, width * 0.95, height * 0.078),
+        status_font_px=width * 0.112,
+        detail_rect=QRectF(width * 0.08, height * 0.492, width * 0.84, height * 0.040),
         detail_font_px=width * 0.038,
-        bar_rect=QRectF(width * 0.18, height * 0.585, width * 0.64, max(10.0, width * 0.024)),
-        context_top=height * 0.625,
-        telemetry_y=height * 0.735,
-        floor_horizon=height * 0.815,
+        bar_rect=QRectF(width * 0.19, height * 0.552, width * 0.62, max(9.0, width * 0.021)),
+        context_top=height * 0.590,
+        telemetry_y=height * 0.715,
+        floor_horizon=height * 0.805,
     )
 
 
@@ -140,6 +140,30 @@ def _portrait_rail_docks(layout: _PortraitLayout) -> tuple[QPointF, QPointF, QPo
         _point_on_circle(layout.hud_center, radius, 325.0),
         _point_on_circle(layout.hud_center, radius, 35.0),
     )
+
+
+def _portrait_rail_approaches(layout: _PortraitLayout) -> tuple[QPointF, QPointF, QPointF, QPointF]:
+    """Return approach points whose final segment is tangent to the hero ring.
+
+    This makes the side rails read as one continuous engineered assembly with
+    the circle instead of as unrelated vertical lines crossing the HUD.
+    """
+    docks = _portrait_rail_docks(layout)
+    angles = (215.0, 145.0, 325.0, 35.0)
+    signs = (1.0, -1.0, -1.0, 1.0)
+    length = layout.hud_diameter * 0.085
+    approaches: list[QPointF] = []
+    for dock, degrees, sign in zip(docks, angles, signs):
+        angle = math.radians(degrees)
+        tangent_x = -math.sin(angle) * sign
+        tangent_y = math.cos(angle) * sign
+        approaches.append(
+            QPointF(
+                dock.x() - tangent_x * length,
+                dock.y() - tangent_y * length,
+            )
+        )
+    return tuple(approaches)  # type: ignore[return-value]
 
 
 def _text(strings: dict[str, str], key: str, fallback: str) -> str:
@@ -175,7 +199,18 @@ def _fit_font(image: QImage, text: str, rect: QRectF, px: float, *, bold: bool =
     return font
 
 
-def _draw_centered(painter: QPainter, image: QImage, rect: QRectF, text: str, px: float, color: str, *, bold: bool = False, glow: str | None = None, family: str = "DejaVu Sans") -> None:
+def _draw_centered(
+    painter: QPainter,
+    image: QImage,
+    rect: QRectF,
+    text: str,
+    px: float,
+    color: str,
+    *,
+    bold: bool = False,
+    glow: str | None = None,
+    family: str = "DejaVu Sans",
+) -> None:
     if not text:
         return
     font = _fit_font(image, text, rect, px, bold=bold, family=family)
@@ -183,7 +218,16 @@ def _draw_centered(painter: QPainter, image: QImage, rect: QRectF, text: str, px
     flags = Qt.AlignCenter | Qt.TextWordWrap
     if glow:
         glow_color = QColor(glow)
-        for dx, dy, alpha in ((-4, 0, 14), (4, 0, 14), (0, -4, 14), (0, 4, 14), (-2, -2, 28), (2, -2, 28), (-2, 2, 28), (2, 2, 28), (-1, 0, 70), (1, 0, 70), (0, -1, 70), (0, 1, 70)):
+        for dx, dy, alpha in (
+            (-2, 0, 22),
+            (2, 0, 22),
+            (0, -2, 22),
+            (0, 2, 22),
+            (-1, 0, 58),
+            (1, 0, 58),
+            (0, -1, 58),
+            (0, 1, 58),
+        ):
             glow_color.setAlpha(alpha)
             painter.setPen(glow_color)
             painter.drawText(rect.translated(dx, dy), flags, text)
@@ -192,45 +236,62 @@ def _draw_centered(painter: QPainter, image: QImage, rect: QRectF, text: str, px
 
 
 def _draw_gradient_wordmark(painter: QPainter, image: QImage, rect: QRectF, palette: _Theme, px: float) -> None:
-    """Draw the large central OwnDash hero mark with layered neon glow."""
-    font = _fit_font(image, APP_NAME, rect, px, bold=True)
+    """Draw a large, crisp OwnDash hero mark with restrained neon bloom."""
+    font = _fit_font(image, APP_NAME, rect, px, bold=True, family="DejaVu Sans Condensed")
     metrics = QFontMetricsF(font, image)
     bounds = metrics.boundingRect(APP_NAME)
     baseline_x = rect.center().x() - bounds.width() / 2.0 - bounds.left()
     baseline_y = rect.center().y() + (metrics.ascent() - metrics.descent()) / 2.0
     path = QPainterPath()
     path.addText(QPointF(baseline_x, baseline_y), font, APP_NAME)
+
     gradient = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
     gradient.setColorAt(0.0, QColor(palette.cyan))
-    gradient.setColorAt(0.46, QColor(palette.green))
+    gradient.setColorAt(0.49, QColor(palette.green))
     gradient.setColorAt(1.0, QColor(palette.magenta))
+
     painter.save()
     painter.setBrush(Qt.NoBrush)
-    for stroke_width, opacity in ((26.0, 0.055), (16.0, 0.10), (9.0, 0.17), (4.0, 0.38)):
+    for stroke_width, opacity in ((12.0, 0.08), (6.0, 0.16), (2.8, 0.28)):
         painter.setOpacity(opacity)
         painter.setPen(QPen(QBrush(gradient), stroke_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.drawPath(path)
+
     painter.setOpacity(1.0)
     painter.setPen(Qt.NoPen)
     painter.setBrush(QBrush(gradient))
     painter.drawPath(path)
-    painter.setOpacity(0.22)
-    painter.setPen(QPen(QColor("#ffffff"), 0.8))
+
+    core = QColor("#f7fdff")
+    core.setAlpha(165)
     painter.setBrush(Qt.NoBrush)
+    painter.setPen(QPen(core, 1.15, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
     painter.drawPath(path)
     painter.restore()
 
 
 def _neon_color_for_angle(palette: _Theme, degrees: float) -> QColor:
     normalized = degrees % 360.0
-    if 55.0 <= normalized < 135.0:
+    if 62.0 <= normalized < 118.0:
         return QColor(palette.green)
-    if 135.0 <= normalized < 270.0:
+    if 118.0 <= normalized < 270.0:
         return QColor(palette.cyan)
     return QColor(palette.magenta)
 
 
-def _draw_segmented_ring(painter: QPainter, center: QPointF, diameter: float, short: float, palette: _Theme, *, segments: int, coverage: float, width_scale: float, phase_degrees: float, alpha: int) -> None:
+def _draw_segmented_ring(
+    painter: QPainter,
+    center: QPointF,
+    diameter: float,
+    short: float,
+    palette: _Theme,
+    *,
+    segments: int,
+    coverage: float,
+    width_scale: float,
+    phase_degrees: float,
+    alpha: int,
+) -> None:
     ring = QRectF(center.x() - diameter / 2.0, center.y() - diameter / 2.0, diameter, diameter)
     step = 360.0 / float(segments)
     span = step * coverage
@@ -238,90 +299,140 @@ def _draw_segmented_ring(painter: QPainter, center: QPointF, diameter: float, sh
         start = index * step + phase_degrees
         color = _neon_color_for_angle(palette, start + span / 2.0)
         halo = QColor(color)
-        halo.setAlpha(max(8, int(alpha * 0.12)))
-        painter.setPen(QPen(halo, max(3.0, short * width_scale * 4.2), Qt.SolidLine, Qt.RoundCap))
+        halo.setAlpha(max(8, int(alpha * 0.11)))
+        painter.setPen(QPen(halo, max(3.0, short * width_scale * 3.6), Qt.SolidLine, Qt.RoundCap))
         painter.drawArc(ring, int(start * 16), int(span * 16))
         color.setAlpha(alpha)
         painter.setPen(QPen(color, max(1.2, short * width_scale), Qt.SolidLine, Qt.RoundCap))
         painter.drawArc(ring, int(start * 16), int(span * 16))
 
 
-def _draw_hud_rings(painter: QPainter, center: QPointF, diameter: float, short: float, palette: _Theme, state: SystemState, phase: float) -> None:
+def _draw_hud_rings(
+    painter: QPainter,
+    center: QPointF,
+    diameter: float,
+    short: float,
+    palette: _Theme,
+    state: SystemState,
+    phase: float,
+) -> None:
     animated = state in _ANIMATED_STATES
     phase = (phase % 1.0) if animated else 0.0
-    for dx, color_name in ((-0.23, palette.cyan), (0.0, palette.green), (0.23, palette.magenta)):
+
+    # Restrained tri-color bloom: atmosphere behind the ring, not visual fog.
+    for dx, color_name in ((-0.22, palette.cyan), (0.0, palette.green), (0.22, palette.magenta)):
         glow_center = QPointF(center.x() + diameter * dx, center.y())
-        glow = QRadialGradient(glow_center, diameter * 0.58)
+        glow = QRadialGradient(glow_center, diameter * 0.52)
         core = QColor(color_name)
-        core.setAlpha(28)
+        core.setAlpha(18)
         clear = QColor(color_name)
         clear.setAlpha(0)
         glow.setColorAt(0.0, core)
         glow.setColorAt(1.0, clear)
         painter.setPen(Qt.NoPen)
         painter.setBrush(glow)
-        painter.drawEllipse(QRectF(glow_center.x() - diameter * 0.58, glow_center.y() - diameter * 0.58, diameter * 1.16, diameter * 1.16))
+        painter.drawEllipse(
+            QRectF(
+                glow_center.x() - diameter * 0.52,
+                glow_center.y() - diameter * 0.52,
+                diameter * 1.04,
+                diameter * 1.04,
+            )
+        )
+
     structural = QColor(palette.secondary)
-    structural.setAlpha(44)
+    structural.setAlpha(42)
     painter.setBrush(Qt.NoBrush)
-    for scale in (1.00, 0.82, 0.66):
+    for scale in (1.00, 0.83, 0.66):
         d = diameter * scale
-        painter.setPen(QPen(structural, max(1.0, short * 0.0024)))
+        painter.setPen(QPen(structural, max(1.0, short * 0.0021)))
         painter.drawEllipse(QRectF(center.x() - d / 2, center.y() - d / 2, d, d))
-    _draw_segmented_ring(painter, center, diameter * 0.985, short, palette, segments=10, coverage=0.60, width_scale=0.017, phase_degrees=phase * 190.0, alpha=250)
-    _draw_segmented_ring(painter, center, diameter * 0.84, short, palette, segments=14, coverage=0.28, width_scale=0.0075, phase_degrees=16.0 - phase * 115.0, alpha=175)
-    _draw_segmented_ring(painter, center, diameter * 0.69, short, palette, segments=18, coverage=0.15, width_scale=0.0042, phase_degrees=phase * 65.0, alpha=112)
-    for index in range(8):
-        degrees = index * 45.0 - 90.0
+
+    # Two dominant segment layers, plus a quiet technical inner guide.
+    _draw_segmented_ring(
+        painter,
+        center,
+        diameter * 0.988,
+        short,
+        palette,
+        segments=8,
+        coverage=0.67,
+        width_scale=0.018,
+        phase_degrees=phase * 105.0,
+        alpha=250,
+    )
+    _draw_segmented_ring(
+        painter,
+        center,
+        diameter * 0.835,
+        short,
+        palette,
+        segments=12,
+        coverage=0.31,
+        width_scale=0.0068,
+        phase_degrees=18.0 - phase * 72.0,
+        alpha=168,
+    )
+
+    # Sparse radial anchors preserve HUD character without competing with logo.
+    for degrees in (-90.0, 0.0, 90.0, 180.0):
         angle = math.radians(degrees)
-        inner = diameter * 0.33
-        outer = diameter * (0.43 if index % 2 else 0.47)
+        inner = diameter * 0.355
+        outer = diameter * 0.455
         color = _neon_color_for_angle(palette, degrees)
-        color.setAlpha(58 if index % 2 else 100)
-        painter.setPen(QPen(color, max(1.0, short * 0.0022), Qt.SolidLine, Qt.RoundCap))
-        painter.drawLine(QPointF(center.x() + math.cos(angle) * inner, center.y() + math.sin(angle) * inner), QPointF(center.x() + math.cos(angle) * outer, center.y() + math.sin(angle) * outer))
-    highlighted = int(phase * 32.0) % 32 if animated else -1
-    for index in range(32):
-        angle = math.radians(index * 11.25 - 90.0)
-        inner = diameter * 0.505
-        outer = diameter * 0.527
+        color.setAlpha(64)
+        painter.setPen(QPen(color, max(1.0, short * 0.0021), Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(
+            QPointF(center.x() + math.cos(angle) * inner, center.y() + math.sin(angle) * inner),
+            QPointF(center.x() + math.cos(angle) * outer, center.y() + math.sin(angle) * outer),
+        )
+
+    highlighted = int(phase * 24.0) % 24 if animated else -1
+    for index in range(24):
+        angle = math.radians(index * 15.0 - 90.0)
+        inner = diameter * 0.506
+        outer = diameter * 0.525
         p1 = QPointF(center.x() + math.cos(angle) * inner, center.y() + math.sin(angle) * inner)
         p2 = QPointF(center.x() + math.cos(angle) * outer, center.y() + math.sin(angle) * outer)
         color = QColor(palette.green if index == highlighted else palette.secondary)
-        color.setAlpha(230 if index == highlighted else 52)
-        painter.setPen(QPen(color, max(1.0, short * (0.005 if index == highlighted else 0.0018)), Qt.SolidLine, Qt.RoundCap))
+        color.setAlpha(220 if index == highlighted else 42)
+        painter.setPen(
+            QPen(
+                color,
+                max(1.0, short * (0.0045 if index == highlighted else 0.0016)),
+                Qt.SolidLine,
+                Qt.RoundCap,
+            )
+        )
         painter.drawLine(p1, p2)
-    for index, base in enumerate((28.0, 118.0, 208.0, 298.0)):
-        degrees = base + (phase * 24.0 if animated else 0.0)
-        point = _point_on_circle(center, diameter * 0.455, degrees)
-        color = QColor((palette.magenta, palette.green, palette.cyan, palette.magenta)[index])
-        glow = QColor(color)
-        glow.setAlpha(45)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(glow)
-        painter.drawEllipse(point, short * 0.020, short * 0.020)
-        color.setAlpha(235)
-        painter.setBrush(color)
-        painter.drawEllipse(point, short * 0.0065, short * 0.0065)
 
 
 def _draw_dock_node(painter: QPainter, point: QPointF, color: QColor, short: float) -> None:
     halo = QColor(color)
-    halo.setAlpha(42)
+    halo.setAlpha(38)
     painter.setPen(Qt.NoPen)
     painter.setBrush(halo)
-    painter.drawEllipse(point, short * 0.030, short * 0.030)
+    painter.drawEllipse(point, short * 0.026, short * 0.026)
     color.setAlpha(245)
     painter.setBrush(color)
-    painter.drawEllipse(point, short * 0.007, short * 0.007)
+    painter.drawEllipse(point, short * 0.0065, short * 0.0065)
 
 
-def _draw_side_rails(painter: QPainter, width: int, height: int, short: float, palette: _Theme, *, layout: _PortraitLayout | None = None) -> None:
+def _draw_side_rails(
+    painter: QPainter,
+    width: int,
+    height: int,
+    short: float,
+    palette: _Theme,
+    *,
+    layout: _PortraitLayout | None = None,
+) -> None:
     left = QColor(palette.cyan)
     right = QColor(palette.magenta)
-    left.setAlpha(210)
-    right.setAlpha(210)
-    line_width = max(1.0, short * 0.004)
+    left.setAlpha(205)
+    right.setAlpha(205)
+    line_width = max(1.0, short * 0.0038)
+
     if layout is None:
         for x, side, color in ((short * 0.04, 1, left), (width - short * 0.04, -1, right)):
             inward = side * short * 0.075
@@ -330,125 +441,198 @@ def _draw_side_rails(painter: QPainter, width: int, height: int, short: float, p
             painter.drawLine(QPointF(x, height * 0.13), QPointF(x + inward, height * 0.22))
             painter.drawLine(QPointF(x + inward, height * 0.22), QPointF(x + inward, height * 0.80))
         return
+
     upper_left, lower_left, upper_right, lower_right = _portrait_rail_docks(layout)
-    def draw_one(color: QColor, *, side: int, upper: QPointF, lower: QPointF) -> None:
+    approach_ul, approach_ll, approach_ur, approach_lr = _portrait_rail_approaches(layout)
+
+    def draw_one(
+        color: QColor,
+        *,
+        side: int,
+        upper: QPointF,
+        lower: QPointF,
+        upper_approach: QPointF,
+        lower_approach: QPointF,
+    ) -> None:
         outer_x = width * (0.055 if side > 0 else 0.945)
         track_x = width * (0.115 if side > 0 else 0.885)
         top_y = height * 0.025
         shoulder_y = height * 0.115
-        lower_shoulder_y = height * 0.735
+        lower_shoulder_y = height * 0.720
         bottom_y = height * 0.905
-        path = QPainterPath(QPointF(outer_x, top_y))
-        path.lineTo(QPointF(outer_x, shoulder_y))
-        path.lineTo(QPointF(track_x, shoulder_y + height * 0.055))
-        path.lineTo(QPointF(track_x, upper.y() - short * 0.035))
-        path.lineTo(upper)
+
+        upper_path = QPainterPath(QPointF(outer_x, top_y))
+        upper_path.lineTo(QPointF(outer_x, shoulder_y))
+        upper_path.lineTo(QPointF(track_x, shoulder_y + height * 0.050))
+        upper_path.lineTo(QPointF(track_x, upper_approach.y() - short * 0.025))
+        upper_path.lineTo(upper_approach)
+        upper_path.lineTo(upper)
+
         lower_path = QPainterPath(lower)
-        lower_path.lineTo(QPointF(track_x, lower.y() + short * 0.035))
+        lower_path.lineTo(lower_approach)
+        lower_path.lineTo(QPointF(track_x, lower_approach.y() + short * 0.025))
         lower_path.lineTo(QPointF(track_x, lower_shoulder_y))
-        lower_path.lineTo(QPointF(outer_x, lower_shoulder_y + height * 0.055))
+        lower_path.lineTo(QPointF(outer_x, lower_shoulder_y + height * 0.050))
         lower_path.lineTo(QPointF(outer_x, bottom_y))
+
         glow = QColor(color)
-        glow.setAlpha(42)
+        glow.setAlpha(34)
         painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(glow, line_width * 4.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.drawPath(path)
+        painter.setPen(QPen(glow, line_width * 3.6, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.drawPath(upper_path)
         painter.drawPath(lower_path)
         painter.setPen(QPen(color, line_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        painter.drawPath(path)
+        painter.drawPath(upper_path)
         painter.drawPath(lower_path)
+
+        # A single quiet inner trace adds depth but stops before the HUD itself.
         inner = QColor(color)
-        inner.setAlpha(58)
-        offset = side * short * 0.030
-        painter.setPen(QPen(inner, max(1.0, line_width * 0.62), Qt.SolidLine, Qt.RoundCap))
-        painter.drawLine(QPointF(outer_x + offset, top_y + short * 0.05), QPointF(outer_x + offset, shoulder_y))
-        painter.drawLine(QPointF(track_x + offset, shoulder_y + height * 0.060), QPointF(track_x + offset, upper.y() - short * 0.055))
-        painter.drawLine(QPointF(track_x + offset, lower.y() + short * 0.055), QPointF(track_x + offset, lower_shoulder_y - short * 0.02))
+        inner.setAlpha(48)
+        offset = side * short * 0.026
+        painter.setPen(QPen(inner, max(1.0, line_width * 0.58), Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(
+            QPointF(outer_x + offset, top_y + short * 0.05),
+            QPointF(outer_x + offset, shoulder_y),
+        )
+        painter.drawLine(
+            QPointF(track_x + offset, shoulder_y + height * 0.060),
+            QPointF(track_x + offset, upper_approach.y() - short * 0.050),
+        )
+        painter.drawLine(
+            QPointF(track_x + offset, lower_approach.y() + short * 0.050),
+            QPointF(track_x + offset, lower_shoulder_y - short * 0.02),
+        )
+
         _draw_dock_node(painter, upper, QColor(color), short)
         _draw_dock_node(painter, lower, QColor(color), short)
-    draw_one(left, side=1, upper=upper_left, lower=lower_left)
-    draw_one(right, side=-1, upper=upper_right, lower=lower_right)
-    for index in range(7):
-        y = height * 0.100 + index * short * 0.037
-        radius = max(1.2, short * 0.0042)
+
+    draw_one(
+        left,
+        side=1,
+        upper=upper_left,
+        lower=lower_left,
+        upper_approach=approach_ul,
+        lower_approach=approach_ll,
+    )
+    draw_one(
+        right,
+        side=-1,
+        upper=upper_right,
+        lower=lower_right,
+        upper_approach=approach_ur,
+        lower_approach=approach_lr,
+    )
+
+    # Sparse indicator dots only in the upper frame, away from the hero circle.
+    for index in range(5):
+        y = height * 0.105 + index * short * 0.042
+        radius = max(1.2, short * 0.0038)
         for x, color_name in ((width * 0.083, palette.cyan), (width * 0.917, palette.magenta)):
             color = QColor(color_name)
-            color.setAlpha(105 + index * 18)
+            color.setAlpha(105 + index * 20)
             painter.setPen(Qt.NoPen)
             painter.setBrush(color)
             painter.drawEllipse(QPointF(x, y), radius, radius)
 
 
 def _draw_background_depth(painter: QPainter, width: int, height: int, short: float, palette: _Theme) -> None:
-    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.30), width * 0.78)
+    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.285), width * 0.72)
     core = QColor(palette.cyan)
-    core.setAlpha(17)
+    core.setAlpha(14)
     mid = QColor(palette.magenta)
-    mid.setAlpha(7)
+    mid.setAlpha(5)
     clear = QColor(0, 0, 0, 0)
     center_glow.setColorAt(0.0, core)
-    center_glow.setColorAt(0.62, mid)
+    center_glow.setColorAt(0.60, mid)
     center_glow.setColorAt(1.0, clear)
     painter.setPen(Qt.NoPen)
     painter.setBrush(center_glow)
-    painter.drawEllipse(QRectF(-width * 0.20, height * 0.045, width * 1.40, width * 1.40))
+    painter.drawEllipse(QRectF(-width * 0.16, height * 0.045, width * 1.32, width * 1.32))
+
     scan = QColor(palette.secondary)
-    scan.setAlpha(7)
+    scan.setAlpha(5)
     painter.setPen(QPen(scan, 1.0))
-    step = max(82.0, short * 0.23)
-    y = height * 0.09
-    while y < height * 0.76:
-        painter.drawLine(QPointF(width * 0.15, y), QPointF(width * 0.85, y))
+    step = max(100.0, short * 0.28)
+    y = height * 0.10
+    while y < height * 0.72:
+        painter.drawLine(QPointF(width * 0.17, y), QPointF(width * 0.83, y))
         y += step
 
 
-def _draw_floor_reflection(painter: QPainter, width: int, height: int, short: float, palette: _Theme, *, horizon: float | None = None) -> None:
-    horizon = float(height * 0.815 if horizon is None else horizon)
+def _draw_floor_reflection(
+    painter: QPainter,
+    width: int,
+    height: int,
+    short: float,
+    palette: _Theme,
+    *,
+    horizon: float | None = None,
+) -> None:
+    horizon = float(height * 0.805 if horizon is None else horizon)
     line_gradient = QLinearGradient(width * 0.06, horizon, width * 0.94, horizon)
     line_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
     cyan = QColor(palette.cyan)
     green = QColor(palette.green)
     magenta = QColor(palette.magenta)
-    cyan.setAlpha(220)
-    green.setAlpha(205)
-    magenta.setAlpha(220)
+    cyan.setAlpha(225)
+    green.setAlpha(180)
+    magenta.setAlpha(225)
     line_gradient.setColorAt(0.24, cyan)
     line_gradient.setColorAt(0.50, green)
     line_gradient.setColorAt(0.76, magenta)
     line_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+
     painter.save()
-    painter.setOpacity(0.16)
-    painter.setPen(QPen(QBrush(line_gradient), max(7.0, short * 0.022), Qt.SolidLine, Qt.RoundCap))
+    painter.setOpacity(0.14)
+    painter.setPen(QPen(QBrush(line_gradient), max(8.0, short * 0.025), Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(width * 0.07, horizon), QPointF(width * 0.93, horizon))
     painter.setOpacity(1.0)
-    painter.setPen(QPen(QBrush(line_gradient), max(1.2, short * 0.004), Qt.SolidLine, Qt.RoundCap))
+    painter.setPen(QPen(QBrush(line_gradient), max(1.2, short * 0.0038), Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(width * 0.07, horizon), QPointF(width * 0.93, horizon))
-    wash = QLinearGradient(0, horizon, 0, height)
-    wash_top = QColor(palette.cyan)
-    wash_mid = QColor(palette.green)
-    wash_tail = QColor(palette.magenta)
-    wash_top.setAlpha(34)
-    wash_mid.setAlpha(16)
-    wash_tail.setAlpha(0)
-    wash.setColorAt(0.0, wash_top)
-    wash.setColorAt(0.34, wash_mid)
-    wash.setColorAt(1.0, wash_tail)
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(wash)
-    painter.drawRect(QRectF(width * 0.08, horizon, width * 0.84, height - horizon))
-    grid = QColor(palette.secondary)
-    grid.setAlpha(18)
-    painter.setPen(QPen(grid, max(1.0, short * 0.0016)))
-    for ratio in (0.24, 0.36, 0.50, 0.64, 0.76):
+
+    # Three soft reflected light pools form a cinematic stage instead of a grid.
+    for x_ratio, color_name, alpha in (
+        (0.31, palette.cyan, 56),
+        (0.50, palette.green, 36),
+        (0.69, palette.magenta, 56),
+    ):
+        glow = QRadialGradient(QPointF(width * x_ratio, horizon + short * 0.10), short * 0.52)
+        color = QColor(color_name)
+        color.setAlpha(alpha)
+        clear = QColor(color_name)
+        clear.setAlpha(0)
+        glow.setColorAt(0.0, color)
+        glow.setColorAt(1.0, clear)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(glow)
+        painter.drawEllipse(
+            QRectF(
+                width * x_ratio - short * 0.52,
+                horizon - short * 0.04,
+                short * 1.04,
+                short * 0.94,
+            )
+        )
+
+    # A few perspective guides are enough to imply depth without wireframe noise.
+    guide = QColor(palette.secondary)
+    guide.setAlpha(10)
+    painter.setPen(QPen(guide, max(1.0, short * 0.0014)))
+    for ratio in (0.34, 0.50, 0.66):
         x0 = width * ratio
-        x1 = width * (0.50 + (ratio - 0.50) * 1.8)
+        x1 = width * (0.50 + (ratio - 0.50) * 1.55)
         painter.drawLine(QPointF(x0, horizon), QPointF(x1, height * 0.965))
-    for y_ratio in (0.845, 0.875, 0.910, 0.950):
-        painter.drawLine(QPointF(width * 0.16, height * y_ratio), QPointF(width * 0.84, height * y_ratio))
-    reflections = ((0.30, palette.cyan, 0.62, 0.011), (0.43, palette.cyan, 0.42, 0.006), (0.50, palette.green, 0.80, 0.014), (0.60, palette.magenta, 0.46, 0.007), (0.71, palette.magenta, 0.64, 0.011))
+
+    reflections = (
+        (0.30, palette.cyan, 0.72, 0.013),
+        (0.43, palette.cyan, 0.45, 0.006),
+        (0.50, palette.green, 0.88, 0.014),
+        (0.60, palette.magenta, 0.48, 0.007),
+        (0.71, palette.magenta, 0.74, 0.013),
+    )
     for x_ratio, value, length, width_scale in reflections:
         color = QColor(value)
-        color.setAlpha(135)
+        color.setAlpha(145)
         fade = QLinearGradient(0, horizon, 0, min(height, horizon + short * length))
         fade.setColorAt(0.0, color)
         tail = QColor(value)
@@ -466,12 +650,13 @@ def _draw_state_rail(painter: QPainter, rect: QRectF, palette: _Theme, state: Sy
     gradient.setColorAt(0.48, QColor(palette.green))
     gradient.setColorAt(1.0, QColor(palette.magenta))
     painter.save()
-    painter.setOpacity(0.13)
-    painter.setPen(QPen(QBrush(gradient), max(6.0, rect.height() * 1.55), Qt.SolidLine, Qt.RoundCap))
+    painter.setOpacity(0.12)
+    painter.setPen(QPen(QBrush(gradient), max(5.0, rect.height() * 1.45), Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(rect.left(), rect.center().y()), QPointF(rect.right(), rect.center().y()))
     painter.setOpacity(1.0)
-    painter.setPen(QPen(QBrush(gradient), max(1.4, rect.height() * 0.20), Qt.SolidLine, Qt.RoundCap))
+    painter.setPen(QPen(QBrush(gradient), max(1.3, rect.height() * 0.18), Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(rect.left(), rect.center().y()), QPointF(rect.right(), rect.center().y()))
+
     scanner_ratio = 0.50
     if state in _ANIMATED_STATES:
         scanner_ratio = 0.14 + 0.72 * (0.5 + 0.5 * math.sin(phase * math.tau - math.pi / 2))
@@ -483,16 +668,28 @@ def _draw_state_rail(painter: QPainter, rect: QRectF, palette: _Theme, state: Sy
         scanner_ratio = 0.58
     scanner_x = rect.left() + rect.width() * scanner_ratio
     glow = QColor(_STATE_ACCENTS[state])
-    glow.setAlpha(52)
+    glow.setAlpha(48)
     painter.setPen(Qt.NoPen)
     painter.setBrush(glow)
-    painter.drawEllipse(QPointF(scanner_x, rect.center().y()), rect.height() * 0.80, rect.height() * 0.80)
+    painter.drawEllipse(QPointF(scanner_x, rect.center().y()), rect.height() * 0.74, rect.height() * 0.74)
     painter.setBrush(QColor(palette.primary))
-    painter.drawEllipse(QPointF(scanner_x, rect.center().y()), rect.height() * 0.18, rect.height() * 0.18)
+    painter.drawEllipse(QPointF(scanner_x, rect.center().y()), rect.height() * 0.17, rect.height() * 0.17)
     painter.restore()
 
 
-def render_system_state_image(width: int, height: int, state: SystemState, theme: str, icon: QIcon, strings: dict[str, str], *, clock_text: str | None = None, date_text: str | None = None, sensor_text: str | None = None, animation_phase: float = 0.0) -> QImage:
+def render_system_state_image(
+    width: int,
+    height: int,
+    state: SystemState,
+    theme: str,
+    icon: QIcon,
+    strings: dict[str, str],
+    *,
+    clock_text: str | None = None,
+    date_text: str | None = None,
+    sensor_text: str | None = None,
+    animation_phase: float = 0.0,
+) -> QImage:
     """Render one full-bleed OwnDash system-state frame."""
     width = int(width)
     height = int(height)
@@ -502,64 +699,170 @@ def render_system_state_image(width: int, height: int, state: SystemState, theme
         raise ValueError("ACTIVE has no temporary system-state frame")
     if state not in _STATE_KEYS:
         raise ValueError(f"unsupported system state: {state}")
+
     palette = _THEMES.get(str(theme), _THEMES["owndash"])
     accent = QColor(_STATE_ACCENTS[state])
     phase = float(animation_phase % 1.0) if state in _ANIMATED_STATES else 0.0
     image = QImage(width, height, QImage.Format_RGB32)
     image.fill(QColor(palette.bottom))
+
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setRenderHint(QPainter.SmoothPixmapTransform)
+
     background = QLinearGradient(0, 0, width * 0.72, height)
     background.setColorAt(0.0, QColor(palette.top))
     background.setColorAt(0.46, QColor(palette.middle))
     background.setColorAt(1.0, QColor(palette.bottom))
     painter.fillRect(image.rect(), background)
+
     short = float(min(width, height))
     portrait = height >= width * 1.35
     title, detail = _state_text(state, strings)
     _draw_background_depth(painter, width, height, short, palette)
+
     if portrait:
         layout = _portrait_layout(width, height)
         _draw_side_rails(painter, width, height, short, palette, layout=layout)
         _draw_hud_rings(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
         _draw_gradient_wordmark(painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px)
-        _draw_centered(painter, image, QRectF(width * 0.18, layout.hud_center.y() + height * 0.032, width * 0.64, height * 0.026), "PC DASHBOARD SYSTEM", width * 0.026, palette.secondary, family="DejaVu Sans Condensed")
-        _draw_centered(painter, image, layout.status_rect, title.upper(), layout.status_font_px, palette.primary, bold=True, glow=accent.name(), family="DejaVu Sans Condensed")
+        _draw_centered(
+            painter,
+            image,
+            QRectF(width * 0.20, layout.hud_center.y() + height * 0.038, width * 0.60, height * 0.022),
+            "PC DASHBOARD SYSTEM",
+            width * 0.024,
+            palette.secondary,
+            family="DejaVu Sans Condensed",
+        )
+
+        _draw_centered(
+            painter,
+            image,
+            layout.status_rect,
+            title.upper(),
+            layout.status_font_px,
+            palette.primary,
+            bold=True,
+            glow=accent.name(),
+            family="DejaVu Sans Condensed",
+        )
         if detail:
-            _draw_centered(painter, image, layout.detail_rect, detail, layout.detail_font_px, palette.secondary, glow=accent.name(), family="DejaVu Sans Condensed")
+            _draw_centered(
+                painter,
+                image,
+                layout.detail_rect,
+                detail,
+                layout.detail_font_px,
+                palette.secondary,
+                glow=accent.name(),
+                family="DejaVu Sans Condensed",
+            )
+
         _draw_state_rail(painter, layout.bar_rect, palette, state, phase)
+
         context_y = layout.context_top
         if clock_text:
-            _draw_centered(painter, image, QRectF(width * 0.12, context_y, width * 0.76, height * 0.050), clock_text, width * 0.071, palette.primary, bold=True, glow=palette.cyan)
-            context_y += height * 0.051
+            _draw_centered(
+                painter,
+                image,
+                QRectF(width * 0.12, context_y, width * 0.76, height * 0.046),
+                clock_text,
+                width * 0.068,
+                palette.primary,
+                bold=True,
+                glow=palette.cyan,
+            )
+            context_y += height * 0.047
         if date_text and state is SystemState.LOCKED:
-            _draw_centered(painter, image, QRectF(width * 0.15, context_y, width * 0.70, height * 0.028), date_text, width * 0.030, palette.secondary)
-            context_y += height * 0.034
+            _draw_centered(
+                painter,
+                image,
+                QRectF(width * 0.15, context_y, width * 0.70, height * 0.026),
+                date_text,
+                width * 0.028,
+                palette.secondary,
+            )
+            context_y += height * 0.031
         if sensor_text and state in _ANIMATED_STATES:
-            _draw_centered(painter, image, QRectF(width * 0.08, context_y, width * 0.84, height * 0.032), sensor_text, width * 0.027, palette.muted)
-        for index in range(17):
-            x = width * 0.30 + index * width * 0.025
-            color = QColor(palette.cyan if index < 6 else palette.green if index < 11 else palette.magenta)
-            color.setAlpha(58 + (index % 4) * 24)
-            length = height * (0.003 + 0.003 * (0.5 + 0.5 * math.sin(index * 1.2 + phase * math.tau)))
-            painter.setPen(QPen(color, max(1.0, short * 0.0026), Qt.SolidLine, Qt.RoundCap))
+            _draw_centered(
+                painter,
+                image,
+                QRectF(width * 0.08, context_y, width * 0.84, height * 0.030),
+                sensor_text,
+                width * 0.026,
+                palette.muted,
+            )
+
+        for index in range(11):
+            x = width * 0.37 + index * width * 0.026
+            color = QColor(palette.cyan if index < 4 else palette.green if index < 7 else palette.magenta)
+            color.setAlpha(48 + (index % 3) * 24)
+            length = height * (0.0025 + 0.0025 * (0.5 + 0.5 * math.sin(index * 1.2 + phase * math.tau)))
+            painter.setPen(QPen(color, max(1.0, short * 0.0024), Qt.SolidLine, Qt.RoundCap))
             painter.drawLine(QPointF(x, layout.telemetry_y), QPointF(x, layout.telemetry_y + length))
+
         _draw_floor_reflection(painter, width, height, short, palette, horizon=layout.floor_horizon)
-        _draw_centered(painter, image, QRectF(width * 0.18, height * 0.944, width * 0.64, height * 0.022), f"{APP_NAME} · {__version__}", width * 0.020, palette.muted)
+        _draw_centered(
+            painter,
+            image,
+            QRectF(width * 0.18, height * 0.944, width * 0.64, height * 0.022),
+            f"{APP_NAME} · {__version__}",
+            width * 0.020,
+            palette.muted,
+        )
     else:
         _draw_side_rails(painter, width, height, short, palette)
         center = QPointF(width * 0.36, height * 0.48)
         diameter = min(height * 0.86, width * 0.44)
         _draw_hud_rings(painter, center, diameter, short, palette, state, phase)
-        _draw_gradient_wordmark(painter, image, QRectF(width * 0.51, height * 0.19, width * 0.44, height * 0.19), palette, short * 0.16)
-        _draw_centered(painter, image, QRectF(width * 0.49, height * 0.40, width * 0.46, height * 0.17), title.upper(), short * 0.105, palette.primary, bold=True, glow=accent.name(), family="DejaVu Sans Condensed")
+        _draw_gradient_wordmark(
+            painter,
+            image,
+            QRectF(width * 0.51, height * 0.19, width * 0.44, height * 0.19),
+            palette,
+            short * 0.16,
+        )
+        _draw_centered(
+            painter,
+            image,
+            QRectF(width * 0.49, height * 0.40, width * 0.46, height * 0.17),
+            title.upper(),
+            short * 0.105,
+            palette.primary,
+            bold=True,
+            glow=accent.name(),
+            family="DejaVu Sans Condensed",
+        )
         if detail:
-            _draw_centered(painter, image, QRectF(width * 0.53, height * 0.56, width * 0.39, height * 0.09), detail, short * 0.047, palette.secondary)
+            _draw_centered(
+                painter,
+                image,
+                QRectF(width * 0.53, height * 0.56, width * 0.39, height * 0.09),
+                detail,
+                short * 0.047,
+                palette.secondary,
+            )
         bar = QRectF(width * 0.58, height * 0.70, width * 0.29, max(9.0, short * 0.026))
         _draw_state_rail(painter, bar, palette, state, phase)
-        context = " · ".join(part for part in (clock_text or "", date_text if state is SystemState.LOCKED else "", sensor_text if state in _ANIMATED_STATES else "") if part)
+        context = " · ".join(
+            part
+            for part in (
+                clock_text or "",
+                date_text if state is SystemState.LOCKED else "",
+                sensor_text if state in _ANIMATED_STATES else "",
+            )
+            if part
+        )
         if context:
-            _draw_centered(painter, image, QRectF(width * 0.50, height * 0.79, width * 0.45, height * 0.09), context, short * 0.040, palette.secondary)
+            _draw_centered(
+                painter,
+                image,
+                QRectF(width * 0.50, height * 0.79, width * 0.45, height * 0.09),
+                context,
+                short * 0.040,
+                palette.secondary,
+            )
+
     painter.end()
     return image
