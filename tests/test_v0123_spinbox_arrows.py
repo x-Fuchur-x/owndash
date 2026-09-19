@@ -6,7 +6,7 @@ INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 ASSETS = ROOT / "src/owndash/assets"
 
 def test_version_0123():
-    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert '__version__ = "0.14.0 Beta 4"' in INIT
 
 def test_theme_specific_spin_arrows_exist():
     for name in (

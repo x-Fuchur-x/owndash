@@ -5,7 +5,7 @@ WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0114():
-    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert '__version__ = "0.14.0 Beta 4"' in INIT
 
 def test_resting_button_surface_is_raised_from_dark_palette():
     assert "button_surface = QColor(button)" in WINDOW

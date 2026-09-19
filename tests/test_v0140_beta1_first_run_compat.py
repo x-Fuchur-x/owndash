@@ -9,8 +9,8 @@ INIT = (ROOT/"src/owndash/__init__.py").read_text(encoding="utf-8")
 PROJECT = (ROOT/"pyproject.toml").read_text(encoding="utf-8")
 
 def test_beta1_version_and_author():
-    assert '__version__ = "0.14.0 Beta 3"' in INIT
-    assert 'version = "0.14.0b3"' in PROJECT
+    assert '__version__ = "0.14.0 Beta 4"' in INIT
+    assert 'version = "0.14.0b4"' in PROJECT
     assert 'authors = [{ name = "Markus Rosinski" }]' in PROJECT
 
 def test_first_run_is_persistent_and_only_scheduled_when_needed():

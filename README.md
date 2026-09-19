@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.3"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%203-5577FF?style=for-the-badge"></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%204-5577FF?style=for-the-badge"></a>
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x86__64-0B0E15?style=for-the-badge&logo=linux&logoColor=white">
   <img alt="AppImage" src="https://img.shields.io/badge/AppImage-ready-1593FF?style=for-the-badge&logo=appimage&logoColor=white">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
@@ -20,11 +20,11 @@
 
 OwnDash is an open-source visual dashboard editor for Linux. Build hardware-monitoring dashboards with drag & drop, connect live system sensors, and send the result to a compatible USB display or any monitor Linux recognizes — without having to understand Python, `hwmon`, USB protocols, or Linux internals.
 
-> **Current release: OwnDash 0.14.0 Beta 3**  
+> **Current release: OwnDash 0.14.0 Beta 4**  
 > Ready-to-run x86-64 AppImage · Debian 12 / GLIBC 2.36 compatibility baseline · direct ArtInChip / VSDISPLAY USB output verified on real hardware.
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.3"><strong>Download OwnDash 0.14.0 Beta 3</strong></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4"><strong>Download OwnDash 0.14.0 Beta 4</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/x-Fuchur-x/owndash/releases">All releases</a>
   &nbsp;·&nbsp;
@@ -97,7 +97,7 @@ The official release is a **self-contained x86-64 AppImage**. Python knowledge i
 
 **Current file:** `OwnDash-0.14.0-Beta-3-x86_64.AppImage`
 
-1. Download the AppImage from the [OwnDash 0.14.0 Beta 3 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.3).
+1. Download the AppImage from the [OwnDash 0.14.0 Beta 4 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4).
 2. Make it executable if your desktop requires it.
 3. Launch OwnDash by double-clicking the AppImage.
 4. Follow the first-run setup and compatibility assistant.

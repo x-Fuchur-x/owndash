@@ -7,7 +7,7 @@ WINDOW = WINDOW_PATH.read_text(encoding="utf-8")
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0116():
-    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert '__version__ = "0.14.0 Beta 4"' in INIT
 
 def test_qtabbar_is_imported_when_referenced():
     tree = ast.parse(WINDOW)

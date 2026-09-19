@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.14.0 Beta 4
+
+- Widget fonts, spacing, borders and effects now scale proportionally with their geometry.
+- Fitted geometry and content scaling survive saving, reloading and theme changes.
+- Corrected monitor selection, HiDPI resolution reporting and editor fitting.
+- Added a responsive pause screen with portrait and landscape layouts, clearer text, a contextual reason and the running version.
+- Pause screens follow dashboard orientation and the selected German or English UI language.
+- Switching away from USB replaces frozen telemetry with a pause screen.
+- Improved USB write validation and disconnect handling.
+- Unsupported hardware controls remain disabled; USB brightness and firmware boot-image replacement are not enabled.
+
 - Added an optional background check for newer OwnDash releases on the official GitHub repository.
 - Update checks are enabled by default and can be disabled in Settings.
 - Update checks are non-blocking, use a short network timeout, and fail silently when GitHub or the network is unavailable.

@@ -5,7 +5,7 @@ WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 INIT = (ROOT / "src/owndash/__init__.py").read_text(encoding="utf-8")
 
 def test_version_0113():
-    assert '__version__ = "0.14.0 Beta 3"' in INIT
+    assert '__version__ = "0.14.0 Beta 4"' in INIT
 
 def test_buttons_have_all_interaction_states():
     for selector in (
