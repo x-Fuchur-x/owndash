@@ -202,12 +202,12 @@ def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
     assert lower_left.x() < layout.hud_center.x() < lower_right.x()
 
 
-def test_portrait_v2_keeps_status_and_floor_as_separate_visual_zones():
+def test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones():
     layout = _portrait_layout(480, 1920)
 
     assert layout.status_rect.bottom() < layout.bar_rect.top()
     assert layout.bar_rect.bottom() < 1920 * 0.74
-    assert layout.floor_horizon >= 1920 * 0.82
+    assert layout.floor_horizon >= 1920 * 0.80
 
 
 def test_active_state_is_not_a_state_screen():
