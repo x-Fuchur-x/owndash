@@ -102,7 +102,7 @@ _ANIMATED_STATES = {SystemState.IDLE, SystemState.LOCKED}
 
 
 def _portrait_layout(width: int, height: int) -> _PortraitLayout:
-    """Return the tighter v4 hero composition used by tall USB panels."""
+    """Return the v5 portrait composition with more breathing room."""
     width = int(width)
     height = int(height)
     if width <= 0 or height <= 0:
@@ -113,8 +113,8 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
     return _PortraitLayout(
         hud_center=center,
         hud_diameter=diameter,
-        wordmark_rect=QRectF(width * 0.02, center.y() - height * 0.045, width * 0.96, height * 0.090),
-        wordmark_font_px=width * 0.205,
+        wordmark_rect=QRectF(width * 0.06, center.y() - height * 0.030, width * 0.88, height * 0.060),
+        wordmark_font_px=width * 0.175,
         status_rect=QRectF(width * 0.025, height * 0.420, width * 0.95, height * 0.078),
         status_font_px=width * 0.112,
         detail_rect=QRectF(width * 0.08, height * 0.492, width * 0.84, height * 0.040),
@@ -124,6 +124,16 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
         telemetry_y=height * 0.715,
         floor_horizon=height * 0.805,
     )
+
+
+def _portrait_brand_icon_rect(layout: _PortraitLayout) -> QRectF:
+    """Reserve a clearly visible app-mark area above the OwnDash wordmark."""
+    side = layout.hud_diameter * 0.116
+    center = QPointF(
+        layout.hud_center.x(),
+        layout.hud_center.y() - layout.hud_diameter * 0.245,
+    )
+    return QRectF(center.x() - side / 2.0, center.y() - side / 2.0, side, side)
 
 
 def _point_on_circle(center: QPointF, radius: float, degrees: float) -> QPointF:
@@ -236,7 +246,7 @@ def _draw_centered(
 
 
 def _draw_gradient_wordmark(painter: QPainter, image: QImage, rect: QRectF, palette: _Theme, px: float) -> None:
-    """Draw a large, crisp OwnDash hero mark with restrained neon bloom."""
+    """Draw a crisp OwnDash hero mark with controlled neon bloom."""
     font = _fit_font(image, APP_NAME, rect, px, bold=True, family="DejaVu Sans Condensed")
     metrics = QFontMetricsF(font, image)
     bounds = metrics.boundingRect(APP_NAME)
@@ -252,7 +262,7 @@ def _draw_gradient_wordmark(painter: QPainter, image: QImage, rect: QRectF, pale
 
     painter.save()
     painter.setBrush(Qt.NoBrush)
-    for stroke_width, opacity in ((12.0, 0.08), (6.0, 0.16), (2.8, 0.28)):
+    for stroke_width, opacity in ((9.0, 0.06), (4.5, 0.14), (2.2, 0.24)):
         painter.setOpacity(opacity)
         painter.setPen(QPen(QBrush(gradient), stroke_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.drawPath(path)
@@ -262,11 +272,58 @@ def _draw_gradient_wordmark(painter: QPainter, image: QImage, rect: QRectF, pale
     painter.setBrush(QBrush(gradient))
     painter.drawPath(path)
 
-    core = QColor("#f7fdff")
-    core.setAlpha(165)
+    core = QColor("#f8fdff")
+    core.setAlpha(190)
     painter.setBrush(Qt.NoBrush)
-    painter.setPen(QPen(core, 1.15, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    painter.setPen(QPen(core, 1.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
     painter.drawPath(path)
+    painter.restore()
+
+
+def _draw_brand_icon(
+    painter: QPainter,
+    icon: QIcon,
+    rect: QRectF,
+    short: float,
+    palette: _Theme,
+) -> None:
+    """Render the real OwnDash app mark as a small illuminated badge."""
+    if icon.isNull():
+        return
+
+    center = rect.center()
+    halo = QRadialGradient(center, rect.width() * 0.82)
+    core = QColor(palette.cyan)
+    core.setAlpha(58)
+    edge = QColor(palette.magenta)
+    edge.setAlpha(0)
+    halo.setColorAt(0.0, core)
+    halo.setColorAt(0.58, QColor(10, 28, 40, 72))
+    halo.setColorAt(1.0, edge)
+
+    painter.save()
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(halo)
+    halo_rect = rect.adjusted(-short * 0.024, -short * 0.024, short * 0.024, short * 0.024)
+    painter.drawEllipse(halo_rect)
+
+    rim = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+    rim.setColorAt(0.0, QColor(palette.cyan))
+    rim.setColorAt(0.52, QColor(palette.green))
+    rim.setColorAt(1.0, QColor(palette.magenta))
+    painter.setBrush(QColor(3, 10, 18, 218))
+    painter.setPen(QPen(QBrush(rim), max(1.0, short * 0.004), Qt.SolidLine))
+    painter.drawRoundedRect(rect, rect.width() * 0.22, rect.width() * 0.22)
+
+    side = max(1, round(rect.width() * 0.78))
+    pixmap = icon.pixmap(side, side)
+    target = QRectF(
+        center.x() - side / 2.0,
+        center.y() - side / 2.0,
+        side,
+        side,
+    )
+    painter.drawPixmap(target.toRect(), pixmap)
     painter.restore()
 
 
@@ -725,6 +782,7 @@ def render_system_state_image(
         layout = _portrait_layout(width, height)
         _draw_side_rails(painter, width, height, short, palette, layout=layout)
         _draw_hud_rings(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
+        _draw_brand_icon(painter, icon, _portrait_brand_icon_rect(layout), short, palette)
         _draw_gradient_wordmark(painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px)
         _draw_centered(
             painter,
