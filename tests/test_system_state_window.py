@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+import owndash.gui.app_window as app_window_module
 from owndash.core.preferences import AppPreferences
 from owndash.core.system_state import SystemState
 from owndash.gui.app_window import SafeShutdownWindow
@@ -153,7 +156,7 @@ def test_runtime_preferences_update_idle_and_lock_policy(state_window):
     assert window._system_state_runtime.lock_enabled is False
 
 
-def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window, monkeypatch):
+def test_usb_disconnect_during_suspend_waits_for_device_and_access_before_reconnect(state_window, monkeypatch):
     window = state_window
     streamer = RecordingStreamer()
     window.display_backend_key = "aic_usb"
@@ -164,17 +167,27 @@ def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window
 
     warnings = []
     reconnects = []
-    delayed = []
+    scheduled = []
+    statuses = iter(
+        [
+            SimpleNamespace(connected=False, accessible=False),
+            SimpleNamespace(connected=True, accessible=False),
+            SimpleNamespace(connected=True, accessible=True),
+        ]
+    )
     monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: warnings.append(args))
     monkeypatch.setattr(window, "_start_display_stream", lambda: reconnects.append(True))
-
-    def single_shot(delay, callback):
-        if int(delay) <= 500:
-            callback()
-        else:
-            delayed.append((int(delay), callback))
-
-    monkeypatch.setattr(QTimer, "singleShot", staticmethod(single_shot))
+    monkeypatch.setattr(
+        app_window_module,
+        "probe_artinchip_usb",
+        lambda: next(statuses),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        QTimer,
+        "singleShot",
+        staticmethod(lambda delay, callback: scheduled.append((int(delay), callback))),
+    )
 
     window._handle_system_state_condition(SystemState.SUSPENDING, True)
     window._display_error(RuntimeError("USB disappeared during suspend"))
@@ -187,9 +200,25 @@ def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window
 
     window._handle_system_state_condition(SystemState.SUSPENDING, False)
 
+    assert reconnects == []
+    assert window._resume_reconnect_pending is True
+    assert scheduled
+
+    first_delay, first_attempt = scheduled.pop(0)
+    assert first_delay >= 500
+    first_attempt()
+    assert reconnects == []
+    assert warnings == []
+
+    _second_delay, second_attempt = scheduled.pop(0)
+    second_attempt()
+    assert reconnects == []
+    assert warnings == []
+
+    _third_delay, third_attempt = scheduled.pop(0)
+    third_attempt()
     assert reconnects == [True]
-    assert window._resume_reconnect_pending is False
-    assert window._resume_recovery_armed is False
+    assert warnings == []
 
 
 def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypatch):
