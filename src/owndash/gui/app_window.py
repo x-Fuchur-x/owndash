@@ -67,6 +67,8 @@ class SafeShutdownWindow(MainWindow):
         self._system_state_live_was_active = False
         self._system_state_display_was_active = False
         self._system_state_page_cycle_was_active = False
+        self._resume_reconnect_pending = False
+        self._resume_recovery_armed = False
         self._system_state_runtime = SystemStateRuntime(
             self._show_system_state,
             self._restore_dashboard_after_system_state,
@@ -100,6 +102,8 @@ class SafeShutdownWindow(MainWindow):
     def _display_connected(self, info: object) -> None:
         super()._display_connected(info)
         self._connected_display_info = info
+        self._resume_reconnect_pending = False
+        self._resume_recovery_armed = False
         streamer = self.display_streamer
         caps = streamer.backend.get_capabilities() if streamer is not None else None
         if hasattr(self, "display_controls_action"):
@@ -127,16 +131,74 @@ class SafeShutdownWindow(MainWindow):
             self._show_shutdown_frame(reason="switch")
 
     def _stop_display_stream(self) -> None:
+        self._resume_reconnect_pending = False
+        self._resume_recovery_armed = False
         self._connected_display_info = None
         if hasattr(self, "display_controls_action"):
             self.display_controls_action.setEnabled(False)
         super()._stop_display_stream()
 
     def _display_error(self, error: object) -> None:
+        runtime = getattr(self, "_system_state_runtime", None)
+        current_state = runtime.visible_state if runtime is not None else SystemState.ACTIVE
+        recoverable_resume_error = (
+            self.display_backend_key == "aic_usb"
+            and (
+                current_state is SystemState.SUSPENDING
+                or self._resume_recovery_armed
+            )
+        )
+        if recoverable_resume_error:
+            if current_state is SystemState.SUSPENDING:
+                self._resume_reconnect_pending = True
+            self._resume_recovery_armed = False
+            self._quiet_reset_display_after_error()
+            if current_state is not SystemState.SUSPENDING:
+                self._schedule_usb_resume_reconnect()
+            return
+
         self._connected_display_info = None
         if hasattr(self, "display_controls_action"):
             self.display_controls_action.setEnabled(False)
         super()._display_error(error)
+
+    def _quiet_reset_display_after_error(self) -> None:
+        """Release a failed USB stream without showing a suspend-time dialog."""
+        self.display_timer.stop()
+        self.display_connected = False
+        self._connected_display_info = None
+        if hasattr(self, "display_controls_action"):
+            self.display_controls_action.setEnabled(False)
+
+        streamer = self.display_streamer
+        self.display_streamer = None
+        if streamer is not None:
+            try:
+                streamer.stop(timeout=0.2)
+            except Exception:
+                pass
+
+        self.display_action.blockSignals(True)
+        self.display_action.setChecked(False)
+        self.display_action.setText(self._t("Display starten"))
+        self.display_action.setEnabled(True)
+        self.display_action.blockSignals(False)
+        if hasattr(self, "tray_display_action"):
+            self.tray_display_action.setEnabled(False)
+            self.tray_display_action.setText(self._t("Display ist gestoppt"))
+
+    def _schedule_usb_resume_reconnect(self) -> None:
+        if self.display_backend_key != "aic_usb":
+            self._resume_reconnect_pending = False
+            self._resume_recovery_armed = False
+            return
+        self._resume_reconnect_pending = False
+        self._resume_recovery_armed = False
+        self.statusBar().showMessage("Display wird nach Standby neu verbunden …", 3000)
+        QTimer.singleShot(200, self._start_display_stream)
+
+    def _clear_resume_recovery_arm(self) -> None:
+        self._resume_recovery_armed = False
 
     def _open_display_controls(self) -> None:
         streamer = self.display_streamer
@@ -327,6 +389,8 @@ class SafeShutdownWindow(MainWindow):
         if not master:
             self._system_state_adapter.stop()
             self._idle_state_monitor.stop()
+            self._resume_reconnect_pending = False
+            self._resume_recovery_armed = False
             if self._system_state_runtime.visible_state is not SystemState.ACTIVE:
                 self._restore_dashboard_after_system_state()
             # Dropping the old coordinator also drops any stale suspend/terminal
@@ -355,7 +419,21 @@ class SafeShutdownWindow(MainWindow):
             return
         if not isinstance(state, SystemState):
             return
+
+        is_suspend_start = state is SystemState.SUSPENDING and bool(enabled)
+        is_resume = state is SystemState.SUSPENDING and not bool(enabled)
+        if is_suspend_start:
+            self._resume_reconnect_pending = False
+            self._resume_recovery_armed = False
+        elif is_resume and self.display_backend_key == "aic_usb":
+            if self._system_state_display_was_active or self._resume_reconnect_pending:
+                self._resume_recovery_armed = True
+                QTimer.singleShot(3000, self._clear_resume_recovery_arm)
+
         self._system_state_runtime.handle_condition(state, bool(enabled))
+
+        if is_resume and self._resume_reconnect_pending:
+            self._schedule_usb_resume_reconnect()
 
     def _render_system_state_payload(self, state: SystemState) -> bytes | None:
         if state is SystemState.ACTIVE:
