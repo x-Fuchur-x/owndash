@@ -13,7 +13,8 @@ from owndash.core.subprocess_env import system_subprocess_env
 
 USB_VENDOR_ID = "33c3"
 USB_PRODUCT_ID = "0e02"
-RULE_NAME = "99-owndash-usb.rules"
+RULE_NAME = "70-owndash-usb.rules"
+LEGACY_RULE_NAME = "99-owndash-usb.rules"
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +66,11 @@ def install_udev_rule() -> tuple[bool, str]:
     A single pkexec invocation performs all privileged setup steps so the user
     only has to authenticate once. No privileged command is run automatically
     at application startup.
+
+    The uaccess tag intentionally lives in a 70-* rule. systemd-logind applies
+    seat ACLs later in the udev rule chain, so a legacy 99-* rule can appear to
+    work initially but lose access when the USB display re-enumerates after
+    suspend. Re-running setup migrates that old rule in the same authentication.
     """
     pkexec = shutil.which("pkexec")
     install = shutil.which("install")
@@ -87,9 +93,11 @@ def install_udev_rule() -> tuple[bool, str]:
             temp_path = Path(handle.name)
 
         destination = f"/etc/udev/rules.d/{RULE_NAME}"
+        legacy_destination = f"/etc/udev/rules.d/{LEGACY_RULE_NAME}"
 
         commands = [
             f'install -m 0644 "{temp_path}" "{destination}"',
+            f'rm -f "{legacy_destination}"',
         ]
         if udevadm:
             commands.extend(
@@ -119,8 +127,9 @@ def install_udev_rule() -> tuple[bool, str]:
                 return False, "Die Administratorfreigabe wurde abgebrochen."
             return False, detail or "Die USB-Regel konnte nicht installiert werden."
 
-        # udev may need a moment to update permissions on the existing device.
-        for _ in range(10):
+        # udev/logind may need a moment to install the seat ACL on the existing
+        # device node after the rule reload and targeted re-trigger.
+        for _ in range(15):
             if probe_artinchip_usb().accessible:
                 return True, "USB-Zugriff wurde erfolgreich eingerichtet."
             time.sleep(0.2)
