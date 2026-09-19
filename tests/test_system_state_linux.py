@@ -22,8 +22,14 @@ class FakeSource:
 
 
 class FakeReply:
+    class MessageType:
+        ErrorMessage = "error"
+
     def __init__(self, *arguments):
         self._arguments = list(arguments)
+
+    def type(self):
+        return "reply"
 
     def arguments(self):
         return list(self._arguments)
