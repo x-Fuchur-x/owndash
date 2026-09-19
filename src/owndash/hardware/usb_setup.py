@@ -15,6 +15,7 @@ USB_VENDOR_ID = "33c3"
 USB_PRODUCT_ID = "0e02"
 RULE_NAME = "70-owndash-usb.rules"
 LEGACY_RULE_NAME = "99-owndash-usb.rules"
+UDEV_RULE_DIR = Path("/etc/udev/rules.d")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,11 @@ def _read(path: Path) -> str:
         return path.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
+
+
+def legacy_udev_rule_installed() -> bool:
+    """Return whether the obsolete late 99-* uaccess rule is still installed."""
+    return (UDEV_RULE_DIR / LEGACY_RULE_NAME).is_file()
 
 
 def probe_artinchip_usb() -> UsbAccessStatus:
@@ -92,8 +98,8 @@ def install_udev_rule() -> tuple[bool, str]:
             handle.write(rule_text)
             temp_path = Path(handle.name)
 
-        destination = f"/etc/udev/rules.d/{RULE_NAME}"
-        legacy_destination = f"/etc/udev/rules.d/{LEGACY_RULE_NAME}"
+        destination = str(UDEV_RULE_DIR / RULE_NAME)
+        legacy_destination = str(UDEV_RULE_DIR / LEGACY_RULE_NAME)
 
         commands = [
             f'install -m 0644 "{temp_path}" "{destination}"',
