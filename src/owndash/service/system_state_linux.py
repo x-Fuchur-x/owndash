@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Callable, Protocol
 
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot, SLOT
 
 from owndash.core.system_state import SystemState
 
@@ -134,9 +134,13 @@ class _LogindDbusSource(QObject):
 
     def _connect(self, service: str, path: str, interface: str, name: str, slot: str) -> bool:
         assert self._bus is not None
-        connected = bool(self._bus.connect(service, path, interface, name, self, slot))
+        # PySide's QtDBus binding still expects the old Qt SLOT()-encoded
+        # string here. Passing the bare meta-object signature looks plausible
+        # and works with simple fakes, but real QDBusConnection rejects it.
+        qt_slot = SLOT(slot)
+        connected = bool(self._bus.connect(service, path, interface, name, self, qt_slot))
         if connected:
-            self._connections.append((service, path, interface, name, slot))
+            self._connections.append((service, path, interface, name, qt_slot))
         return connected
 
     def _get_session_path(self) -> str:
