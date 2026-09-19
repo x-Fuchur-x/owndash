@@ -57,6 +57,8 @@ def test_system_state_i18n_strings_are_available_in_english():
         "Ruhemodus": "Idle mode",
         "Zeit bis Ruhemodus": "Idle timeout",
         "Sperrbildschirm berücksichtigen": "Lock screen handling",
+        "Display wird nach Standby neu verbunden …": "Reconnecting display after standby …",
+        "Systemzustandsanzeige konnte nicht gerendert werden": "System state screen could not be rendered",
     }
     for source, english in expected.items():
         assert tr(source, "en") == english
