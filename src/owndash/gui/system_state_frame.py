@@ -103,7 +103,7 @@ _ANIMATED_STATES = {SystemState.IDLE, SystemState.LOCKED}
 
 
 def _portrait_layout(width: int, height: int) -> _PortraitLayout:
-    """Return the v5 portrait composition with more breathing room."""
+    """Return the v6 portrait composition with stronger branding and welded rails."""
     width = int(width)
     height = int(height)
     if width <= 0 or height <= 0:
@@ -111,7 +111,7 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
 
     center = QPointF(width * 0.50, height * 0.280)
     diameter = width * 0.97
-    icon_side = diameter * 0.116
+    icon_side = diameter * 0.150
     icon_center = QPointF(center.x(), center.y() - diameter * 0.245)
     brand_icon_rect = QRectF(
         icon_center.x() - icon_side / 2.0,
@@ -123,8 +123,8 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
         hud_center=center,
         hud_diameter=diameter,
         brand_icon_rect=brand_icon_rect,
-        wordmark_rect=QRectF(width * 0.06, center.y() - height * 0.030, width * 0.88, height * 0.060),
-        wordmark_font_px=width * 0.175,
+        wordmark_rect=QRectF(width * 0.07, center.y() - height * 0.030, width * 0.86, height * 0.060),
+        wordmark_font_px=width * 0.170,
         status_rect=QRectF(width * 0.025, height * 0.420, width * 0.95, height * 0.078),
         status_font_px=width * 0.112,
         detail_rect=QRectF(width * 0.08, height * 0.492, width * 0.84, height * 0.040),
@@ -469,15 +469,32 @@ def _draw_hud_rings(
         painter.drawLine(p1, p2)
 
 
-def _draw_dock_node(painter: QPainter, point: QPointF, color: QColor, short: float) -> None:
-    halo = QColor(color)
-    halo.setAlpha(38)
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(halo)
-    painter.drawEllipse(point, short * 0.026, short * 0.026)
-    color.setAlpha(245)
-    painter.setBrush(color)
-    painter.drawEllipse(point, short * 0.0065, short * 0.0065)
+def _draw_rail_ring_bridges(
+    painter: QPainter,
+    layout: _PortraitLayout,
+    short: float,
+    palette: _Theme,
+) -> None:
+    """Weld every side rail into the outer HUD ring with permanent arcs.
+
+    The animated outer segments are allowed to rotate through gaps. These
+    short fixed arcs sit exactly at the four rail docks so no animation phase
+    can visually disconnect the frame from the hero circle.
+    """
+    radius = layout.hud_diameter * 0.494
+    for degrees in (35.0, 145.0, 215.0, 325.0):
+        color = _neon_color_for_angle(palette, degrees)
+        path = QPainterPath(_point_on_circle(layout.hud_center, radius, degrees - 8.0))
+        for offset in (-6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0):
+            path.lineTo(_point_on_circle(layout.hud_center, radius, degrees + offset))
+        halo = QColor(color)
+        halo.setAlpha(34)
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(halo, max(7.0, short * 0.050), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.drawPath(path)
+        color.setAlpha(242)
+        painter.setPen(QPen(color, max(2.2, short * 0.018), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.drawPath(path)
 
 
 def _draw_side_rails(
@@ -565,8 +582,6 @@ def _draw_side_rails(
             QPointF(track_x + offset, lower_shoulder_y - short * 0.02),
         )
 
-        _draw_dock_node(painter, upper, QColor(color), short)
-        _draw_dock_node(painter, lower, QColor(color), short)
 
     draw_one(
         left,
@@ -787,6 +802,7 @@ def render_system_state_image(
         layout = _portrait_layout(width, height)
         _draw_side_rails(painter, width, height, short, palette, layout=layout)
         _draw_hud_rings(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
+        _draw_rail_ring_bridges(painter, layout, short, palette)
         _draw_brand_icon(painter, icon, layout.brand_icon_rect, short, palette)
         _draw_gradient_wordmark(painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px)
         _draw_centered(
