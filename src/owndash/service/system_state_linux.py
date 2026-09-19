@@ -11,10 +11,13 @@ from owndash.core.system_state import SystemState
 log = logging.getLogger(__name__)
 
 try:  # QtDBus is optional at runtime (not all PySide/AppImage builds include it).
-    from PySide6.QtDBus import QDBusConnection, QDBusInterface
+    from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusObjectPath
 except (ImportError, OSError):  # pragma: no cover - exercised through injected unavailable sources
     QDBusConnection = None
     QDBusInterface = None
+    # Keep the module importable when QtDBus is unavailable. The fallback type
+    # is never used for a live connection in that case.
+    QDBusObjectPath = object
 
 
 SourceCallback = Callable[[str, bool], None]
@@ -177,7 +180,7 @@ class _LogindDbusSource(QObject):
     def _on_unlock(self) -> None:
         self._emit("lock", False)
 
-    @Slot(int, object, str)
+    @Slot("uint", QDBusObjectPath, str)
     def _on_job_new(self, _job_id: int, _job_path: object, unit: str) -> None:
         unit = str(unit)
         if unit in {"reboot.target", "soft-reboot.target", "kexec.target"}:
