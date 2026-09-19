@@ -1,0 +1,80 @@
+name: Apply Neon State V6 polish
+
+on:
+  push:
+    branches:
+      - "fix/system-state-dbus-pyside"
+    paths:
+      - ".github/workflows/v6-apply.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-v6:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/system-state-dbus-pyside
+          fetch-depth: 0
+
+      - name: Apply focused V6 renderer changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/owndash/gui/system_state_frame.py")
+          text = path.read_text()
+
+          replacements = {
+              '"""Return the v5 portrait composition with more breathing room."""':
+                  '"""Return the v6 portrait composition with stronger branding and welded rails."""',
+              'icon_side = diameter * 0.116': 'icon_side = diameter * 0.150',
+              'wordmark_rect=QRectF(width * 0.06, center.y() - height * 0.030, width * 0.88, height * 0.060),':
+                  'wordmark_rect=QRectF(width * 0.07, center.y() - height * 0.030, width * 0.86, height * 0.060),',
+              'wordmark_font_px=width * 0.175,': 'wordmark_font_px=width * 0.170,',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"expected source fragment missing: {old}")
+              text = text.replace(old, new, 1)
+
+          anchor = '''def _draw_dock_node(painter: QPainter, point: QPointF, color: QColor, short: float) -> None:\n    halo = QColor(color)\n    halo.setAlpha(38)\n    painter.setPen(Qt.NoPen)\n    painter.setBrush(halo)\n    painter.drawEllipse(point, short * 0.026, short * 0.026)\n    color.setAlpha(245)\n    painter.setBrush(color)\n    painter.drawEllipse(point, short * 0.0065, short * 0.0065)\n\n\n'''
+          if anchor not in text:
+              raise SystemExit("dock-node anchor missing")
+          replacement = '''def _draw_rail_ring_bridges(\n    painter: QPainter,\n    layout: _PortraitLayout,\n    short: float,\n    palette: _Theme,\n) -> None:\n    """Weld every side rail into the outer HUD ring with permanent arcs.\n\n    The animated outer segments are allowed to rotate through gaps. These\n    short fixed arcs sit exactly at the four rail docks so no animation phase\n    can visually disconnect the frame from the hero circle.\n    """\n    diameter = layout.hud_diameter * 0.988\n    ring = QRectF(\n        layout.hud_center.x() - diameter / 2.0,\n        layout.hud_center.y() - diameter / 2.0,\n        diameter,\n        diameter,\n    )\n    for degrees in (35.0, 145.0, 215.0, 325.0):\n        color = _neon_color_for_angle(palette, degrees)\n        halo = QColor(color)\n        halo.setAlpha(34)\n        painter.setBrush(Qt.NoBrush)\n        painter.setPen(QPen(halo, max(7.0, short * 0.050), Qt.SolidLine, Qt.RoundCap))\n        painter.drawArc(ring, int((degrees - 8.0) * 16), int(16.0 * 16))\n        color.setAlpha(242)\n        painter.setPen(QPen(color, max(2.2, short * 0.018), Qt.SolidLine, Qt.RoundCap))\n        painter.drawArc(ring, int((degrees - 8.0) * 16), int(16.0 * 16))\n\n\n'''
+          text = text.replace(anchor, replacement, 1)
+
+          for old in (
+              '        _draw_dock_node(painter, upper, QColor(color), short)\n',
+              '        _draw_dock_node(painter, lower, QColor(color), short)\n',
+          ):
+              if old not in text:
+                  raise SystemExit(f"old dock node call missing: {old.strip()}")
+              text = text.replace(old, '', 1)
+
+          render_anchor = '        _draw_hud_rings(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)\n'
+          if render_anchor not in text:
+              raise SystemExit("portrait HUD render anchor missing")
+          text = text.replace(
+              render_anchor,
+              render_anchor + '        _draw_rail_ring_bridges(painter, layout, short, palette)\n',
+              1,
+          )
+
+          path.write_text(text)
+          PY
+
+      - name: Verify focused tests before commit
+        run: |
+          python -m pip install -q pytest .
+          QT_QPA_PLATFORM=offscreen pytest -q tests/test_system_state_frame.py tests/test_system_state_frame_v6.py
+
+      - name: Commit V6 renderer
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git add src/owndash/gui/system_state_frame.py
+          git commit -m "feat: polish neon state v6 junctions"
+          git push origin HEAD:fix/system-state-dbus-pyside
