@@ -43,6 +43,7 @@ class _PortraitLayout:
 
     hud_center: QPointF
     hud_diameter: float
+    brand_icon_rect: QRectF
     wordmark_rect: QRectF
     wordmark_font_px: float
     status_rect: QRectF
@@ -110,9 +111,18 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
 
     center = QPointF(width * 0.50, height * 0.280)
     diameter = width * 0.97
+    icon_side = diameter * 0.116
+    icon_center = QPointF(center.x(), center.y() - diameter * 0.245)
+    brand_icon_rect = QRectF(
+        icon_center.x() - icon_side / 2.0,
+        icon_center.y() - icon_side / 2.0,
+        icon_side,
+        icon_side,
+    )
     return _PortraitLayout(
         hud_center=center,
         hud_diameter=diameter,
+        brand_icon_rect=brand_icon_rect,
         wordmark_rect=QRectF(width * 0.06, center.y() - height * 0.030, width * 0.88, height * 0.060),
         wordmark_font_px=width * 0.175,
         status_rect=QRectF(width * 0.025, height * 0.420, width * 0.95, height * 0.078),
@@ -127,13 +137,8 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
 
 
 def _portrait_brand_icon_rect(layout: _PortraitLayout) -> QRectF:
-    """Reserve a clearly visible app-mark area above the OwnDash wordmark."""
-    side = layout.hud_diameter * 0.116
-    center = QPointF(
-        layout.hud_center.x(),
-        layout.hud_center.y() - layout.hud_diameter * 0.245,
-    )
-    return QRectF(center.x() - side / 2.0, center.y() - side / 2.0, side, side)
+    """Return the app-mark area reserved above the OwnDash wordmark."""
+    return QRectF(layout.brand_icon_rect)
 
 
 def _point_on_circle(center: QPointF, radius: float, degrees: float) -> QPointF:
@@ -782,7 +787,7 @@ def render_system_state_image(
         layout = _portrait_layout(width, height)
         _draw_side_rails(painter, width, height, short, palette, layout=layout)
         _draw_hud_rings(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
-        _draw_brand_icon(painter, icon, _portrait_brand_icon_rect(layout), short, palette)
+        _draw_brand_icon(painter, icon, layout.brand_icon_rect, short, palette)
         _draw_gradient_wordmark(painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px)
         _draw_centered(
             painter,
