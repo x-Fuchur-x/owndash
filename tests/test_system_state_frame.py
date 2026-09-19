@@ -265,6 +265,15 @@ def test_portrait_v5_gives_wordmark_breathing_room_and_a_brand_icon_slot():
     ) + layout.brand_icon_rect.width() / 2.0 < radius * 0.72
 
 
+def test_portrait_v6_makes_brand_icon_visibly_larger_without_crowding_wordmark():
+    layout = _portrait_layout(480, 1920)
+
+    assert layout.brand_icon_rect.width() >= 480 * 0.14
+    assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
+    assert 480 * 0.16 <= layout.wordmark_font_px <= 480 * 0.175
+    assert layout.brand_icon_rect.bottom() + 480 * 0.018 <= layout.wordmark_rect.top()
+
+
 def test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones():
     layout = _portrait_layout(480, 1920)
 
