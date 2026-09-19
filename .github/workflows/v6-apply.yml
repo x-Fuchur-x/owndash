@@ -68,6 +68,8 @@ jobs:
 
       - name: Verify focused tests before commit
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 >/dev/null
           python -m pip install -q pytest .
           QT_QPA_PLATFORM=offscreen pytest -q tests/test_system_state_frame.py tests/test_system_state_frame_v6.py
 
