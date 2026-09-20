@@ -57,7 +57,7 @@ def set_autostart_enabled(enabled: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(
-        render_autostart_entry(current_launch_command()),
+        render_autostart_entry([*current_launch_command(), "--minimized"]),
         encoding="utf-8",
     )
     tmp.replace(path)
