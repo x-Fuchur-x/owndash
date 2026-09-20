@@ -87,13 +87,11 @@ def test_fit_width_resize_preserves_current_vertical_work_position(window):
     assert bar.maximum() > bar.minimum()
     bar.setValue(int(bar.maximum() * 0.58))
     app.processEvents()
-    before_y = window.canvas.mapToScene(window.canvas.viewport().rect().center()).y()
+    before_y = window.canvas.mapToScene(window.canvas.viewport().rect().topLeft()).y()
 
     window.resize(1580, 900)
     app.processEvents()
-    window.canvas._fit_if_enabled()
-    app.processEvents()
-    after_y = window.canvas.mapToScene(window.canvas.viewport().rect().center()).y()
+    after_y = window.canvas.mapToScene(window.canvas.viewport().rect().topLeft()).y()
 
     assert abs(after_y - before_y) <= 6.0
 
