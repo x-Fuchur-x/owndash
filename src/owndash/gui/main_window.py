@@ -46,7 +46,7 @@ from PySide6.QtWidgets import (
 from owndash import APP_NAME, __version__
 from owndash.project_info import GITHUB_ISSUES_URL, GITHUB_URL
 from owndash.assets import app_icon_path
-from owndash.core.config import default_profile_path, load_profile, save_profile
+from owndash.core.config import default_profile_path, load_profile, save_profile, startup_snapshot_path
 from owndash.core.preferences import AppPreferences, load_preferences, save_preferences
 from owndash.appearance import apply_appearance
 from owndash.i18n import resolved_language, retranslate_tree, tr
@@ -135,8 +135,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.profile_path = default_profile_path()
         self.preferences: AppPreferences = load_preferences()
+        self.profile_path = self._preferred_startup_profile_path()
         self.language = resolved_language(self.preferences.language)
         self._system_palette = QPalette(QApplication.instance().palette())
         apply_appearance(self.preferences.appearance, self._system_palette)
@@ -2890,6 +2890,7 @@ class MainWindow(QMainWindow):
         self._apply_dashboard_page(template_page, show_status=False)
         self._sync_pages_ui()
         self._commit_history(before, f"Vorlage laden: {name}")
+        self._snapshot_profile_for_startup()
         self.statusBar().showMessage(
             f"Vorlage '{name}' auf {template_page.name} geladen", 2500
         )
@@ -3409,6 +3410,7 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.critical(self, self._t("Profil konnte nicht gespeichert werden"), str(exc))
             return
+        self._remember_startup_profile(self.profile_path)
         self.statusBar().showMessage(f"Gespeichert: {self.profile_path}", 3000)
 
     def _open(self) -> None:
@@ -3428,12 +3430,47 @@ class MainWindow(QMainWindow):
         before = self._profile_from_canvas().to_json()
         self.profile_path = Path(filename)
         self._apply_profile(profile)
+        self._remember_startup_profile(self.profile_path)
         self._commit_history(before, "Profil öffnen")
 
-    def _load_default_if_present(self) -> None:
-        if not self.profile_path.exists():
-            return
+    def _preferred_startup_profile_path(self) -> Path:
+        default_path = default_profile_path()
+        if not self.preferences.restore_last_profile:
+            return default_path
+        raw = self.preferences.last_profile_path.strip()
+        if not raw:
+            return default_path
+        candidate = Path(raw).expanduser()
+        return candidate if candidate.exists() else default_path
+
+    def _remember_startup_profile(self, path: Path) -> None:
+        self.preferences.last_profile_path = str(path)
+        save_preferences(self.preferences)
+
+    def _snapshot_profile_for_startup(self) -> None:
+        snapshot = startup_snapshot_path()
         try:
-            self._apply_profile(load_profile(self.profile_path))
-        except (OSError, ValueError, TypeError) as exc:
-            self.statusBar().showMessage(f"Standardprofil konnte nicht geladen werden: {exc}", 5000)
+            save_profile(self._profile_from_canvas(), snapshot)
+        except OSError:
+            return
+        self._remember_startup_profile(snapshot)
+
+    def _load_default_if_present(self) -> None:
+        default_path = default_profile_path()
+        candidates = [self.profile_path]
+        if self.profile_path != default_path:
+            candidates.append(default_path)
+
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            try:
+                profile = load_profile(candidate)
+            except (OSError, ValueError, TypeError):
+                if candidate != default_path and self.preferences.last_profile_path == str(candidate):
+                    self.preferences.last_profile_path = ""
+                    save_preferences(self.preferences)
+                continue
+            self.profile_path = candidate
+            self._apply_profile(profile)
+            return

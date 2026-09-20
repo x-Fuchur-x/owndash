@@ -145,6 +145,7 @@ EN: dict[str, str] = {
     "Systemstart": "Startup",
     "OwnDash mit dem System starten": "Start OwnDash with the system",
     "USB-Display beim Start automatisch verbinden": "Automatically connect USB display on startup",
+    "Letzte Vorlage / letztes Profil beim Start wiederherstellen": "Restore the last template / profile on startup",
     "Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen.":
         "Also works with the portable AppImage version. Standard monitors are not taken over automatically for safety.",
     "Autostart konnte nicht eingerichtet werden": "Autostart could not be configured",

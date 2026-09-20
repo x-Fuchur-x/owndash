@@ -16,6 +16,10 @@ def default_profile_path() -> Path:
     return default_config_dir() / "profiles" / "default.json"
 
 
+def startup_snapshot_path() -> Path:
+    return default_config_dir() / "profiles" / "last-session.json"
+
+
 def save_profile(profile: Profile, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")

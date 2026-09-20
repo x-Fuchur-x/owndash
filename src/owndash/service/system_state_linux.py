@@ -81,6 +81,11 @@ class _LogindDbusSource(QObject):
                 self._LOGIN_SERVICE, self._LOGIN_PATH, self._LOGIN_MANAGER,
                 "PrepareForShutdown", "_on_prepare_for_shutdown(bool)",
             )
+            self._connect(
+                self._LOGIN_SERVICE, self._LOGIN_PATH, self._LOGIN_MANAGER,
+                "PrepareForShutdownWithMetadata",
+                "_on_prepare_for_shutdown_with_metadata(bool,QVariantMap)",
+            )
             # systemd JobNew gives positive evidence for immediate reboot versus power-off.
             self._connect(
                 self._SYSTEMD_SERVICE, self._SYSTEMD_PATH, self._SYSTEMD_MANAGER,
@@ -261,6 +266,27 @@ class _LogindDbusSource(QObject):
             self._terminal_kind = new_kind
             self._pending_terminal_kind = None
             self._emit(new_kind, True)
+
+    @staticmethod
+    def _terminal_kind_from_metadata(metadata: dict) -> str | None:
+        value = metadata.get("type") if isinstance(metadata, dict) else None
+        value = value.variant() if hasattr(value, "variant") else value
+        action = str(value).strip().lower() if value is not None else ""
+        if action in {"reboot", "kexec", "soft-reboot"}:
+            return "restart"
+        if action in {"poweroff", "power-off", "halt"}:
+            return "shutdown"
+        return None
+
+    @Slot(bool, "QVariantMap")
+    def _on_prepare_for_shutdown_with_metadata(self, start: bool, metadata: dict) -> None:
+        if not start:
+            if not self._terminal_active:
+                self._pending_terminal_kind = None
+            return
+        kind = self._terminal_kind_from_metadata(metadata)
+        if kind is not None:
+            self._pending_terminal_kind = kind
 
     @Slot(bool)
     def _on_prepare_for_shutdown(self, start: bool) -> None:

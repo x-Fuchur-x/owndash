@@ -259,3 +259,29 @@ def test_ambiguous_shutdown_stays_neutral_until_late_reboot_evidence(monkeypatch
 
 def test_transitioning_state_exists_for_ambiguous_terminal_phase():
     assert "transitioning" in {state.value for state in SystemState}
+
+
+def test_shutdown_metadata_slot_has_exact_dbus_signature():
+    source = _LogindDbusSource()
+    signature = "_on_prepare_for_shutdown_with_metadata(bool,QVariantMap)"
+    assert source.metaObject().indexOfSlot(signature) >= 0
+
+
+def test_shutdown_metadata_reboot_avoids_generic_transition():
+    source = _LogindDbusSource()
+    assert hasattr(source, "_on_prepare_for_shutdown_with_metadata")
+    events = []
+    source._callback = lambda kind, enabled: events.append((kind, enabled))
+    source._on_prepare_for_shutdown_with_metadata(True, {"type": FakeVariant("reboot")})
+    source._on_prepare_for_shutdown(True)
+    assert events == [("restart", True)]
+
+
+def test_shutdown_metadata_poweroff_maps_to_shutdown():
+    source = _LogindDbusSource()
+    assert hasattr(source, "_on_prepare_for_shutdown_with_metadata")
+    events = []
+    source._callback = lambda kind, enabled: events.append((kind, enabled))
+    source._on_prepare_for_shutdown_with_metadata(True, {"type": FakeVariant("power-off")})
+    source._on_prepare_for_shutdown(True)
+    assert events == [("shutdown", True)]

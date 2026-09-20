@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QMessageBox,
+    QSizePolicy,
     QSystemTrayIcon,
     QVBoxLayout,
 )
@@ -451,6 +452,7 @@ class SafeShutdownWindow(MainWindow):
         outer.addWidget(update_hint)
 
         startup_box = QGroupBox(self._t("Systemstart"), dialog)
+        startup_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         startup_layout = QVBoxLayout(startup_box)
         launch_at_login_check = QCheckBox(self._t("OwnDash mit dem System starten"), startup_box)
         launch_at_login_check.setChecked(self.preferences.launch_at_login)
@@ -458,11 +460,18 @@ class SafeShutdownWindow(MainWindow):
         display_on_launch_check = QCheckBox(self._t("USB-Display beim Start automatisch verbinden"), startup_box)
         display_on_launch_check.setChecked(self.preferences.start_display_on_launch)
         startup_layout.addWidget(display_on_launch_check)
+        restore_last_check = QCheckBox(
+            self._t("Letzte Vorlage / letztes Profil beim Start wiederherstellen"),
+            startup_box,
+        )
+        restore_last_check.setChecked(self.preferences.restore_last_profile)
+        startup_layout.addWidget(restore_last_check)
         startup_hint = QLabel(
             self._t("Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen."),
             startup_box,
         )
         startup_hint.setWordWrap(True)
+        startup_hint.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
         startup_layout.addWidget(startup_hint)
         outer.addWidget(startup_box)
 
@@ -507,6 +516,7 @@ class SafeShutdownWindow(MainWindow):
         self.preferences.check_updates = update_check.isChecked()
         self.preferences.launch_at_login = requested_launch_at_login
         self.preferences.start_display_on_launch = display_on_launch_check.isChecked()
+        self.preferences.restore_last_profile = restore_last_check.isChecked()
         system_state_settings.apply_to(self.preferences)
         save_preferences(self.preferences)
 
