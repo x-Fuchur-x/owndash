@@ -1,0 +1,192 @@
+name: Apply autostart and display resume
+
+on:
+  push:
+    branches:
+      - "feat/autostart-display-resume"
+    paths:
+      - ".github/workflows/apply-autostart-display.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/autostart-display-resume
+          fetch-depth: 0
+
+      - name: Implement startup services and preferences
+        run: |
+          cat > src/owndash/service/autostart.py <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+          import sys
+          from typing import Sequence
+
+
+          def autostart_path() -> Path:
+              xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "").strip()
+              config_home = Path(xdg_config_home).expanduser() if xdg_config_home else Path.home() / ".config"
+              return config_home / "autostart" / "owndash.desktop"
+
+
+          def _desktop_exec_quote(argument: str) -> str:
+              escaped = (
+                  str(argument)
+                  .replace("\\", "\\\\")
+                  .replace('"', '\\"')
+                  .replace("`", "\\`")
+                  .replace("$", "\\$")
+              )
+              return f'"{escaped}"'
+
+
+          def current_launch_command() -> list[str]:
+              appimage = os.environ.get("APPIMAGE", "").strip()
+              if appimage:
+                  return [str(Path(appimage).expanduser())]
+              return [sys.executable, "-m", "owndash"]
+
+
+          def render_autostart_entry(command: Sequence[str]) -> str:
+              if not command:
+                  raise ValueError("autostart command must not be empty")
+              exec_line = " ".join(_desktop_exec_quote(part) for part in command)
+              return (
+                  "[Desktop Entry]\n"
+                  "Type=Application\n"
+                  "Name=OwnDash\n"
+                  "Comment=Start OwnDash with the desktop session\n"
+                  f"Exec={exec_line}\n"
+                  "Terminal=false\n"
+                  "X-GNOME-Autostart-enabled=true\n"
+              )
+
+
+          def set_autostart_enabled(enabled: bool) -> None:
+              path = autostart_path()
+              if not enabled:
+                  try:
+                      path.unlink()
+                  except FileNotFoundError:
+                      pass
+                  return
+
+              path.parent.mkdir(parents=True, exist_ok=True)
+              tmp = path.with_suffix(".tmp")
+              tmp.write_text(
+                  render_autostart_entry(current_launch_command()),
+                  encoding="utf-8",
+              )
+              tmp.replace(path)
+          PY
+
+          cat > src/owndash/service/startup.py <<'PY'
+          from __future__ import annotations
+
+
+          def should_auto_start_display(
+              *,
+              enabled: bool,
+              setup_completed: bool,
+              backend_key: str,
+              streamer_running: bool,
+          ) -> bool:
+              """Return whether OwnDash should reconnect a display on launch.
+
+              Automatic startup is deliberately limited to the known headless-safe
+              ArtInChip/VSDISPLAY backend. Standard monitors retain their existing
+              confirmation dialog so OwnDash never unexpectedly takes over a user's
+              primary desktop screen during login.
+              """
+              return bool(
+                  enabled
+                  and setup_completed
+                  and backend_key == "aic_usb"
+                  and not streamer_running
+              )
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/owndash/core/preferences.py')
+          text = path.read_text()
+          text = text.replace(
+              '    check_updates: bool = True      # background GitHub release check\n    system_state_screens: bool = True',
+              '    check_updates: bool = True      # background GitHub release check\n    launch_at_login: bool = False    # XDG desktop autostart\n    start_display_on_launch: bool = False  # reconnect USB display after app launch\n    system_state_screens: bool = True',
+              1,
+          )
+          text = text.replace(
+              '            check_updates=bool(raw.get("check_updates", True)),\n            system_state_screens=bool(raw.get("system_state_screens", True)),',
+              '            check_updates=bool(raw.get("check_updates", True)),\n            launch_at_login=bool(raw.get("launch_at_login", False)),\n            start_display_on_launch=bool(raw.get("start_display_on_launch", False)),\n            system_state_screens=bool(raw.get("system_state_screens", True)),',
+              1,
+          )
+          path.write_text(text)
+
+          path = Path('src/owndash/gui/app_window.py')
+          text = path.read_text()
+          text = text.replace(
+              'from owndash.service.idle_state import IdleStateMonitor\nfrom owndash.service.system_state_linux import LinuxSystemStateAdapter',
+              'from owndash.service.autostart import set_autostart_enabled\nfrom owndash.service.idle_state import IdleStateMonitor\nfrom owndash.service.startup import should_auto_start_display\nfrom owndash.service.system_state_linux import LinuxSystemStateAdapter',
+              1,
+          )
+          text = text.replace(
+              '        self._apply_system_state_preferences()\n\n        app = QApplication.instance()',
+              '        self._apply_system_state_preferences()\n        QTimer.singleShot(1200, self._auto_start_display_if_enabled)\n\n        app = QApplication.instance()',
+              1,
+          )
+          text = text.replace(
+              '        update_hint = QLabel(update_explanation, dialog)\n        update_hint.setWordWrap(True)\n        outer.addWidget(update_hint)\n\n        system_state_settings = SystemStateSettingsWidget(',
+              '        update_hint = QLabel(update_explanation, dialog)\n        update_hint.setWordWrap(True)\n        outer.addWidget(update_hint)\n\n        startup_box = QGroupBox(self._t("Systemstart"), dialog)\n        startup_layout = QVBoxLayout(startup_box)\n        launch_at_login_check = QCheckBox(self._t("OwnDash mit dem System starten"), startup_box)\n        launch_at_login_check.setChecked(self.preferences.launch_at_login)\n        startup_layout.addWidget(launch_at_login_check)\n        display_on_launch_check = QCheckBox(self._t("USB-Display beim Start automatisch verbinden"), startup_box)\n        display_on_launch_check.setChecked(self.preferences.start_display_on_launch)\n        startup_layout.addWidget(display_on_launch_check)\n        startup_hint = QLabel(\n            self._t("Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen."),\n            startup_box,\n        )\n        startup_hint.setWordWrap(True)\n        startup_layout.addWidget(startup_hint)\n        outer.addWidget(startup_box)\n\n        system_state_settings = SystemStateSettingsWidget(',
+              1,
+          )
+          text = text.replace(
+              '        self.preferences.check_updates = update_check.isChecked()\n        system_state_settings.apply_to(self.preferences)\n        save_preferences(self.preferences)',
+              '        requested_launch_at_login = launch_at_login_check.isChecked()\n        try:\n            set_autostart_enabled(requested_launch_at_login)\n        except OSError as exc:\n            QMessageBox.warning(\n                self,\n                self._t("Systemstart"),\n                f"{self._t(\'Autostart konnte nicht eingerichtet werden\')}: {exc}",\n            )\n            return\n\n        self.preferences.check_updates = update_check.isChecked()\n        self.preferences.launch_at_login = requested_launch_at_login\n        self.preferences.start_display_on_launch = display_on_launch_check.isChecked()\n        system_state_settings.apply_to(self.preferences)\n        save_preferences(self.preferences)',
+              1,
+          )
+          marker = '    def _apply_system_state_preferences(self) -> None:\n'
+          insertion = '''    def _auto_start_display_if_enabled(self) -> None:\n        streamer = self.display_streamer\n        streamer_running = bool(streamer is not None and streamer.running)\n        if not should_auto_start_display(\n            enabled=self.preferences.start_display_on_launch,\n            setup_completed=self.preferences.setup_completed,\n            backend_key=self.display_backend_key,\n            streamer_running=streamer_running,\n        ):\n            return\n        self.display_action.blockSignals(True)\n        self.display_action.setChecked(True)\n        self.display_action.blockSignals(False)\n        self._start_display_stream()\n\n'''
+          if marker not in text:
+              raise SystemExit('app_window insertion marker not found')
+          text = text.replace(marker, insertion + marker, 1)
+          path.write_text(text)
+
+          path = Path('src/owndash/i18n.py')
+          text = path.read_text()
+          text = text.replace(
+              '    "Systemeinstellung": "System setting",\n    "Systemzustandsanzeigen": "System state screens",',
+              '    "Systemeinstellung": "System setting",\n    "Systemstart": "Startup",\n    "OwnDash mit dem System starten": "Start OwnDash with the system",\n    "USB-Display beim Start automatisch verbinden": "Automatically connect USB display on startup",\n    "Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen.":\n        "Also works with the portable AppImage version. Standard monitors are not taken over automatically for safety.",\n    "Autostart konnte nicht eingerichtet werden": "Autostart could not be configured",\n    "Systemzustandsanzeigen": "System state screens",',
+              1,
+          )
+          path.write_text(text)
+          PY
+
+      - name: Install test environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 >/dev/null
+          python -m pip install -q pytest -e .
+
+      - name: Verify implementation
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m compileall -q src tests
+          pytest -q
+          bash -n run-owndash.sh
+
+      - name: Commit implementation
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git add src/owndash/service/autostart.py src/owndash/service/startup.py src/owndash/core/preferences.py src/owndash/gui/app_window.py src/owndash/i18n.py tests/test_autostart.py
+          git commit -m "feat: add AppImage autostart and USB display reconnect"
+          git push origin HEAD:feat/autostart-display-resume
