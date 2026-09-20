@@ -170,7 +170,7 @@ def test_portrait_status_layout_uses_compact_identity_hud():
     layout = _portrait_layout(480, 1920)
 
     assert 480 * 0.70 <= layout.hud_diameter <= 480 * 0.80
-    assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125
+    assert 480 * 0.14 <= layout.wordmark_font_px <= 480 * 0.15
     assert layout.status_font_px >= 480 * 0.13
     assert layout.status_rect.width() >= 480 * 0.90
     assert layout.status_rect.top() > layout.hud_center.y() + layout.hud_diameter / 2.0
@@ -210,7 +210,7 @@ def test_portrait_status_composition_is_balanced_for_480x1920():
 
     assert layout.hud_center.y() <= 1920 * 0.24
     assert layout.status_rect.top() >= 1920 * 0.35
-    assert 1920 * 0.55 <= layout.context_top <= 1920 * 0.60
+    assert 1920 * 0.62 <= layout.context_top <= 1920 * 0.66
     assert layout.floor_horizon >= 1920 * 0.80
 
 
@@ -252,7 +252,7 @@ def test_portrait_branding_has_breathing_room_without_dominating_status():
     layout = _portrait_layout(480, 1920)
     radius = layout.hud_diameter / 2.0
 
-    assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125
+    assert 480 * 0.14 <= layout.wordmark_font_px <= 480 * 0.15
     assert 480 * 0.76 <= layout.wordmark_rect.width() <= 480 * 0.82
     assert layout.brand_icon_rect.width() >= 480 * 0.12
     assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
@@ -270,7 +270,7 @@ def test_portrait_brand_icon_stays_distinct_from_wordmark():
 
     assert layout.brand_icon_rect.width() >= 480 * 0.12
     assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
-    assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125
+    assert 480 * 0.14 <= layout.wordmark_font_px <= 480 * 0.15
     assert layout.brand_icon_rect.bottom() + 480 * 0.018 <= layout.wordmark_rect.top()
 
 
