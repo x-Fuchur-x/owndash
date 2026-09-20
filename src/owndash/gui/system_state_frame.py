@@ -52,7 +52,6 @@ class _PortraitLayout:
     detail_font_px: float
     bar_rect: QRectF
     context_top: float
-    telemetry_y: float
     floor_horizon: float
 
 
@@ -105,20 +104,19 @@ _ANIMATED_STATES = {SystemState.IDLE, SystemState.LOCKED}
 
 
 def _portrait_layout(width: int, height: int) -> _PortraitLayout:
-    """Return the v7 portrait composition with a unified OwnDash brand lockup."""
+    """Return the v8 portrait composition for narrow auxiliary displays."""
     width = int(width)
     height = int(height)
     if width <= 0 or height <= 0:
         raise ValueError("portrait layout dimensions must be positive")
 
-    # The physical 480x1920 panel benefits from a calm vertical hierarchy:
-    # compact identity HUD first, then the system state as the dominant message.
-    # The old near-full-width hero ring made the branding visually louder than
-    # the actual state and left the lower two thirds of the panel underused.
-    center = QPointF(width * 0.50, height * 0.215)
-    diameter = width * 0.76
-    icon_side = diameter * 0.180
-    icon_center = QPointF(center.x(), center.y() - diameter * 0.200)
+    # v8 uses three calm vertical zones: OwnDash identity, system state, context.
+    # Branding is deliberately stronger than v7, while the state remains the
+    # largest text element and the lower third gets substantially more air.
+    center = QPointF(width * 0.50, height * 0.185)
+    diameter = width * 0.70
+    icon_side = width * 0.20
+    icon_center = QPointF(center.x(), center.y() - diameter * 0.175)
     brand_icon_rect = QRectF(
         icon_center.x() - icon_side / 2.0,
         icon_center.y() - icon_side / 2.0,
@@ -129,18 +127,16 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
         hud_center=center,
         hud_diameter=diameter,
         brand_icon_rect=brand_icon_rect,
-        wordmark_rect=QRectF(width * 0.10, center.y() - height * 0.012, width * 0.80, height * 0.052),
-        wordmark_font_px=width * 0.118,
-        status_rect=QRectF(width * 0.04, height * 0.355, width * 0.92, height * 0.086),
-        status_font_px=width * 0.148,
-        detail_rect=QRectF(width * 0.10, height * 0.445, width * 0.80, height * 0.040),
+        wordmark_rect=QRectF(width * 0.09, center.y() + height * 0.006, width * 0.82, height * 0.060),
+        wordmark_font_px=width * 0.145,
+        status_rect=QRectF(width * 0.04, height * 0.365, width * 0.92, height * 0.095),
+        status_font_px=width * 0.183,
+        detail_rect=QRectF(width * 0.10, height * 0.465, width * 0.80, height * 0.040),
         detail_font_px=width * 0.034,
-        bar_rect=QRectF(width * 0.22, height * 0.505, width * 0.56, max(8.0, width * 0.018)),
-        context_top=height * 0.570,
-        telemetry_y=height * 0.690,
-        floor_horizon=height * 0.820,
+        bar_rect=QRectF(width * 0.21, height * 0.520, width * 0.58, max(8.0, width * 0.018)),
+        context_top=height * 0.635,
+        floor_horizon=height * 0.855,
     )
-
 
 def _portrait_brand_icon_rect(layout: _PortraitLayout) -> QRectF:
     """Return the app-mark area reserved above the OwnDash wordmark."""
@@ -477,6 +473,58 @@ def _draw_hud_rings(
         painter.drawLine(p1, p2)
 
 
+def _draw_portrait_brand_hud(
+    painter: QPainter,
+    center: QPointF,
+    diameter: float,
+    short: float,
+    palette: _Theme,
+    state: SystemState,
+    phase: float,
+) -> None:
+    """Draw the calmer v8 identity ring used on portrait status screens."""
+    animated = state in _ANIMATED_STATES
+    phase = (phase % 1.0) if animated else 0.0
+
+    glow = QRadialGradient(center, diameter * 0.60)
+    glow_core = QColor(palette.cyan)
+    glow_core.setAlpha(24)
+    glow_mid = QColor(palette.magenta)
+    glow_mid.setAlpha(9)
+    clear = QColor(0, 0, 0, 0)
+    glow.setColorAt(0.0, glow_core)
+    glow.setColorAt(0.58, glow_mid)
+    glow.setColorAt(1.0, clear)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(glow)
+    painter.drawEllipse(QRectF(
+        center.x() - diameter * 0.60,
+        center.y() - diameter * 0.60,
+        diameter * 1.20,
+        diameter * 1.20,
+    ))
+
+    guide = QColor(palette.secondary)
+    guide.setAlpha(34)
+    painter.setBrush(Qt.NoBrush)
+    inner = diameter * 0.70
+    painter.setPen(QPen(guide, max(1.0, short * 0.0018)))
+    painter.drawEllipse(QRectF(center.x() - inner / 2, center.y() - inner / 2, inner, inner))
+
+    _draw_segmented_ring(
+        painter,
+        center,
+        diameter * 0.988,
+        short,
+        palette,
+        segments=8,
+        coverage=0.72,
+        width_scale=0.016,
+        phase_degrees=phase * 72.0,
+        alpha=238,
+    )
+
+
 def _draw_rail_ring_bridges(
     painter: QPainter,
     layout: _PortraitLayout,
@@ -653,35 +701,35 @@ def _draw_floor_reflection(
     *,
     horizon: float | None = None,
 ) -> None:
-    horizon = float(height * 0.805 if horizon is None else horizon)
-    line_gradient = QLinearGradient(width * 0.06, horizon, width * 0.94, horizon)
+    """Draw a restrained v8 lower light reflection without perspective grid."""
+    horizon = float(height * 0.855 if horizon is None else horizon)
+    line_gradient = QLinearGradient(width * 0.08, horizon, width * 0.92, horizon)
     line_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
     cyan = QColor(palette.cyan)
     green = QColor(palette.green)
     magenta = QColor(palette.magenta)
-    cyan.setAlpha(225)
-    green.setAlpha(180)
-    magenta.setAlpha(225)
+    cyan.setAlpha(190)
+    green.setAlpha(135)
+    magenta.setAlpha(190)
     line_gradient.setColorAt(0.24, cyan)
     line_gradient.setColorAt(0.50, green)
     line_gradient.setColorAt(0.76, magenta)
     line_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
 
     painter.save()
-    painter.setOpacity(0.14)
-    painter.setPen(QPen(QBrush(line_gradient), max(8.0, short * 0.025), Qt.SolidLine, Qt.RoundCap))
-    painter.drawLine(QPointF(width * 0.07, horizon), QPointF(width * 0.93, horizon))
-    painter.setOpacity(1.0)
-    painter.setPen(QPen(QBrush(line_gradient), max(1.2, short * 0.0038), Qt.SolidLine, Qt.RoundCap))
-    painter.drawLine(QPointF(width * 0.07, horizon), QPointF(width * 0.93, horizon))
+    painter.setOpacity(0.11)
+    painter.setPen(QPen(QBrush(line_gradient), max(7.0, short * 0.020), Qt.SolidLine, Qt.RoundCap))
+    painter.drawLine(QPointF(width * 0.10, horizon), QPointF(width * 0.90, horizon))
+    painter.setOpacity(0.90)
+    painter.setPen(QPen(QBrush(line_gradient), max(2.0, short * 0.0040), Qt.SolidLine, Qt.RoundCap))
+    painter.drawLine(QPointF(width * 0.10, horizon), QPointF(width * 0.90, horizon))
 
-    # Three soft reflected light pools form a cinematic stage instead of a grid.
     for x_ratio, color_name, alpha in (
-        (0.31, palette.cyan, 56),
-        (0.50, palette.green, 36),
-        (0.69, palette.magenta, 56),
+        (0.30, palette.cyan, 48),
+        (0.50, palette.green, 32),
+        (0.70, palette.magenta, 48),
     ):
-        glow = QRadialGradient(QPointF(width * x_ratio, horizon + short * 0.10), short * 0.52)
+        glow = QRadialGradient(QPointF(width * x_ratio, horizon + short * 0.08), short * 0.42)
         color = QColor(color_name)
         color.setAlpha(alpha)
         clear = QColor(color_name)
@@ -690,42 +738,24 @@ def _draw_floor_reflection(
         glow.setColorAt(1.0, clear)
         painter.setPen(Qt.NoPen)
         painter.setBrush(glow)
-        painter.drawEllipse(
-            QRectF(
-                width * x_ratio - short * 0.52,
-                horizon - short * 0.04,
-                short * 1.04,
-                short * 0.94,
-            )
-        )
+        painter.drawEllipse(QRectF(
+            width * x_ratio - short * 0.42,
+            horizon - short * 0.03,
+            short * 0.84,
+            short * 0.62,
+        ))
 
-    # A few perspective guides are enough to imply depth without wireframe noise.
-    guide = QColor(palette.secondary)
-    guide.setAlpha(10)
-    painter.setPen(QPen(guide, max(1.0, short * 0.0014)))
-    for ratio in (0.34, 0.50, 0.66):
-        x0 = width * ratio
-        x1 = width * (0.50 + (ratio - 0.50) * 1.55)
-        painter.drawLine(QPointF(x0, horizon), QPointF(x1, height * 0.965))
-
-    reflections = (
-        (0.30, palette.cyan, 0.72, 0.013),
-        (0.43, palette.cyan, 0.45, 0.006),
-        (0.50, palette.green, 0.88, 0.014),
-        (0.60, palette.magenta, 0.48, 0.007),
-        (0.71, palette.magenta, 0.74, 0.013),
-    )
-    for x_ratio, value, length, width_scale in reflections:
-        color = QColor(value)
-        color.setAlpha(145)
-        fade = QLinearGradient(0, horizon, 0, min(height, horizon + short * length))
+    for x_ratio, color_name in ((0.31, palette.cyan), (0.50, palette.green), (0.69, palette.magenta)):
+        color = QColor(color_name)
+        color.setAlpha(110)
+        fade = QLinearGradient(0, horizon, 0, horizon + short * 0.38)
         fade.setColorAt(0.0, color)
-        tail = QColor(value)
+        tail = QColor(color_name)
         tail.setAlpha(0)
         fade.setColorAt(1.0, tail)
-        painter.setPen(QPen(QBrush(fade), max(2.0, short * width_scale), Qt.SolidLine, Qt.RoundCap))
+        painter.setPen(QPen(QBrush(fade), max(2.0, short * 0.007), Qt.SolidLine, Qt.RoundCap))
         x = width * x_ratio
-        painter.drawLine(QPointF(x, horizon), QPointF(x, min(height, horizon + short * length)))
+        painter.drawLine(QPointF(x, horizon), QPointF(x, min(height, horizon + short * 0.38)))
     painter.restore()
 
 
@@ -809,20 +839,10 @@ def render_system_state_image(
     if portrait:
         layout = _portrait_layout(width, height)
         _draw_side_rails(painter, width, height, short, palette, layout=layout)
-        _draw_hud_rings(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
+        _draw_portrait_brand_hud(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
         _draw_rail_ring_bridges(painter, layout, short, palette)
         _draw_brand_icon(painter, icon, layout.brand_icon_rect, short, palette)
         _draw_gradient_wordmark(painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px)
-        _draw_centered(
-            painter,
-            image,
-            QRectF(width * 0.20, layout.hud_center.y() + height * 0.038, width * 0.60, height * 0.022),
-            "SYSTEM STATUS",
-            width * 0.021,
-            palette.secondary,
-            family="DejaVu Sans Condensed",
-        )
-
         _draw_centered(
             painter,
             image,
@@ -881,13 +901,6 @@ def render_system_state_image(
                 palette.muted,
             )
 
-        for index in range(11):
-            x = width * 0.37 + index * width * 0.026
-            color = QColor(palette.cyan if index < 4 else palette.green if index < 7 else palette.magenta)
-            color.setAlpha(48 + (index % 3) * 24)
-            length = height * (0.0025 + 0.0025 * (0.5 + 0.5 * math.sin(index * 1.2 + phase * math.tau)))
-            painter.setPen(QPen(color, max(1.0, short * 0.0024), Qt.SolidLine, Qt.RoundCap))
-            painter.drawLine(QPointF(x, layout.telemetry_y), QPointF(x, layout.telemetry_y + length))
 
         _draw_floor_reflection(painter, width, height, short, palette, horizon=layout.floor_horizon)
         _draw_centered(
