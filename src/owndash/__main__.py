@@ -15,6 +15,7 @@ def main() -> int:
 
     from owndash.assets import app_icon_path
     from owndash.gui.app_window import SafeShutdownWindow as MainWindow
+    from owndash.service.autostart import set_autostart_enabled
     from owndash.service.session_shutdown import bind_session_shutdown
     from owndash.service.startup import resolve_startup_arguments
     from owndash.single_instance import SingleInstanceServer, notify_existing_instance
@@ -46,6 +47,15 @@ def main() -> int:
         window = MainWindow()
         window.setWindowIcon(icon)
         bind_session_shutdown(app, window)
+
+        # Migrate an existing login entry from older OwnDash builds. This makes
+        # the next KDE login start minimized even when the user does not toggle
+        # the autostart preference again after updating OwnDash.
+        if window.preferences.launch_at_login:
+            try:
+                set_autostart_enabled(True)
+            except OSError:
+                pass
 
         def activate_primary_window() -> None:
             window.show()
