@@ -36,8 +36,7 @@ jobs:
           new_orientation = '''        # System-state frames follow the exact same contract as normal dashboard\n        # frames: render in the logical canvas orientation and let the selected\n        # display backend apply the configured panel rotation. Keeping rotation\n        # in one layer avoids a second transform path that can turn 90/270-degree\n        # USB panels sideways.\n        logical_w = int(self.canvas.canvas_size.width)\n        logical_h = int(self.canvas.canvas_size.height)\n\n        image = render_system_state_image(\n            logical_w,\n            logical_h,\n            state,\n            self.preferences.system_state_theme,\n            icon,\n            strings,\n            clock_text=clock_text,\n            date_text=date_text if state is SystemState.LOCKED else None,\n            animation_phase=animation_phase,\n        )\n'''
           if app.count(old_orientation) != 1:
               raise SystemExit('orientation block changed unexpectedly')
-          app = app.replace(old_orientation, new_orientation)
-          app_path.write_text(app)
+          app_path.write_text(app.replace(old_orientation, new_orientation))
 
           frame_path = Path('src/owndash/gui/system_state_frame.py')
           frame = frame_path.read_text()
@@ -53,17 +52,108 @@ jobs:
           frame = frame.replace('    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.285), width * 0.72)', '    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.225), width * 0.62)')
           frame_path.write_text(frame)
 
-          old_test_path = Path('tests/test_system_state_window.py')
-          old_test = old_test_path.read_text()
+          window_test_path = Path('tests/test_system_state_window.py')
+          window_test = window_test_path.read_text()
           pattern = re.compile(
               r'def test_system_state_renderer_uses_physical_portrait_before_usb_rotation\(state_window, monkeypatch\):\n.*?(?=\ndef test_usb_resume_reconnect_status_uses_active_language)',
               re.S,
           )
           replacement = '''def test_system_state_renderer_leaves_usb_rotation_to_backend(state_window, monkeypatch):\n    window = state_window\n    window.display_backend_key = "aic_usb"\n    window._display_rotation = 270\n    logical_w = int(window.canvas.canvas_size.width)\n    logical_h = int(window.canvas.canvas_size.height)\n    calls = []\n\n    def fake_render(width, height, *_args, **_kwargs):\n        calls.append((int(width), int(height)))\n        image = QImage(int(width), int(height), QImage.Format_RGB32)\n        image.fill(0)\n        return image\n\n    monkeypatch.setattr(app_window_module, "render_system_state_image", fake_render)\n\n    payload = window._render_system_state_payload(SystemState.LOCKED)\n    transport = QImage.fromData(payload)\n\n    assert calls == [(logical_w, logical_h)]\n    assert (transport.width(), transport.height()) == (logical_w, logical_h)\n\n'''
-          old_test, count = pattern.subn(replacement, old_test)
+          window_test, count = pattern.subn(replacement, window_test)
           if count != 1:
               raise SystemExit(f'legacy orientation test replacement count={count}')
-          old_test_path.write_text(old_test)
+          window_test_path.write_text(window_test)
+
+          design_path = Path('tests/test_system_state_frame.py')
+          design = design_path.read_text()
+
+          def replace_test(source, name, next_name, body):
+              pattern = re.compile(
+                  rf'def {re.escape(name)}\(\):\n.*?(?=\ndef {re.escape(next_name)}\()',
+                  re.S,
+              )
+              updated, count = pattern.subn(body.rstrip() + '\n\n', source)
+              if count != 1:
+                  raise SystemExit(f'design test replacement {name} count={count}')
+              return updated
+
+          design = replace_test(
+              design,
+              'test_portrait_v2_gives_hero_ring_and_status_reference_scale',
+              'test_portrait_v3_wordmark_is_the_hero_element',
+              '''def test_portrait_status_layout_uses_compact_identity_hud():
+              layout = _portrait_layout(480, 1920)
+
+              assert 480 * 0.70 <= layout.hud_diameter <= 480 * 0.80
+              assert layout.wordmark_font_px <= 480 * 0.10
+              assert layout.status_font_px >= 480 * 0.13
+              assert layout.status_rect.width() >= 480 * 0.90
+              assert layout.status_rect.top() > layout.hud_center.y() + layout.hud_diameter / 2.0
+              assert 480 * 0.50 <= layout.bar_rect.width() <= 480 * 0.60''',
+          )
+          design = replace_test(
+              design,
+              'test_portrait_v3_wordmark_is_the_hero_element',
+              'test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it',
+              '''def test_portrait_system_state_is_the_hero_element():
+              layout = _portrait_layout(480, 1920)
+
+              assert 480 * 0.65 <= layout.wordmark_rect.width() <= 480 * 0.75
+              assert layout.status_font_px >= layout.wordmark_font_px * 1.50
+              assert layout.status_rect.width() > layout.wordmark_rect.width()''',
+          )
+          design = replace_test(
+              design,
+              'test_portrait_v4_has_stronger_logo_status_and_tighter_vertical_composition',
+              'test_portrait_v4_rail_approaches_are_tangent_to_the_ring',
+              '''def test_portrait_status_composition_is_balanced_for_480x1920():
+              layout = _portrait_layout(480, 1920)
+
+              assert layout.hud_center.y() <= 1920 * 0.24
+              assert layout.status_rect.top() >= 1920 * 0.35
+              assert 1920 * 0.55 <= layout.context_top <= 1920 * 0.60
+              assert layout.floor_horizon >= 1920 * 0.80''',
+          )
+          design = replace_test(
+              design,
+              'test_portrait_v5_gives_wordmark_breathing_room_and_a_brand_icon_slot',
+              'test_portrait_v6_makes_brand_icon_visibly_larger_without_crowding_wordmark',
+              '''def test_portrait_branding_has_breathing_room_without_dominating_status():
+              layout = _portrait_layout(480, 1920)
+              radius = layout.hud_diameter / 2.0
+
+              assert 480 * 0.075 <= layout.wordmark_font_px <= 480 * 0.095
+              assert 480 * 0.65 <= layout.wordmark_rect.width() <= 480 * 0.75
+              assert layout.brand_icon_rect.width() >= 480 * 0.09
+              assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
+              assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
+
+              icon_center = layout.brand_icon_rect.center()
+              assert math.hypot(
+                  icon_center.x() - layout.hud_center.x(),
+                  icon_center.y() - layout.hud_center.y(),
+              ) + layout.brand_icon_rect.width() / 2.0 < radius * 0.72''',
+          )
+          design = replace_test(
+              design,
+              'test_portrait_v6_makes_brand_icon_visibly_larger_without_crowding_wordmark',
+              'test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones',
+              '''def test_portrait_brand_icon_stays_distinct_from_wordmark():
+              layout = _portrait_layout(480, 1920)
+
+              assert layout.brand_icon_rect.width() >= 480 * 0.09
+              assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
+              assert 480 * 0.075 <= layout.wordmark_font_px <= 480 * 0.095
+              assert layout.brand_icon_rect.bottom() + 480 * 0.018 <= layout.wordmark_rect.top()''',
+          )
+          design_path.write_text(design)
+
+          v5_path = Path('tests/test_system_state_frame_v5.py')
+          v5 = v5_path.read_text().replace(
+              'assert icon_rect.width() >= 480 * 0.105',
+              'assert icon_rect.width() >= 480 * 0.09',
+          )
+          v5_path.write_text(v5)
           PY
       - name: Install patched working tree
         run: python -m pip install -e .
@@ -77,6 +167,6 @@ jobs:
           git config user.name "Markus"
           git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
           git rm .github/workflows/apply-status-screen-polish.yml
-          git add src/owndash/gui/app_window.py src/owndash/gui/system_state_frame.py tests/test_system_state_window.py tests/test_system_state_orientation_polish.py
+          git add src/owndash/gui/app_window.py src/owndash/gui/system_state_frame.py tests/test_system_state_window.py tests/test_system_state_orientation_polish.py tests/test_system_state_frame.py tests/test_system_state_frame_v5.py
           git commit -m "fix: orient and polish system state screen"
           git push origin HEAD:feat/autostart-display-resume
