@@ -48,8 +48,6 @@ jobs:
           frame = frame.replace(old_layout, new_layout)
           frame = frame.replace('            "PC DASHBOARD SYSTEM",\n            width * 0.024,', '            "SYSTEM STATUS",\n            width * 0.021,')
           frame = frame.replace('    left.setAlpha(205)\n    right.setAlpha(205)', '    left.setAlpha(145)\n    right.setAlpha(145)')
-          frame = frame.replace('        glow.setAlpha(34)', '        glow.setAlpha(24)', 1)
-          frame = frame.replace('        inner.setAlpha(48)', '        inner.setAlpha(34)', 1)
           frame = frame.replace('    for index in range(5):\n        y = height * 0.105 + index * short * 0.042', '    for index in range(3):\n        y = height * 0.110 + index * short * 0.050')
           frame = frame.replace('            color.setAlpha(105 + index * 20)', '            color.setAlpha(72 + index * 18)')
           frame = frame.replace('    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.285), width * 0.72)', '    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.225), width * 0.62)')
@@ -67,6 +65,8 @@ jobs:
               raise SystemExit(f'legacy orientation test replacement count={count}')
           old_test_path.write_text(old_test)
           PY
+      - name: Install patched working tree
+        run: python -m pip install -e .
       - run: python -m compileall -q src tests
       - run: pytest -q
         env:
