@@ -122,26 +122,26 @@ new_floor = '''def _draw_floor_reflection(
     cyan = QColor(palette.cyan)
     green = QColor(palette.green)
     magenta = QColor(palette.magenta)
-    cyan.setAlpha(170)
-    green.setAlpha(120)
-    magenta.setAlpha(170)
+    cyan.setAlpha(190)
+    green.setAlpha(135)
+    magenta.setAlpha(190)
     line_gradient.setColorAt(0.24, cyan)
     line_gradient.setColorAt(0.50, green)
     line_gradient.setColorAt(0.76, magenta)
     line_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
 
     painter.save()
-    painter.setOpacity(0.10)
+    painter.setOpacity(0.11)
     painter.setPen(QPen(QBrush(line_gradient), max(7.0, short * 0.020), Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(width * 0.10, horizon), QPointF(width * 0.90, horizon))
-    painter.setOpacity(0.72)
-    painter.setPen(QPen(QBrush(line_gradient), max(1.0, short * 0.0030), Qt.SolidLine, Qt.RoundCap))
+    painter.setOpacity(0.90)
+    painter.setPen(QPen(QBrush(line_gradient), max(2.0, short * 0.0040), Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(width * 0.10, horizon), QPointF(width * 0.90, horizon))
 
     for x_ratio, color_name, alpha in (
-        (0.30, palette.cyan, 38),
-        (0.50, palette.green, 26),
-        (0.70, palette.magenta, 38),
+        (0.30, palette.cyan, 48),
+        (0.50, palette.green, 32),
+        (0.70, palette.magenta, 48),
     ):
         glow = QRadialGradient(QPointF(width * x_ratio, horizon + short * 0.08), short * 0.42)
         color = QColor(color_name)
@@ -161,13 +161,13 @@ new_floor = '''def _draw_floor_reflection(
 
     for x_ratio, color_name in ((0.31, palette.cyan), (0.50, palette.green), (0.69, palette.magenta)):
         color = QColor(color_name)
-        color.setAlpha(92)
+        color.setAlpha(110)
         fade = QLinearGradient(0, horizon, 0, horizon + short * 0.38)
         fade.setColorAt(0.0, color)
         tail = QColor(color_name)
         tail.setAlpha(0)
         fade.setColorAt(1.0, tail)
-        painter.setPen(QPen(QBrush(fade), max(2.0, short * 0.006), Qt.SolidLine, Qt.RoundCap))
+        painter.setPen(QPen(QBrush(fade), max(2.0, short * 0.007), Qt.SolidLine, Qt.RoundCap))
         x = width * x_ratio
         painter.drawLine(QPointF(x, horizon), QPointF(x, min(height, horizon + short * 0.38)))
     painter.restore()
@@ -198,3 +198,17 @@ tick_end = text.index("\n        _draw_floor_reflection", tick_start)
 text = text[:tick_start] + text[tick_end:]
 
 path.write_text(text)
+
+# v8 intentionally supersedes the old v7 visual-contract ranges while keeping
+# all functional, orientation and rail-continuity assertions untouched.
+tests_path = Path("tests/test_system_state_frame.py")
+tests = tests_path.read_text()
+tests = tests.replace(
+    "assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125",
+    "assert 480 * 0.14 <= layout.wordmark_font_px <= 480 * 0.15",
+)
+tests = tests.replace(
+    "assert 1920 * 0.55 <= layout.context_top <= 1920 * 0.60",
+    "assert 1920 * 0.62 <= layout.context_top <= 1920 * 0.66",
+)
+tests_path.write_text(tests)
