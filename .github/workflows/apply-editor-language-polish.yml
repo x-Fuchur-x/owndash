@@ -1,0 +1,90 @@
+name: Apply editor and widget language polish
+
+on:
+  push:
+    branches:
+      - feat/autostart-display-resume
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
+      - run: python -m pip install --upgrade pip pytest .
+      - name: Apply editor polish
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/owndash/gui/canvas.py')
+          text = path.read_text()
+          old = '''    def fit_canvas_width(self) -> None:\n        \"\"\"Fit the dashboard width for comfortable editing while keeping vertical scrolling.\"\"\"\n        self.auto_fit = False\n        self.auto_fit_width = True\n        gutter = 24\n        usable_width = max(1, self.viewport().width() - gutter * 2)\n        target = max(0.01, min(3.0, usable_width / max(1, self.canvas_size.width)))\n        self.resetTransform()\n        self.scale(target, target)\n        self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)\n\n    def resizeEvent(self, event) -> None:  # noqa: ANN001\n        super().resizeEvent(event)\n        if self.auto_fit or self.auto_fit_width:\n            QTimer.singleShot(0, self._fit_if_enabled)\n\n    def _fit_if_enabled(self) -> None:\n        if self.auto_fit_width:\n            self.fit_canvas_width()\n        elif self.auto_fit:\n            self.fit_canvas()\n'''
+          new = '''    def fit_canvas_width(self, *, anchor_top_y: float | None = None) -> None:\n        \"\"\"Fit dashboard width and keep vertical navigation predictable.\n\n        Entering width-fit starts at the dashboard top. During a window resize\n        the caller can preserve the scene coordinate that was visible at the\n        top edge, so maximizing/restoring the window does not jump elsewhere.\n        \"\"\"\n        self.auto_fit = False\n        self.auto_fit_width = True\n        gutter = 24\n        usable_width = max(1, self.viewport().width() - gutter * 2)\n        target = max(0.01, min(3.0, usable_width / max(1, self.canvas_size.width)))\n        self.resetTransform()\n        self.scale(target, target)\n        self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)\n\n        bar = self.verticalScrollBar()\n        if anchor_top_y is None:\n            bar.setValue(bar.minimum())\n        else:\n            bar.setValue(round(max(0.0, anchor_top_y) * target))\n\n    def resizeEvent(self, event) -> None:  # noqa: ANN001\n        anchor_top_y = None\n        if self.auto_fit_width:\n            anchor_top_y = self.mapToScene(self.viewport().rect().topLeft()).y()\n        super().resizeEvent(event)\n        if self.auto_fit_width:\n            QTimer.singleShot(0, lambda y=anchor_top_y: self._fit_width_after_resize(y))\n        elif self.auto_fit:\n            QTimer.singleShot(0, self._fit_if_enabled)\n\n    def _fit_width_after_resize(self, anchor_top_y: float | None) -> None:\n        if self.auto_fit_width:\n            self.fit_canvas_width(anchor_top_y=anchor_top_y)\n\n    def _fit_if_enabled(self) -> None:\n        if self.auto_fit_width:\n            anchor_top_y = self.mapToScene(self.viewport().rect().topLeft()).y()\n            self.fit_canvas_width(anchor_top_y=anchor_top_y)\n        elif self.auto_fit:\n            self.fit_canvas()\n'''
+          if text.count(old) != 1:
+              raise SystemExit('fit-width block not found exactly once')
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Apply widget-title language fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/owndash/gui/main_window.py')
+          text = path.read_text()
+
+          marker = 'from .canvas import DashboardCanvas, WidgetItem\n'
+          addition = '''from .canvas import DashboardCanvas, WidgetItem\n\n\n_BUILTIN_WIDGET_TITLE_SOURCES: dict[str, tuple[str, ...]] = {\n    \"cpu\": (\"CPU\",),\n    \"gpu\": (\"GPU\",),\n    \"memory\": (\"Arbeitsspeicher\", \"RAM\"),\n    \"storage\": (\"Speicher\",),\n    \"network\": (\"Netzwerk\",),\n    \"temperature\": (\"Temperatur\",),\n    \"power\": (\"Leistung\",),\n    \"clock\": (\"Uhr\",),\n    \"gauge_cpu\": (\"Tacho · CPU\", \"CPU\"),\n    \"gauge_gpu\": (\"Tacho · GPU\", \"GPU\"),\n    \"gauge_temp\": (\"Tacho · Temperatur\", \"Temperatur\", \"TEMP\"),\n    \"gauge_power\": (\"Tacho · Leistung\", \"Leistung\"),\n    \"chart\": (\"Diagramm\", \"CPU Verlauf\", \"GPU Verlauf\"),\n    \"sparkline\": (\"Sparkline\", \"Temperatur\"),\n    \"text\": (\"Text\",),\n    \"image\": (\"Bild\",),\n}\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('canvas import marker not found exactly once')
+          text = text.replace(marker, addition)
+
+          old = '''    def _retranslate_ui(self) -> None:\n        retranslate_tree(self, self.language)\n        if hasattr(self, \"widget_list\"):\n            for index in range(self.widget_list.count()):\n                item = self.widget_list.item(index)\n                definition = widget_type(str(item.data(Qt.UserRole)))\n                if definition is not None:\n                    item.setText(self._t(definition.label))\n        self.setWindowTitle(\"\")\n        if hasattr(self, \"tray_icon\"):\n            self.tray_icon.setToolTip(\"OwnDash\")\n\n    def _open_settings(self) -> None:\n'''
+          new = '''    def _localized_builtin_widget_title(self, kind: str, title: str) -> str:\n        \"\"\"Translate OwnDash-provided widget titles without touching custom names.\"\"\"\n        for source in _BUILTIN_WIDGET_TITLE_SOURCES.get(kind, ()):\n            if title in {source, tr(source, \"de\"), tr(source, \"en\")}:\n                return self._t(source)\n        return title\n\n    def _retranslate_builtin_widget_titles(self) -> None:\n        changed = False\n        if hasattr(self, \"canvas\"):\n            for item in self.canvas.widget_items():\n                translated = self._localized_builtin_widget_title(item.kind, item.label)\n                if translated != item.label:\n                    item.label = translated\n                    item.update()\n                    changed = True\n        for page in getattr(self, \"dashboard_pages\", []):\n            for widget in page.widgets:\n                translated = self._localized_builtin_widget_title(widget.kind, widget.title)\n                if translated != widget.title:\n                    widget.title = translated\n                    changed = True\n        if changed and hasattr(self, \"canvas\"):\n            self.canvas.viewport().update()\n            if hasattr(self, \"title_edit\"):\n                selected = self._selected_widget()\n                if selected is not None:\n                    self.title_edit.setText(selected.label)\n            if hasattr(self, \"layers_list\"):\n                self._refresh_layers()\n\n    def _retranslate_ui(self) -> None:\n        retranslate_tree(self, self.language)\n        if hasattr(self, \"widget_list\"):\n            for index in range(self.widget_list.count()):\n                item = self.widget_list.item(index)\n                definition = widget_type(str(item.data(Qt.UserRole)))\n                if definition is not None:\n                    item.setText(self._t(definition.label))\n        self._retranslate_builtin_widget_titles()\n        self.setWindowTitle(\"\")\n        if hasattr(self, \"tray_icon\"):\n            self.tray_icon.setToolTip(\"OwnDash\")\n\n    def _open_settings(self) -> None:\n'''
+          if text.count(old) != 1:
+              raise SystemExit('retranslate block not found exactly once')
+          text = text.replace(old, new)
+
+          old_load = '''        self._load_default_if_present()\n        if not self.canvas.widget_items():\n'''
+          new_load = '''        self._load_default_if_present()\n        self._retranslate_builtin_widget_titles()\n        if not self.canvas.widget_items():\n'''
+          if text.count(old_load) != 1:
+              raise SystemExit('startup profile load marker not found exactly once')
+          text = text.replace(old_load, new_load)
+          path.write_text(text)
+          PY
+      - name: Extend built-in title translations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/owndash/i18n.py')
+          text = path.read_text()
+          old = '''    \"Tacho · Temperatur\": \"Gauge · Temperature\", \"Tacho · Leistung\": \"Gauge · Power\",\n    \"Diagramm\": \"Chart\", \"Text\": \"Text\",\n'''
+          new = '''    \"Tacho · Temperatur\": \"Gauge · Temperature\", \"Tacho · Leistung\": \"Gauge · Power\",\n    \"Diagramm\": \"Chart\", \"Text\": \"Text\", \"Bild\": \"Image\",\n    \"CPU Verlauf\": \"CPU history\", \"GPU Verlauf\": \"GPU history\",\n'''
+          if text.count(old) != 1:
+              raise SystemExit('widget translation marker not found exactly once')
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Install patched working tree
+        run: python -m pip install -e .
+      - run: python -m compileall -q src tests
+      - run: pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: bash -n run-owndash.sh
+      - name: Commit verified implementation and remove temporary workflow
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git rm .github/workflows/apply-editor-language-polish.yml
+          git add src/owndash/gui/canvas.py src/owndash/gui/main_window.py src/owndash/i18n.py
+          git commit -m "fix: polish editor navigation and widget translations"
+          git push origin HEAD:feat/autostart-display-resume
