@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+
+def resolve_startup_arguments(argv: Sequence[str]) -> tuple[list[str], bool]:
+    """Separate OwnDash-only launch flags from arguments passed to Qt."""
+    args = list(argv)
+    if not args:
+        return [], False
+    minimized = "--minimized" in args[1:]
+    qt_argv = [args[0], *(arg for arg in args[1:] if arg != "--minimized")]
+    return qt_argv, minimized
+
 
 def should_auto_start_display(
     *,
