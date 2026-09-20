@@ -1,0 +1,55 @@
+name: Fix startup settings group import
+
+on:
+  push:
+    branches:
+      - "feat/autostart-display-resume"
+    paths:
+      - ".github/workflows/fix-autostart-groupbox.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/autostart-display-resume
+          fetch-depth: 0
+
+      - name: Add missing QGroupBox import
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/owndash/gui/app_window.py')
+          text = path.read_text()
+          old = '    QFormLayout,\n    QLabel,\n'
+          new = '    QFormLayout,\n    QGroupBox,\n    QLabel,\n'
+          if old not in text:
+              raise SystemExit('expected QtWidgets import block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Install test environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 >/dev/null
+          python -m pip install -q pytest -e .
+
+      - name: Verify full suite
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m compileall -q src tests
+          pytest -q
+          bash -n run-owndash.sh
+
+      - name: Commit fix
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git add src/owndash/gui/app_window.py
+          git commit -m "fix: import startup settings group box"
+          git push origin HEAD:feat/autostart-display-resume
