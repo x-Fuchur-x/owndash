@@ -8,7 +8,7 @@ def test_portrait_v5_brand_icon_is_visible_and_separate_from_wordmark():
     icon_rect = _portrait_brand_icon_rect(layout)
     radius = layout.hud_diameter / 2.0
 
-    assert icon_rect.width() >= 480 * 0.105
+    assert icon_rect.width() >= 480 * 0.09
     assert icon_rect.height() == icon_rect.width()
     assert icon_rect.center().x() == layout.hud_center.x()
     assert icon_rect.bottom() < layout.wordmark_rect.top()

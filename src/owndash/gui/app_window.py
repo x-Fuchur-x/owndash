@@ -5,7 +5,7 @@ from threading import Thread
 import webbrowser
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen, QTransform
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QImage, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -640,15 +640,17 @@ class SafeShutdownWindow(MainWindow):
         else:
             date_text = now.strftime("%Y-%m-%d")
 
+        # System-state frames follow the exact same contract as normal dashboard
+        # frames: render in the logical canvas orientation and let the selected
+        # display backend apply the configured panel rotation. Keeping rotation
+        # in one layer avoids a second transform path that can turn 90/270-degree
+        # USB panels sideways.
         logical_w = int(self.canvas.canvas_size.width)
         logical_h = int(self.canvas.canvas_size.height)
-        rotation = int(getattr(self, "_display_rotation", 0)) % 360
-        rotate_for_transport = self.display_backend_key == "aic_usb" and rotation in {90, 270}
-        render_w, render_h = (logical_h, logical_w) if rotate_for_transport else (logical_w, logical_h)
 
         image = render_system_state_image(
-            render_w,
-            render_h,
+            logical_w,
+            logical_h,
             state,
             self.preferences.system_state_theme,
             icon,
@@ -657,13 +659,6 @@ class SafeShutdownWindow(MainWindow):
             date_text=date_text if state is SystemState.LOCKED else None,
             animation_phase=animation_phase,
         )
-        if rotate_for_transport:
-            # The USB backend rotates the JPEG into panel orientation. Build the
-            # state art in the physical portrait orientation first, then apply
-            # the inverse transport rotation so the backend lands on that exact
-            # composition instead of rotating a landscape layout into portrait.
-            pre_angle = 90 if rotation == 270 else -90
-            image = image.transformed(QTransform().rotate(pre_angle), Qt.SmoothTransformation)
 
         encoded = QByteArray()
         buffer = QBuffer(encoded)

@@ -111,10 +111,14 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
     if width <= 0 or height <= 0:
         raise ValueError("portrait layout dimensions must be positive")
 
-    center = QPointF(width * 0.50, height * 0.280)
-    diameter = width * 0.97
-    icon_side = diameter * 0.150
-    icon_center = QPointF(center.x(), center.y() - diameter * 0.245)
+    # The physical 480x1920 panel benefits from a calm vertical hierarchy:
+    # compact identity HUD first, then the system state as the dominant message.
+    # The old near-full-width hero ring made the branding visually louder than
+    # the actual state and left the lower two thirds of the panel underused.
+    center = QPointF(width * 0.50, height * 0.225)
+    diameter = width * 0.74
+    icon_side = diameter * 0.130
+    icon_center = QPointF(center.x(), center.y() - diameter * 0.205)
     brand_icon_rect = QRectF(
         icon_center.x() - icon_side / 2.0,
         icon_center.y() - icon_side / 2.0,
@@ -125,16 +129,16 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
         hud_center=center,
         hud_diameter=diameter,
         brand_icon_rect=brand_icon_rect,
-        wordmark_rect=QRectF(width * 0.07, center.y() - height * 0.030, width * 0.86, height * 0.060),
-        wordmark_font_px=width * 0.170,
-        status_rect=QRectF(width * 0.025, height * 0.420, width * 0.95, height * 0.078),
-        status_font_px=width * 0.112,
-        detail_rect=QRectF(width * 0.08, height * 0.492, width * 0.84, height * 0.040),
-        detail_font_px=width * 0.038,
-        bar_rect=QRectF(width * 0.19, height * 0.552, width * 0.62, max(9.0, width * 0.021)),
-        context_top=height * 0.590,
-        telemetry_y=height * 0.715,
-        floor_horizon=height * 0.805,
+        wordmark_rect=QRectF(width * 0.15, center.y() - height * 0.018, width * 0.70, height * 0.046),
+        wordmark_font_px=width * 0.084,
+        status_rect=QRectF(width * 0.035, height * 0.370, width * 0.93, height * 0.085),
+        status_font_px=width * 0.140,
+        detail_rect=QRectF(width * 0.10, height * 0.455, width * 0.80, height * 0.040),
+        detail_font_px=width * 0.034,
+        bar_rect=QRectF(width * 0.22, height * 0.515, width * 0.56, max(8.0, width * 0.018)),
+        context_top=height * 0.575,
+        telemetry_y=height * 0.690,
+        floor_horizon=height * 0.820,
     )
 
 
@@ -512,8 +516,8 @@ def _draw_side_rails(
 ) -> None:
     left = QColor(palette.cyan)
     right = QColor(palette.magenta)
-    left.setAlpha(205)
-    right.setAlpha(205)
+    left.setAlpha(145)
+    right.setAlpha(145)
     line_width = max(1.0, short * 0.0038)
 
     if layout is None:
@@ -605,19 +609,19 @@ def _draw_side_rails(
     )
 
     # Sparse indicator dots only in the upper frame, away from the hero circle.
-    for index in range(5):
-        y = height * 0.105 + index * short * 0.042
+    for index in range(3):
+        y = height * 0.110 + index * short * 0.050
         radius = max(1.2, short * 0.0038)
         for x, color_name in ((width * 0.083, palette.cyan), (width * 0.917, palette.magenta)):
             color = QColor(color_name)
-            color.setAlpha(105 + index * 20)
+            color.setAlpha(72 + index * 18)
             painter.setPen(Qt.NoPen)
             painter.setBrush(color)
             painter.drawEllipse(QPointF(x, y), radius, radius)
 
 
 def _draw_background_depth(painter: QPainter, width: int, height: int, short: float, palette: _Theme) -> None:
-    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.285), width * 0.72)
+    center_glow = QRadialGradient(QPointF(width * 0.50, height * 0.225), width * 0.62)
     core = QColor(palette.cyan)
     core.setAlpha(14)
     mid = QColor(palette.magenta)
@@ -813,8 +817,8 @@ def render_system_state_image(
             painter,
             image,
             QRectF(width * 0.20, layout.hud_center.y() + height * 0.038, width * 0.60, height * 0.022),
-            "PC DASHBOARD SYSTEM",
-            width * 0.024,
+            "SYSTEM STATUS",
+            width * 0.021,
             palette.secondary,
             family="DejaVu Sans Condensed",
         )

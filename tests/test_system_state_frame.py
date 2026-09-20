@@ -166,23 +166,23 @@ def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections()
     assert neon_floor >= 45
 
 
-def test_portrait_v2_gives_hero_ring_and_status_reference_scale():
+def test_portrait_status_layout_uses_compact_identity_hud():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.hud_diameter >= 480 * 0.90
-    assert layout.wordmark_font_px >= 480 * 0.115
-    assert layout.status_font_px >= 480 * 0.095
-    assert layout.status_rect.width() >= 480 * 0.86
-    assert layout.status_rect.top() > layout.hud_center.y()
-    assert layout.bar_rect.width() >= 480 * 0.62
+    assert 480 * 0.70 <= layout.hud_diameter <= 480 * 0.80
+    assert layout.wordmark_font_px <= 480 * 0.10
+    assert layout.status_font_px >= 480 * 0.13
+    assert layout.status_rect.width() >= 480 * 0.90
+    assert layout.status_rect.top() > layout.hud_center.y() + layout.hud_diameter / 2.0
+    assert 480 * 0.50 <= layout.bar_rect.width() <= 480 * 0.60
 
 
-def test_portrait_v3_wordmark_is_the_hero_element():
+def test_portrait_system_state_is_the_hero_element():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.wordmark_rect.width() >= 480 * 0.82
-    assert layout.wordmark_font_px >= 480 * 0.16
-    assert layout.wordmark_font_px > layout.status_font_px * 1.45
+    assert 480 * 0.65 <= layout.wordmark_rect.width() <= 480 * 0.75
+    assert layout.status_font_px >= layout.wordmark_font_px * 1.50
+    assert layout.status_rect.width() > layout.wordmark_rect.width()
 
 
 def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
@@ -205,15 +205,13 @@ def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
     assert lower_left.x() < layout.hud_center.x() < lower_right.x()
 
 
-def test_portrait_v4_has_stronger_logo_status_and_tighter_vertical_composition():
+def test_portrait_status_composition_is_balanced_for_480x1920():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.hud_diameter >= 480 * 0.96
-    assert layout.wordmark_rect.width() >= 480 * 0.82
-    assert layout.wordmark_font_px >= 480 * 0.16
-    assert layout.status_font_px >= 480 * 0.108
-    assert layout.status_rect.top() <= 1920 * 0.438
-    assert layout.context_top <= 1920 * 0.605
+    assert layout.hud_center.y() <= 1920 * 0.24
+    assert layout.status_rect.top() >= 1920 * 0.35
+    assert 1920 * 0.55 <= layout.context_top <= 1920 * 0.60
+    assert layout.floor_horizon >= 1920 * 0.80
 
 
 def test_portrait_v4_rail_approaches_are_tangent_to_the_ring():
@@ -250,13 +248,13 @@ def test_portrait_v4_wordmark_has_a_crisp_bright_core():
     assert bright_core >= 115
 
 
-def test_portrait_v5_gives_wordmark_breathing_room_and_a_brand_icon_slot():
+def test_portrait_branding_has_breathing_room_without_dominating_status():
     layout = _portrait_layout(480, 1920)
     radius = layout.hud_diameter / 2.0
 
-    assert 480 * 0.16 <= layout.wordmark_font_px <= 480 * 0.185
-    assert 480 * 0.82 <= layout.wordmark_rect.width() <= 480 * 0.90
-    assert layout.brand_icon_rect.width() >= 480 * 0.085
+    assert 480 * 0.075 <= layout.wordmark_font_px <= 480 * 0.095
+    assert 480 * 0.65 <= layout.wordmark_rect.width() <= 480 * 0.75
+    assert layout.brand_icon_rect.width() >= 480 * 0.09
     assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
     assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
 
@@ -267,12 +265,12 @@ def test_portrait_v5_gives_wordmark_breathing_room_and_a_brand_icon_slot():
     ) + layout.brand_icon_rect.width() / 2.0 < radius * 0.72
 
 
-def test_portrait_v6_makes_brand_icon_visibly_larger_without_crowding_wordmark():
+def test_portrait_brand_icon_stays_distinct_from_wordmark():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.brand_icon_rect.width() >= 480 * 0.14
+    assert layout.brand_icon_rect.width() >= 480 * 0.09
     assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
-    assert 480 * 0.16 <= layout.wordmark_font_px <= 480 * 0.175
+    assert 480 * 0.075 <= layout.wordmark_font_px <= 480 * 0.095
     assert layout.brand_icon_rect.bottom() + 480 * 0.018 <= layout.wordmark_rect.top()
 
 

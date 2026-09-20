@@ -289,7 +289,7 @@ def test_usb_start_migrates_legacy_rule_before_opening_stream(state_window, monk
     assert starts == [True]
 
 
-def test_system_state_renderer_uses_physical_portrait_before_usb_rotation(state_window, monkeypatch):
+def test_system_state_renderer_leaves_usb_rotation_to_backend(state_window, monkeypatch):
     window = state_window
     window.display_backend_key = "aic_usb"
     window._display_rotation = 270
@@ -308,7 +308,7 @@ def test_system_state_renderer_uses_physical_portrait_before_usb_rotation(state_
     payload = window._render_system_state_payload(SystemState.LOCKED)
     transport = QImage.fromData(payload)
 
-    assert calls == [(logical_h, logical_w)]
+    assert calls == [(logical_w, logical_h)]
     assert (transport.width(), transport.height()) == (logical_w, logical_h)
 
 
