@@ -329,8 +329,13 @@ class MainWindow(QMainWindow):
         zoom_out.setToolTip("Vorschau verkleinern")
         zoom_out.triggered.connect(lambda: self._zoom_canvas(0.85))
         zoom_reset = QAction("100 %", self)
+        zoom_reset.setToolTip("Pixelgenaue 1:1-Ansicht")
         zoom_reset.triggered.connect(self._reset_zoom)
+        zoom_width = QAction("Breite", self)
+        zoom_width.setToolTip("Arbeitsfläche an die Editorbreite anpassen")
+        zoom_width.triggered.connect(self.canvas.fit_canvas_width)
         zoom_fit = QAction("Einpassen", self)
+        zoom_fit.setToolTip("Gesamtes Dashboard anzeigen")
         zoom_fit.triggered.connect(self.canvas.fit_canvas)
         zoom_in = QAction("+", self)
         zoom_in.setToolTip("Vorschau vergrößern")
@@ -361,6 +366,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(zoom_out)
         toolbar.addAction(zoom_reset)
+        toolbar.addAction(zoom_width)
         toolbar.addAction(zoom_fit)
         toolbar.addAction(zoom_in)
         toolbar.addSeparator()
@@ -387,6 +393,7 @@ class MainWindow(QMainWindow):
         view_menu = self.menuBar().addMenu("Ansicht")
         view_menu.addAction(zoom_out)
         view_menu.addAction(zoom_reset)
+        view_menu.addAction(zoom_width)
         view_menu.addAction(zoom_fit)
         view_menu.addAction(zoom_in)
         view_menu.addSeparator()
@@ -2745,11 +2752,11 @@ class MainWindow(QMainWindow):
             logical_w, logical_h = logical_size(width, height, profile.rotation)
             if (logical_w, logical_h) != (self.canvas.canvas_size.width, self.canvas.canvas_size.height):
                 self._resize_dashboard_canvas(logical_w, logical_h, scale_widgets=True)
-            # Once OwnDash knows the real panel geometry, edit it at native
-            # pixel scale. This is exactly the same 100% view as the toolbar
-            # action and intentionally leaves scrolling available for tall
-            # portrait canvases such as the 480x1920 VSDisplay.
-            self._reset_zoom()
+            # A tall case display is easiest to edit width-fitted: the
+            # dashboard uses the available editor width while vertical scrolling
+            # remains available. 100% stays a separate, strictly pixel-accurate
+            # 1:1 mode for users who explicitly choose it.
+            self.canvas.fit_canvas_width()
         self._update_display_cadence(force=True)
         fps = round(1000 / max(1, self.display_timer.interval()))
         self.statusBar().showMessage(f"Display verbunden · {width}×{height} · Smooth-Ausgabe bis {fps} FPS")
@@ -2964,6 +2971,7 @@ class MainWindow(QMainWindow):
     def _zoom_canvas(self, factor: float) -> None:
         current = self.canvas.transform().m11()
         self.canvas.auto_fit = False
+        self.canvas.auto_fit_width = False
         target = max(0.01, min(3.0, current * factor))
         self.canvas.resetTransform()
         self.canvas.scale(target, target)
@@ -2971,8 +2979,10 @@ class MainWindow(QMainWindow):
 
     def _reset_zoom(self) -> None:
         self.canvas.auto_fit = False
+        self.canvas.auto_fit_width = False
         self.canvas.resetTransform()
-        self.statusBar().showMessage("Vorschau: 100 %", 1500)
+        self.canvas.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.statusBar().showMessage("Vorschau: 100 % · 1:1", 1500)
 
     def _selected_widget(self) -> WidgetItem | None:
         return self.canvas.selected_widget()

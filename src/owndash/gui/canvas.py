@@ -804,6 +804,7 @@ class DashboardCanvas(QGraphicsView):
         super().__init__(parent)
         self.canvas_size = size or CanvasSize()
         self.auto_fit = True
+        self.auto_fit_width = False
         self.layout_bounds = QRectF(0, 0, self.canvas_size.width, self.canvas_size.height)
         self.grid_size = 10
         self.grid_enabled = True
@@ -919,15 +920,30 @@ class DashboardCanvas(QGraphicsView):
     def fit_canvas(self) -> None:
         """Show the entire working area without changing the dashboard itself."""
         self.auto_fit = True
+        self.auto_fit_width = False
+        self.setAlignment(Qt.AlignCenter)
         self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)
+
+    def fit_canvas_width(self) -> None:
+        """Fit the dashboard width for comfortable editing while keeping vertical scrolling."""
+        self.auto_fit = False
+        self.auto_fit_width = True
+        gutter = 24
+        usable_width = max(1, self.viewport().width() - gutter * 2)
+        target = max(0.01, min(3.0, usable_width / max(1, self.canvas_size.width)))
+        self.resetTransform()
+        self.scale(target, target)
+        self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001
         super().resizeEvent(event)
-        if self.auto_fit:
+        if self.auto_fit or self.auto_fit_width:
             QTimer.singleShot(0, self._fit_if_enabled)
 
     def _fit_if_enabled(self) -> None:
-        if self.auto_fit:
+        if self.auto_fit_width:
+            self.fit_canvas_width()
+        elif self.auto_fit:
             self.fit_canvas()
 
     def _animate(self) -> None:
