@@ -3,6 +3,8 @@ name: Build AppImage
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "feat/autostart-display-resume"
     tags:
       - "v*"
 
