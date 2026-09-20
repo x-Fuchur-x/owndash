@@ -61,6 +61,43 @@ def test_detected_usb_display_uses_fit_width_working_view(window):
     assert math.isclose(window.canvas.transform().m22(), expected, rel_tol=0.0, abs_tol=0.02)
 
 
+def test_fit_width_starts_at_top_when_activated(window):
+    app = QApplication.instance()
+    window.resize(1200, 760)
+    window.show()
+    app.processEvents()
+
+    window.canvas.fit_canvas_width()
+    app.processEvents()
+
+    bar = window.canvas.verticalScrollBar()
+    assert bar.value() == bar.minimum()
+
+
+def test_fit_width_resize_preserves_current_vertical_work_position(window):
+    app = QApplication.instance()
+    window.resize(1120, 760)
+    window.show()
+    app.processEvents()
+
+    window._display_connected(DisplayInfo("VSDisplay", 1920, 480))
+    app.processEvents()
+
+    bar = window.canvas.verticalScrollBar()
+    assert bar.maximum() > bar.minimum()
+    bar.setValue(int(bar.maximum() * 0.58))
+    app.processEvents()
+    before_y = window.canvas.mapToScene(window.canvas.viewport().rect().center()).y()
+
+    window.resize(1580, 900)
+    app.processEvents()
+    window.canvas._fit_if_enabled()
+    app.processEvents()
+    after_y = window.canvas.mapToScene(window.canvas.viewport().rect().center()).y()
+
+    assert abs(after_y - before_y) <= 6.0
+
+
 def test_fit_width_tracks_window_size_but_manual_100_percent_does_not(window):
     app = QApplication.instance()
     window.resize(1120, 760)
