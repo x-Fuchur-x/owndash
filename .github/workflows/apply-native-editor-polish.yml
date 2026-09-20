@@ -1,0 +1,112 @@
+name: Apply native editor zoom and status polish
+
+on:
+  push:
+    branches:
+      - feat/autostart-display-resume
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
+      - run: python -m pip install --upgrade pip pytest .
+      - name: Apply native editor zoom and status visual hierarchy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main_path = Path('src/owndash/gui/main_window.py')
+          main = main_path.read_text()
+          needle = '''            if (logical_w, logical_h) != (self.canvas.canvas_size.width, self.canvas.canvas_size.height):\n                self._resize_dashboard_canvas(logical_w, logical_h, scale_widgets=True)\n        self._update_display_cadence(force=True)\n'''
+          replacement = '''            if (logical_w, logical_h) != (self.canvas.canvas_size.width, self.canvas.canvas_size.height):\n                self._resize_dashboard_canvas(logical_w, logical_h, scale_widgets=True)\n            # Once OwnDash knows the real panel geometry, edit it at native\n            # pixel scale. This is exactly the same 100% view as the toolbar\n            # action and intentionally leaves scrolling available for tall\n            # portrait canvases such as the 480x1920 VSDisplay.\n            self._reset_zoom()\n        self._update_display_cadence(force=True)\n'''
+          if main.count(needle) != 1:
+              raise SystemExit('display-connected sizing block changed unexpectedly')
+          main_path.write_text(main.replace(needle, replacement))
+
+          frame_path = Path('src/owndash/gui/system_state_frame.py')
+          frame = frame_path.read_text()
+          replacements = {
+              '"""Return the v6 portrait composition with stronger branding and welded rails."""':
+                  '"""Return the v7 portrait composition with a unified OwnDash brand lockup."""',
+              '    center = QPointF(width * 0.50, height * 0.225)':
+                  '    center = QPointF(width * 0.50, height * 0.215)',
+              '    diameter = width * 0.74':
+                  '    diameter = width * 0.76',
+              '    icon_side = diameter * 0.130':
+                  '    icon_side = diameter * 0.180',
+              '    icon_center = QPointF(center.x(), center.y() - diameter * 0.205)':
+                  '    icon_center = QPointF(center.x(), center.y() - diameter * 0.200)',
+              '        wordmark_rect=QRectF(width * 0.15, center.y() - height * 0.018, width * 0.70, height * 0.046),':
+                  '        wordmark_rect=QRectF(width * 0.10, center.y() - height * 0.012, width * 0.80, height * 0.052),',
+              '        wordmark_font_px=width * 0.084,':
+                  '        wordmark_font_px=width * 0.118,',
+              '        status_rect=QRectF(width * 0.035, height * 0.370, width * 0.93, height * 0.085),':
+                  '        status_rect=QRectF(width * 0.04, height * 0.355, width * 0.92, height * 0.086),',
+              '        status_font_px=width * 0.140,':
+                  '        status_font_px=width * 0.145,',
+              '        detail_rect=QRectF(width * 0.10, height * 0.455, width * 0.80, height * 0.040),':
+                  '        detail_rect=QRectF(width * 0.10, height * 0.445, width * 0.80, height * 0.040),',
+              '        bar_rect=QRectF(width * 0.22, height * 0.515, width * 0.56, max(8.0, width * 0.018)),':
+                  '        bar_rect=QRectF(width * 0.22, height * 0.505, width * 0.56, max(8.0, width * 0.018)),',
+              '        context_top=height * 0.575,':
+                  '        context_top=height * 0.570,',
+              '    for stroke_width, opacity in ((9.0, 0.06), (4.5, 0.14), (2.2, 0.24)):':
+                  '    for stroke_width, opacity in ((10.0, 0.09), (5.0, 0.20), (2.5, 0.34)):',
+              '    core.setAlpha(190)':
+                  '    core.setAlpha(220)',
+              '    core.setAlpha(58)':
+                  '    core.setAlpha(82)',
+              '    side = max(1, round(rect.width() * 0.78))':
+                  '    side = max(1, round(rect.width() * 0.84))',
+          }
+          for old, new in replacements.items():
+              count = frame.count(old)
+              if count != 1:
+                  raise SystemExit(f'status frame replacement count={count} for {old!r}')
+              frame = frame.replace(old, new)
+          frame_path.write_text(frame)
+
+          tests_path = Path('tests/test_system_state_frame.py')
+          tests = tests_path.read_text()
+          test_replacements = {
+              '    assert layout.wordmark_font_px <= 480 * 0.10':
+                  '    assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125',
+              '    assert 480 * 0.65 <= layout.wordmark_rect.width() <= 480 * 0.75\n    assert layout.status_font_px >= layout.wordmark_font_px * 1.50':
+                  '    assert 480 * 0.76 <= layout.wordmark_rect.width() <= 480 * 0.82\n    assert layout.wordmark_font_px < layout.status_font_px <= layout.wordmark_font_px * 1.35',
+              '    assert 480 * 0.075 <= layout.wordmark_font_px <= 480 * 0.095\n    assert 480 * 0.65 <= layout.wordmark_rect.width() <= 480 * 0.75\n    assert layout.brand_icon_rect.width() >= 480 * 0.09':
+                  '    assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125\n    assert 480 * 0.76 <= layout.wordmark_rect.width() <= 480 * 0.82\n    assert layout.brand_icon_rect.width() >= 480 * 0.12',
+              '    assert layout.brand_icon_rect.width() >= 480 * 0.09\n    assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()\n    assert 480 * 0.075 <= layout.wordmark_font_px <= 480 * 0.095':
+                  '    assert layout.brand_icon_rect.width() >= 480 * 0.12\n    assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()\n    assert 480 * 0.11 <= layout.wordmark_font_px <= 480 * 0.125',
+          }
+          for old, new in test_replacements.items():
+              count = tests.count(old)
+              if count != 1:
+                  raise SystemExit(f'legacy design contract replacement count={count} for {old!r}')
+              tests = tests.replace(old, new)
+          tests_path.write_text(tests)
+          PY
+      - name: Install patched working tree
+        run: python -m pip install -e .
+      - run: python -m compileall -q src tests
+      - run: pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: bash -n run-owndash.sh
+      - name: Commit verified implementation and remove temporary workflow
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git rm .github/workflows/apply-native-editor-polish.yml
+          git add src/owndash/gui/main_window.py src/owndash/gui/system_state_frame.py tests/test_system_state_frame.py tests/test_display_editor_native_zoom.py
+          git commit -m "feat: use native editor zoom for detected displays"
+          git push origin HEAD:feat/autostart-display-resume
