@@ -2745,6 +2745,11 @@ class MainWindow(QMainWindow):
             logical_w, logical_h = logical_size(width, height, profile.rotation)
             if (logical_w, logical_h) != (self.canvas.canvas_size.width, self.canvas.canvas_size.height):
                 self._resize_dashboard_canvas(logical_w, logical_h, scale_widgets=True)
+            # Once OwnDash knows the real panel geometry, edit it at native
+            # pixel scale. This is exactly the same 100% view as the toolbar
+            # action and intentionally leaves scrolling available for tall
+            # portrait canvases such as the 480x1920 VSDisplay.
+            self._reset_zoom()
         self._update_display_cadence(force=True)
         fps = round(1000 / max(1, self.display_timer.interval()))
         self.statusBar().showMessage(f"Display verbunden · {width}×{height} · Smooth-Ausgabe bis {fps} FPS")

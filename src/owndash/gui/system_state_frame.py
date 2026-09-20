@@ -105,7 +105,7 @@ _ANIMATED_STATES = {SystemState.IDLE, SystemState.LOCKED}
 
 
 def _portrait_layout(width: int, height: int) -> _PortraitLayout:
-    """Return the v6 portrait composition with stronger branding and welded rails."""
+    """Return the v7 portrait composition with a unified OwnDash brand lockup."""
     width = int(width)
     height = int(height)
     if width <= 0 or height <= 0:
@@ -115,10 +115,10 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
     # compact identity HUD first, then the system state as the dominant message.
     # The old near-full-width hero ring made the branding visually louder than
     # the actual state and left the lower two thirds of the panel underused.
-    center = QPointF(width * 0.50, height * 0.225)
-    diameter = width * 0.74
-    icon_side = diameter * 0.130
-    icon_center = QPointF(center.x(), center.y() - diameter * 0.205)
+    center = QPointF(width * 0.50, height * 0.215)
+    diameter = width * 0.76
+    icon_side = diameter * 0.180
+    icon_center = QPointF(center.x(), center.y() - diameter * 0.200)
     brand_icon_rect = QRectF(
         icon_center.x() - icon_side / 2.0,
         icon_center.y() - icon_side / 2.0,
@@ -129,14 +129,14 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
         hud_center=center,
         hud_diameter=diameter,
         brand_icon_rect=brand_icon_rect,
-        wordmark_rect=QRectF(width * 0.15, center.y() - height * 0.018, width * 0.70, height * 0.046),
-        wordmark_font_px=width * 0.084,
-        status_rect=QRectF(width * 0.035, height * 0.370, width * 0.93, height * 0.085),
-        status_font_px=width * 0.140,
-        detail_rect=QRectF(width * 0.10, height * 0.455, width * 0.80, height * 0.040),
+        wordmark_rect=QRectF(width * 0.10, center.y() - height * 0.012, width * 0.80, height * 0.052),
+        wordmark_font_px=width * 0.118,
+        status_rect=QRectF(width * 0.04, height * 0.355, width * 0.92, height * 0.086),
+        status_font_px=width * 0.148,
+        detail_rect=QRectF(width * 0.10, height * 0.445, width * 0.80, height * 0.040),
         detail_font_px=width * 0.034,
-        bar_rect=QRectF(width * 0.22, height * 0.515, width * 0.56, max(8.0, width * 0.018)),
-        context_top=height * 0.575,
+        bar_rect=QRectF(width * 0.22, height * 0.505, width * 0.56, max(8.0, width * 0.018)),
+        context_top=height * 0.570,
         telemetry_y=height * 0.690,
         floor_horizon=height * 0.820,
     )
@@ -275,7 +275,7 @@ def _draw_gradient_wordmark(painter: QPainter, image: QImage, rect: QRectF, pale
 
     painter.save()
     painter.setBrush(Qt.NoBrush)
-    for stroke_width, opacity in ((9.0, 0.06), (4.5, 0.14), (2.2, 0.24)):
+    for stroke_width, opacity in ((10.0, 0.09), (5.0, 0.20), (2.5, 0.34)):
         painter.setOpacity(opacity)
         painter.setPen(QPen(QBrush(gradient), stroke_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.drawPath(path)
@@ -286,7 +286,7 @@ def _draw_gradient_wordmark(painter: QPainter, image: QImage, rect: QRectF, pale
     painter.drawPath(path)
 
     core = QColor("#f8fdff")
-    core.setAlpha(190)
+    core.setAlpha(220)
     painter.setBrush(Qt.NoBrush)
     painter.setPen(QPen(core, 1.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
     painter.drawPath(path)
@@ -307,7 +307,7 @@ def _draw_brand_icon(
     center = rect.center()
     halo = QRadialGradient(center, rect.width() * 0.82)
     core = QColor(palette.cyan)
-    core.setAlpha(58)
+    core.setAlpha(82)
     edge = QColor(palette.magenta)
     edge.setAlpha(0)
     halo.setColorAt(0.0, core)
@@ -328,7 +328,7 @@ def _draw_brand_icon(
     painter.setPen(QPen(QBrush(rim), max(1.0, short * 0.004), Qt.SolidLine))
     painter.drawRoundedRect(rect, rect.width() * 0.22, rect.width() * 0.22)
 
-    side = max(1, round(rect.width() * 0.78))
+    side = max(1, round(rect.width() * 0.84))
     pixmap = icon.pixmap(side, side)
     target = QRectF(
         center.x() - side / 2.0,
