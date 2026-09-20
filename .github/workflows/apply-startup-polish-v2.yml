@@ -1,0 +1,245 @@
+name: Apply startup polish v2
+
+on:
+  push:
+    branches: ["feat/autostart-display-resume"]
+    paths: [".github/workflows/apply-startup-polish-v2.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/autostart-display-resume
+          fetch-depth: 0
+
+      - name: Restore regression tests from RED phase
+        run: |
+          cat > tests/test_startup_polish.py <<'PY'
+          from pathlib import Path
+
+          from owndash.core.preferences import AppPreferences
+
+
+          ROOT = Path(__file__).resolve().parents[1]
+          MAIN_WINDOW = ROOT / "src" / "owndash" / "gui" / "main_window.py"
+          APP_WINDOW = ROOT / "src" / "owndash" / "gui" / "app_window.py"
+          CONFIG = ROOT / "src" / "owndash" / "core" / "config.py"
+
+
+          def test_restore_last_profile_preferences_exist_and_default_on():
+              prefs = AppPreferences()
+              assert getattr(prefs, "restore_last_profile", None) is True
+              assert getattr(prefs, "last_profile_path", None) == ""
+
+
+          def test_restore_last_profile_preferences_round_trip_from_raw():
+              prefs = AppPreferences.from_raw(
+                  {
+                      "restore_last_profile": False,
+                      "last_profile_path": "/tmp/owndash-demo.json",
+                  }
+              )
+              assert getattr(prefs, "restore_last_profile", None) is False
+              assert getattr(prefs, "last_profile_path", None) == "/tmp/owndash-demo.json"
+
+
+          def test_main_window_restores_last_profile_and_snapshots_templates():
+              source = MAIN_WINDOW.read_text(encoding="utf-8")
+              assert "def _preferred_startup_profile_path(self) -> Path:" in source
+              assert "def _remember_startup_profile(self, path: Path) -> None:" in source
+              assert "def _snapshot_profile_for_startup(self) -> None:" in source
+              assert "self._snapshot_profile_for_startup()" in source
+              assert "self._remember_startup_profile(self.profile_path)" in source
+              assert "startup_snapshot_path()" in source
+
+
+          def test_startup_snapshot_has_dedicated_config_path():
+              source = CONFIG.read_text(encoding="utf-8")
+              assert "def startup_snapshot_path() -> Path:" in source
+              assert '"last-session.json"' in source
+
+
+          def test_startup_settings_keep_wrapped_hint_visible_and_offer_restore_toggle():
+              source = APP_WINDOW.read_text(encoding="utf-8")
+              assert "QSizePolicy" in source
+              assert "startup_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)" in source
+              assert "startup_hint.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)" in source
+              assert "Letzte Vorlage / letztes Profil beim Start wiederherstellen" in source
+              assert "self.preferences.restore_last_profile = restore_last_check.isChecked()" in source
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_system_state_linux.py")
+          text = path.read_text(encoding="utf-8")
+          if "def test_shutdown_metadata_slot_has_exact_dbus_signature():" not in text:
+              text += '''\n\ndef test_shutdown_metadata_slot_has_exact_dbus_signature():\n    source = _LogindDbusSource()\n    signature = "_on_prepare_for_shutdown_with_metadata(bool,QVariantMap)"\n    assert source.metaObject().indexOfSlot(signature) >= 0\n\n\ndef test_shutdown_metadata_reboot_avoids_generic_transition():\n    source = _LogindDbusSource()\n    assert hasattr(source, "_on_prepare_for_shutdown_with_metadata")\n    events = []\n    source._callback = lambda kind, enabled: events.append((kind, enabled))\n    source._on_prepare_for_shutdown_with_metadata(True, {"type": FakeVariant("reboot")})\n    source._on_prepare_for_shutdown(True)\n    assert events == [("restart", True)]\n\n\ndef test_shutdown_metadata_poweroff_maps_to_shutdown():\n    source = _LogindDbusSource()\n    assert hasattr(source, "_on_prepare_for_shutdown_with_metadata")\n    events = []\n    source._callback = lambda kind, enabled: events.append((kind, enabled))\n    source._on_prepare_for_shutdown_with_metadata(True, {"type": FakeVariant("power-off")})\n    source._on_prepare_for_shutdown(True)\n    assert events == [("shutdown", True)]\n'''
+              path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Implement startup restore
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("src/owndash/core/preferences.py")
+          text = path.read_text(encoding="utf-8")
+          old = '    start_display_on_launch: bool = False  # reconnect USB display after app launch\n    system_state_screens: bool = True'
+          new = '    start_display_on_launch: bool = False  # reconnect USB display after app launch\n    restore_last_profile: bool = True  # restore last profile/template on launch\n    last_profile_path: str = ""  # internal startup restore target\n    system_state_screens: bool = True'
+          if old not in text:
+              raise SystemExit("preferences field marker not found")
+          text = text.replace(old, new, 1)
+          marker = '        return cls(\n'
+          insertion = '        last_profile_path_raw = raw.get("last_profile_path", "")\n        last_profile_path = str(last_profile_path_raw).strip() if last_profile_path_raw else ""\n\n'
+          text = text.replace(marker, insertion + marker, 1)
+          old = '            start_display_on_launch=bool(raw.get("start_display_on_launch", False)),\n            system_state_screens=bool(raw.get("system_state_screens", True)),'
+          new = '            start_display_on_launch=bool(raw.get("start_display_on_launch", False)),\n            restore_last_profile=bool(raw.get("restore_last_profile", True)),\n            last_profile_path=last_profile_path,\n            system_state_screens=bool(raw.get("system_state_screens", True)),'
+          if old not in text:
+              raise SystemExit("preferences from_raw marker not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          path = Path("src/owndash/core/config.py")
+          text = path.read_text(encoding="utf-8")
+          marker = 'def save_profile(profile: Profile, path: Path) -> None:\n'
+          if marker not in text:
+              raise SystemExit("config insertion marker not found")
+          text = text.replace(
+              marker,
+              'def startup_snapshot_path() -> Path:\n    return default_config_dir() / "profiles" / "last-session.json"\n\n\n' + marker,
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("src/owndash/gui/main_window.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              'from owndash.core.config import default_profile_path, load_profile, save_profile',
+              'from owndash.core.config import default_profile_path, load_profile, save_profile, startup_snapshot_path',
+              1,
+          )
+          old = '        self.profile_path = default_profile_path()\n        self.preferences: AppPreferences = load_preferences()\n        self.language = resolved_language(self.preferences.language)'
+          new = '        self.preferences: AppPreferences = load_preferences()\n        self.profile_path = self._preferred_startup_profile_path()\n        self.language = resolved_language(self.preferences.language)'
+          if old not in text:
+              raise SystemExit("main window startup marker not found")
+          text = text.replace(old, new, 1)
+
+          # This method is currently the final method in MainWindow, so replace through EOF.
+          pattern = re.compile(r'    def _load_default_if_present\(self\) -> None:\n.*\Z', re.S)
+          match = pattern.search(text)
+          if not match:
+              raise SystemExit("_load_default_if_present block not found")
+          replacement = '''    def _preferred_startup_profile_path(self) -> Path:\n        default_path = default_profile_path()\n        if not self.preferences.restore_last_profile:\n            return default_path\n        raw = self.preferences.last_profile_path.strip()\n        if not raw:\n            return default_path\n        candidate = Path(raw).expanduser()\n        return candidate if candidate.exists() else default_path\n\n    def _remember_startup_profile(self, path: Path) -> None:\n        self.preferences.last_profile_path = str(path)\n        save_preferences(self.preferences)\n\n    def _snapshot_profile_for_startup(self) -> None:\n        snapshot = startup_snapshot_path()\n        try:\n            save_profile(self._profile_from_canvas(), snapshot)\n        except OSError:\n            return\n        self._remember_startup_profile(snapshot)\n\n    def _load_default_if_present(self) -> None:\n        default_path = default_profile_path()\n        candidates = [self.profile_path]\n        if self.profile_path != default_path:\n            candidates.append(default_path)\n\n        for candidate in candidates:\n            if not candidate.exists():\n                continue\n            try:\n                profile = load_profile(candidate)\n            except (OSError, ValueError, TypeError):\n                if candidate != default_path and self.preferences.last_profile_path == str(candidate):\n                    self.preferences.last_profile_path = ""\n                    save_preferences(self.preferences)\n                continue\n            self.profile_path = candidate\n            self._apply_profile(profile)\n            return\n'''
+          text = text[:match.start()] + replacement
+
+          save_line = '        self.statusBar().showMessage(f"Gespeichert: {self.profile_path}", 3000)'
+          if save_line not in text:
+              raise SystemExit("save marker not found")
+          text = text.replace(save_line, '        self._remember_startup_profile(self.profile_path)\n' + save_line, 1)
+
+          old = '        self.profile_path = Path(filename)\n        self._apply_profile(profile)\n        self._commit_history(before, "Profil öffnen")'
+          new = '        self.profile_path = Path(filename)\n        self._apply_profile(profile)\n        self._remember_startup_profile(self.profile_path)\n        self._commit_history(before, "Profil öffnen")'
+          if old not in text:
+              raise SystemExit("open marker not found")
+          text = text.replace(old, new, 1)
+
+          old = '        self._commit_history(before, f"Vorlage laden: {name}")\n        self.statusBar().showMessage('
+          new = '        self._commit_history(before, f"Vorlage laden: {name}")\n        self._snapshot_profile_for_startup()\n        self.statusBar().showMessage('
+          if old not in text:
+              raise SystemExit("template marker not found")
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Fix settings layout and add restore toggle
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/owndash/gui/app_window.py")
+          text = path.read_text(encoding="utf-8")
+          old = '    QMessageBox,\n    QSystemTrayIcon,\n    QVBoxLayout,'
+          new = '    QMessageBox,\n    QSizePolicy,\n    QSystemTrayIcon,\n    QVBoxLayout,'
+          if old not in text:
+              raise SystemExit("QSizePolicy import marker not found")
+          text = text.replace(old, new, 1)
+
+          old = '        startup_box = QGroupBox(self._t("Systemstart"), dialog)\n        startup_layout = QVBoxLayout(startup_box)'
+          new = '        startup_box = QGroupBox(self._t("Systemstart"), dialog)\n        startup_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)\n        startup_layout = QVBoxLayout(startup_box)'
+          if old not in text:
+              raise SystemExit("startup group marker not found")
+          text = text.replace(old, new, 1)
+
+          old = '        display_on_launch_check.setChecked(self.preferences.start_display_on_launch)\n        startup_layout.addWidget(display_on_launch_check)\n        startup_hint = QLabel('
+          new = '        display_on_launch_check.setChecked(self.preferences.start_display_on_launch)\n        startup_layout.addWidget(display_on_launch_check)\n        restore_last_check = QCheckBox(\n            self._t("Letzte Vorlage / letztes Profil beim Start wiederherstellen"),\n            startup_box,\n        )\n        restore_last_check.setChecked(self.preferences.restore_last_profile)\n        startup_layout.addWidget(restore_last_check)\n        startup_hint = QLabel('
+          if old not in text:
+              raise SystemExit("restore checkbox marker not found")
+          text = text.replace(old, new, 1)
+
+          old = '        startup_hint.setWordWrap(True)\n        startup_layout.addWidget(startup_hint)'
+          new = '        startup_hint.setWordWrap(True)\n        startup_hint.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)\n        startup_layout.addWidget(startup_hint)'
+          if old not in text:
+              raise SystemExit("hint marker not found")
+          text = text.replace(old, new, 1)
+
+          old = '        self.preferences.launch_at_login = requested_launch_at_login\n        self.preferences.start_display_on_launch = display_on_launch_check.isChecked()\n        system_state_settings.apply_to(self.preferences)'
+          new = '        self.preferences.launch_at_login = requested_launch_at_login\n        self.preferences.start_display_on_launch = display_on_launch_check.isChecked()\n        self.preferences.restore_last_profile = restore_last_check.isChecked()\n        system_state_settings.apply_to(self.preferences)'
+          if old not in text:
+              raise SystemExit("settings save marker not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          path = Path("src/owndash/i18n.py")
+          text = path.read_text(encoding="utf-8")
+          marker = '    "USB-Display beim Start automatisch verbinden": "Automatically connect USB display on startup",\n'
+          addition = '    "Letzte Vorlage / letztes Profil beim Start wiederherstellen": "Restore the last template / profile on startup",\n'
+          if marker not in text:
+              raise SystemExit("i18n marker not found")
+          path.write_text(text.replace(marker, marker + addition, 1), encoding="utf-8")
+          PY
+
+      - name: Add precise systemd shutdown metadata support
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/owndash/service/system_state_linux.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''            ok &= self._connect(\n                self._LOGIN_SERVICE, self._LOGIN_PATH, self._LOGIN_MANAGER,\n                "PrepareForShutdown", "_on_prepare_for_shutdown(bool)",\n            )\n            # systemd JobNew gives positive evidence for immediate reboot versus power-off.'''
+          new = '''            ok &= self._connect(\n                self._LOGIN_SERVICE, self._LOGIN_PATH, self._LOGIN_MANAGER,\n                "PrepareForShutdown", "_on_prepare_for_shutdown(bool)",\n            )\n            self._connect(\n                self._LOGIN_SERVICE, self._LOGIN_PATH, self._LOGIN_MANAGER,\n                "PrepareForShutdownWithMetadata",\n                "_on_prepare_for_shutdown_with_metadata(bool,QVariantMap)",\n            )\n            # systemd JobNew gives positive evidence for immediate reboot versus power-off.'''
+          if old not in text:
+              raise SystemExit("shutdown connection marker not found")
+          text = text.replace(old, new, 1)
+
+          marker = '    @Slot(bool)\n    def _on_prepare_for_shutdown(self, start: bool) -> None:\n'
+          insertion = '''    @staticmethod\n    def _terminal_kind_from_metadata(metadata: dict) -> str | None:\n        value = metadata.get("type") if isinstance(metadata, dict) else None\n        value = value.variant() if hasattr(value, "variant") else value\n        action = str(value).strip().lower() if value is not None else ""\n        if action in {"reboot", "kexec", "soft-reboot"}:\n            return "restart"\n        if action in {"poweroff", "power-off", "halt"}:\n            return "shutdown"\n        return None\n\n    @Slot(bool, "QVariantMap")\n    def _on_prepare_for_shutdown_with_metadata(self, start: bool, metadata: dict) -> None:\n        if not start:\n            if not self._terminal_active:\n                self._pending_terminal_kind = None\n            return\n        kind = self._terminal_kind_from_metadata(metadata)\n        if kind is not None:\n            self._pending_terminal_kind = kind\n\n'''
+          if marker not in text:
+              raise SystemExit("shutdown slot marker not found")
+          path.write_text(text.replace(marker, insertion + marker, 1), encoding="utf-8")
+          PY
+
+      - name: Install and verify
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 >/dev/null
+          python -m pip install -q pytest -e .
+          python -m compileall -q src tests
+          pytest -q tests/test_startup_polish.py tests/test_system_state_linux.py
+          pytest -q
+          bash -n run-owndash.sh
+
+      - name: Commit implementation
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git add src tests
+          git commit -m "feat: restore dashboard on startup and refine system transitions"
+          git push origin HEAD:feat/autostart-display-resume
