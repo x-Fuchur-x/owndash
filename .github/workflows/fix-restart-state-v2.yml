@@ -1,0 +1,131 @@
+name: Fix restart state classification v2
+
+on:
+  push:
+    branches:
+      - "fix/system-state-dbus-pyside"
+    paths:
+      - ".github/workflows/fix-restart-state-v2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix-restart-state:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/system-state-dbus-pyside
+          fetch-depth: 0
+
+      - name: Add failing regression tests first
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/test_system_state_linux.py')
+          text = path.read_text()
+          addition = '''\n\ndef test_ambiguous_shutdown_stays_neutral_until_late_reboot_evidence(monkeypatch):\n    source = _LogindDbusSource()\n    events = []\n    source._callback = lambda kind, enabled: events.append((kind, enabled))\n    monkeypatch.setattr(source, "_scheduled_shutdown_kind", lambda: None)\n\n    source._on_prepare_for_shutdown(True)\n    assert events == [("terminal_pending", True)]\n\n    source._on_job_new(1, object(), "reboot.target")\n    assert events == [\n        ("terminal_pending", True),\n        ("terminal_pending", False),\n        ("restart", True),\n    ]\n\n\ndef test_transitioning_state_exists_for_ambiguous_terminal_phase():\n    assert "transitioning" in {state.value for state in SystemState}\n'''
+          if 'test_ambiguous_shutdown_stays_neutral_until_late_reboot_evidence' not in text:
+              text += addition
+          path.write_text(text)
+
+          path = Path('tests/test_system_state_frame.py')
+          text = path.read_text()
+          text = text.replace(
+              '    "restarting": "Restarting",\n    "idle": "Idle",',
+              '    "restarting": "Restarting",\n    "system_transition": "System transition",\n    "ending_session": "OwnDash is ending the current session.",\n    "idle": "Idle",',
+          )
+          addition = '''\n\ndef test_neutral_terminal_transition_renders_when_shutdown_kind_is_unknown():\n    states = {state.value: state for state in SystemState}\n    assert "transitioning" in states\n    image = render(480, 1920, states["transitioning"])\n    assert not image.isNull()\n    assert image.width() == 480\n    assert image.height() == 1920\n'''
+          if 'test_neutral_terminal_transition_renders_when_shutdown_kind_is_unknown' not in text:
+              text += addition
+          path.write_text(text)
+          PY
+
+      - name: Prove service regression tests are red
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0 >/dev/null
+          python -m pip install -q pytest .
+          set +e
+          QT_QPA_PLATFORM=offscreen pytest -q tests/test_system_state_linux.py
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "Expected service regression tests to fail before implementation, but they passed."
+            exit 1
+          fi
+          echo "RED confirmed: reboot classification regression reproduced."
+
+      - name: Implement neutral transition and late target correction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/owndash/core/system_state.py')
+          text = path.read_text()
+          text = text.replace('    SUSPENDING = "suspending"\n    SHUTTING_DOWN = "shutting_down"', '    SUSPENDING = "suspending"\n    TRANSITIONING = "transitioning"\n    SHUTTING_DOWN = "shutting_down"')
+          text = text.replace('    SystemState.SUSPENDING: 30,\n    SystemState.SHUTTING_DOWN: 40,', '    SystemState.SUSPENDING: 30,\n    SystemState.TRANSITIONING: 40,\n    SystemState.SHUTTING_DOWN: 40,')
+          text = text.replace('    SHUTTING_DOWN and RESTARTING intentionally share the same priority;\n    callers must not assert both simultaneously because logind should surface\n    one terminal transition at a time.', '    TRANSITIONING, SHUTTING_DOWN and RESTARTING intentionally share the\n    same priority; callers must not assert more than one terminal condition at\n    once because logind should surface one terminal transition at a time.')
+          path.write_text(text)
+
+          path = Path('src/owndash/service/system_state_linux.py')
+          text = path.read_text()
+          text = text.replace('    reported when there is positive evidence (a scheduled reboot or a systemd\n    reboot target job). Ambiguous PrepareForShutdown events remain shutdowns.', '    reported when there is positive evidence (a scheduled reboot or a systemd\n    reboot target job). Ambiguous PrepareForShutdown events stay neutral until\n    systemd exposes whether the machine is rebooting or powering off.')
+          text = text.replace('        self._terminal_kind = "shutdown"\n        self._pending_terminal_kind: str | None = None', '        self._terminal_kind = "terminal_pending"\n        self._terminal_active = False\n        self._pending_terminal_kind: str | None = None')
+          text = text.replace('        self._pending_terminal_kind = None\n        self._terminal_kind = "shutdown"', '        self._pending_terminal_kind = None\n        self._terminal_active = False\n        self._terminal_kind = "terminal_pending"')
+
+          old_job = '''    @Slot("uint", QDBusObjectPath, str)\n    def _on_job_new(self, _job_id: int, _job_path: object, unit: str) -> None:\n        unit = str(unit)\n        if unit in {"reboot.target", "soft-reboot.target", "kexec.target"}:\n            self._pending_terminal_kind = "restart"\n        elif unit in {"poweroff.target", "halt.target"}:\n            self._pending_terminal_kind = "shutdown"\n'''
+          new_job = '''    @Slot("uint", QDBusObjectPath, str)\n    def _on_job_new(self, _job_id: int, _job_path: object, unit: str) -> None:\n        unit = str(unit)\n        new_kind: str | None = None\n        if unit in {"reboot.target", "soft-reboot.target", "kexec.target"}:\n            new_kind = "restart"\n        elif unit in {"poweroff.target", "halt.target"}:\n            new_kind = "shutdown"\n        if new_kind is None:\n            return\n\n        self._pending_terminal_kind = new_kind\n        if self._terminal_active and self._terminal_kind == "terminal_pending":\n            self._emit("terminal_pending", False)\n            self._terminal_kind = new_kind\n            self._pending_terminal_kind = None\n            self._emit(new_kind, True)\n'''
+          if old_job not in text:
+              raise SystemExit('expected JobNew block not found')
+          text = text.replace(old_job, new_job, 1)
+
+          old_prepare = '''    @Slot(bool)\n    def _on_prepare_for_shutdown(self, start: bool) -> None:\n        if start:\n            self._terminal_kind = (\n                self._pending_terminal_kind\n                or self._scheduled_shutdown_kind()\n                or "shutdown"\n            )\n            self._pending_terminal_kind = None\n        self._emit(self._terminal_kind, bool(start))\n        if not start:\n            self._terminal_kind = "shutdown"\n'''
+          new_prepare = '''    @Slot(bool)\n    def _on_prepare_for_shutdown(self, start: bool) -> None:\n        if start:\n            self._terminal_active = True\n            self._terminal_kind = (\n                self._pending_terminal_kind\n                or self._scheduled_shutdown_kind()\n                or "terminal_pending"\n            )\n            self._pending_terminal_kind = None\n            self._emit(self._terminal_kind, True)\n            return\n\n        self._emit(self._terminal_kind, False)\n        self._terminal_active = False\n        self._terminal_kind = "terminal_pending"\n        self._pending_terminal_kind = None\n'''
+          if old_prepare not in text:
+              raise SystemExit('expected PrepareForShutdown block not found')
+          text = text.replace(old_prepare, new_prepare, 1)
+          text = text.replace('        "shutdown": SystemState.SHUTTING_DOWN,\n        "restart": SystemState.RESTARTING,', '        "terminal_pending": SystemState.TRANSITIONING,\n        "shutdown": SystemState.SHUTTING_DOWN,\n        "restart": SystemState.RESTARTING,')
+          old_exclusive = '''        if enabled and state in {SystemState.SHUTTING_DOWN, SystemState.RESTARTING}:\n            other = (\n                SystemState.RESTARTING\n                if state is SystemState.SHUTTING_DOWN\n                else SystemState.SHUTTING_DOWN\n            )\n            self._set_condition(other, False)\n        self._set_condition(state, enabled)\n'''
+          new_exclusive = '''        terminal_states = {\n            SystemState.TRANSITIONING,\n            SystemState.SHUTTING_DOWN,\n            SystemState.RESTARTING,\n        }\n        if enabled and state in terminal_states:\n            for other in terminal_states - {state}:\n                self._set_condition(other, False)\n        self._set_condition(state, enabled)\n'''
+          if old_exclusive not in text:
+              raise SystemExit('expected terminal exclusivity block not found')
+          text = text.replace(old_exclusive, new_exclusive, 1)
+          path.write_text(text)
+
+          path = Path('src/owndash/gui/system_state_frame.py')
+          text = path.read_text()
+          text = text.replace('    SystemState.SUSPENDING: "#63d8ff",\n    SystemState.SHUTTING_DOWN: "#ff9c62",', '    SystemState.SUSPENDING: "#63d8ff",\n    SystemState.TRANSITIONING: "#78cfff",\n    SystemState.SHUTTING_DOWN: "#ff9c62",')
+          text = text.replace('    SystemState.SUSPENDING: ("standby", "entering_standby"),\n    SystemState.SHUTTING_DOWN: ("shutting_down", ""),', '    SystemState.SUSPENDING: ("standby", "entering_standby"),\n    SystemState.TRANSITIONING: ("system_transition", "ending_session"),\n    SystemState.SHUTTING_DOWN: ("shutting_down", ""),')
+          text = text.replace('        "entering_standby": "Entering standby",\n        "shutting_down": "Shutting down",', '        "entering_standby": "Entering standby",\n        "system_transition": "System transition",\n        "ending_session": "OwnDash is ending the current session.",\n        "shutting_down": "Shutting down",')
+          path.write_text(text)
+
+          path = Path('src/owndash/gui/app_window.py')
+          text = path.read_text()
+          text = text.replace('            "entering_standby": self._t("Standby wird vorbereitet"),\n            "shutting_down": self._t("Herunterfahren"),', '            "entering_standby": self._t("Standby wird vorbereitet"),\n            "system_transition": self._t("Systemwechsel"),\n            "ending_session": self._t("OwnDash beendet die aktuelle Sitzung."),\n            "shutting_down": self._t("Herunterfahren"),')
+          path.write_text(text)
+
+          path = Path('src/owndash/i18n.py')
+          text = path.read_text()
+          text = text.replace('    "Herunterfahren": "Shutting down",\n    "Neustart": "Restarting",', '    "Systemwechsel": "System transition",\n    "OwnDash beendet die aktuelle Sitzung.": "OwnDash is ending the current session.",\n    "Herunterfahren": "Shutting down",\n    "Neustart": "Restarting",')
+          path.write_text(text)
+          PY
+
+      - name: Install implementation under test
+        run: python -m pip install -q --force-reinstall .
+
+      - name: Verify full suite is green
+        run: |
+          QT_QPA_PLATFORM=offscreen pytest -q
+          python -m compileall -q src tests
+          bash -n run-owndash.sh
+
+      - name: Commit verified fix
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git add src/owndash/core/system_state.py src/owndash/service/system_state_linux.py src/owndash/gui/system_state_frame.py src/owndash/gui/app_window.py src/owndash/i18n.py tests/test_system_state_linux.py tests/test_system_state_frame.py
+          git commit -m "fix: distinguish reboot from shutdown transition"
+          git push origin HEAD:fix/system-state-dbus-pyside
