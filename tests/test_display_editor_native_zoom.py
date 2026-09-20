@@ -32,17 +32,63 @@ def window(monkeypatch, tmp_path):
     app.processEvents()
 
 
-def test_detected_usb_display_switches_editor_to_native_100_percent(window):
+def _expected_fit_width_scale(window) -> float:
+    # Keep a small editor gutter so the canvas reads as a deliberate artboard
+    # instead of touching the viewport edge. The production code uses the same
+    # 24 px gutter on both sides.
+    usable_width = max(1, window.canvas.viewport().width() - 48)
+    return max(0.01, min(3.0, usable_width / window.canvas.canvas_size.width))
+
+
+def test_detected_usb_display_uses_fit_width_working_view(window):
+    app = QApplication.instance()
+    window.resize(1400, 900)
+    window.show()
+    app.processEvents()
+
     window.canvas.auto_fit = True
     window.canvas.resetTransform()
     window.canvas.scale(0.25, 0.25)
 
     window._display_connected(DisplayInfo("VSDisplay", 1920, 480))
+    app.processEvents()
 
     assert (window.canvas.canvas_size.width, window.canvas.canvas_size.height) == (480, 1920)
     assert window.canvas.auto_fit is False
+    assert getattr(window.canvas, "auto_fit_width", False) is True
+    expected = _expected_fit_width_scale(window)
+    assert math.isclose(window.canvas.transform().m11(), expected, rel_tol=0.0, abs_tol=0.02)
+    assert math.isclose(window.canvas.transform().m22(), expected, rel_tol=0.0, abs_tol=0.02)
+
+
+def test_fit_width_tracks_window_size_but_manual_100_percent_does_not(window):
+    app = QApplication.instance()
+    window.resize(1120, 760)
+    window.show()
+    app.processEvents()
+
+    window._display_connected(DisplayInfo("VSDisplay", 1920, 480))
+    app.processEvents()
+    first_scale = window.canvas.transform().m11()
+
+    window.resize(1580, 900)
+    app.processEvents()
+    window.canvas._fit_if_enabled()
+    fitted_scale = window.canvas.transform().m11()
+
+    assert getattr(window.canvas, "auto_fit_width", False) is True
+    assert fitted_scale > first_scale
+    assert math.isclose(fitted_scale, _expected_fit_width_scale(window), rel_tol=0.0, abs_tol=0.02)
+
+    window._reset_zoom()
+    assert window.canvas.auto_fit is False
+    assert getattr(window.canvas, "auto_fit_width", False) is False
     assert math.isclose(window.canvas.transform().m11(), 1.0, rel_tol=0.0, abs_tol=1e-9)
-    assert math.isclose(window.canvas.transform().m22(), 1.0, rel_tol=0.0, abs_tol=1e-9)
+
+    window.resize(1260, 780)
+    app.processEvents()
+    window.canvas._fit_if_enabled()
+    assert math.isclose(window.canvas.transform().m11(), 1.0, rel_tol=0.0, abs_tol=1e-9)
 
 
 def test_portrait_status_branding_is_present_but_status_remains_primary():
