@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply:
-    if: startsWith(github.event.head_commit.message, 'ci: apply status orientation polish')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
