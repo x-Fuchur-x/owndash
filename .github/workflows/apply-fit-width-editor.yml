@@ -1,0 +1,80 @@
+name: Apply adaptive fit-width editor view
+
+on:
+  push:
+    branches:
+      - feat/autostart-display-resume
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
+      - run: python -m pip install --upgrade pip pytest .
+      - name: Apply professional editor zoom modes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          canvas_path = Path('src/owndash/gui/canvas.py')
+          canvas = canvas_path.read_text()
+          replacements = {
+              '        self.auto_fit = True\n        self.layout_bounds = QRectF(0, 0, self.canvas_size.width, self.canvas_size.height)\n':
+                  '        self.auto_fit = True\n        self.auto_fit_width = False\n        self.layout_bounds = QRectF(0, 0, self.canvas_size.width, self.canvas_size.height)\n',
+              '''    def fit_canvas(self) -> None:\n        """Show the entire working area without changing the dashboard itself."""\n        self.auto_fit = True\n        self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)\n\n    def resizeEvent(self, event) -> None:  # noqa: ANN001\n        super().resizeEvent(event)\n        if self.auto_fit:\n            QTimer.singleShot(0, self._fit_if_enabled)\n\n    def _fit_if_enabled(self) -> None:\n        if self.auto_fit:\n            self.fit_canvas()\n''':
+                  '''    def fit_canvas(self) -> None:\n        """Show the entire working area without changing the dashboard itself."""\n        self.auto_fit = True\n        self.auto_fit_width = False\n        self.setAlignment(Qt.AlignCenter)\n        self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)\n\n    def fit_canvas_width(self) -> None:\n        """Fit the dashboard width for comfortable editing while keeping vertical scrolling."""\n        self.auto_fit = False\n        self.auto_fit_width = True\n        gutter = 24\n        usable_width = max(1, self.viewport().width() - gutter * 2)\n        target = max(0.01, min(3.0, usable_width / max(1, self.canvas_size.width)))\n        self.resetTransform()\n        self.scale(target, target)\n        self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)\n\n    def resizeEvent(self, event) -> None:  # noqa: ANN001\n        super().resizeEvent(event)\n        if self.auto_fit or self.auto_fit_width:\n            QTimer.singleShot(0, self._fit_if_enabled)\n\n    def _fit_if_enabled(self) -> None:\n        if self.auto_fit_width:\n            self.fit_canvas_width()\n        elif self.auto_fit:\n            self.fit_canvas()\n''',
+          }
+          for old, new in replacements.items():
+              count = canvas.count(old)
+              if count != 1:
+                  raise SystemExit(f'canvas replacement count={count} for {old[:80]!r}')
+              canvas = canvas.replace(old, new)
+          canvas_path.write_text(canvas)
+
+          main_path = Path('src/owndash/gui/main_window.py')
+          main = main_path.read_text()
+          replacements = {
+              '''        zoom_reset = QAction("100 %", self)\n        zoom_reset.triggered.connect(self._reset_zoom)\n        zoom_fit = QAction("Einpassen", self)\n        zoom_fit.triggered.connect(self.canvas.fit_canvas)\n''':
+                  '''        zoom_reset = QAction("100 %", self)\n        zoom_reset.setToolTip("Pixelgenaue 1:1-Ansicht")\n        zoom_reset.triggered.connect(self._reset_zoom)\n        zoom_width = QAction("Breite", self)\n        zoom_width.setToolTip("Arbeitsfläche an die Editorbreite anpassen")\n        zoom_width.triggered.connect(self.canvas.fit_canvas_width)\n        zoom_fit = QAction("Einpassen", self)\n        zoom_fit.setToolTip("Gesamtes Dashboard anzeigen")\n        zoom_fit.triggered.connect(self.canvas.fit_canvas)\n''',
+              '''        toolbar.addAction(zoom_out)\n        toolbar.addAction(zoom_reset)\n        toolbar.addAction(zoom_fit)\n        toolbar.addAction(zoom_in)\n''':
+                  '''        toolbar.addAction(zoom_out)\n        toolbar.addAction(zoom_reset)\n        toolbar.addAction(zoom_width)\n        toolbar.addAction(zoom_fit)\n        toolbar.addAction(zoom_in)\n''',
+              '''        view_menu.addAction(zoom_out)\n        view_menu.addAction(zoom_reset)\n        view_menu.addAction(zoom_fit)\n        view_menu.addAction(zoom_in)\n''':
+                  '''        view_menu.addAction(zoom_out)\n        view_menu.addAction(zoom_reset)\n        view_menu.addAction(zoom_width)\n        view_menu.addAction(zoom_fit)\n        view_menu.addAction(zoom_in)\n''',
+              '''            # Once OwnDash knows the real panel geometry, edit it at native\n            # pixel scale. This is exactly the same 100% view as the toolbar\n            # action and intentionally leaves scrolling available for tall\n            # portrait canvases such as the 480x1920 VSDisplay.\n            self._reset_zoom()\n''':
+                  '''            # A tall case display is easiest to edit width-fitted: the\n            # dashboard uses the available editor width while vertical scrolling\n            # remains available. 100% stays a separate, strictly pixel-accurate\n            # 1:1 mode for users who explicitly choose it.\n            self.canvas.fit_canvas_width()\n''',
+              '''    def _zoom_canvas(self, factor: float) -> None:\n        current = self.canvas.transform().m11()\n        self.canvas.auto_fit = False\n        target = max(0.01, min(3.0, current * factor))\n''':
+                  '''    def _zoom_canvas(self, factor: float) -> None:\n        current = self.canvas.transform().m11()\n        self.canvas.auto_fit = False\n        self.canvas.auto_fit_width = False\n        target = max(0.01, min(3.0, current * factor))\n''',
+              '''    def _reset_zoom(self) -> None:\n        self.canvas.auto_fit = False\n        self.canvas.resetTransform()\n        self.statusBar().showMessage("Vorschau: 100 %", 1500)\n''':
+                  '''    def _reset_zoom(self) -> None:\n        self.canvas.auto_fit = False\n        self.canvas.auto_fit_width = False\n        self.canvas.resetTransform()\n        self.canvas.setAlignment(Qt.AlignHCenter | Qt.AlignTop)\n        self.statusBar().showMessage("Vorschau: 100 % · 1:1", 1500)\n''',
+          }
+          for old, new in replacements.items():
+              count = main.count(old)
+              if count != 1:
+                  raise SystemExit(f'main replacement count={count} for {old[:80]!r}')
+              main = main.replace(old, new)
+          main_path.write_text(main)
+          PY
+      - name: Install patched working tree
+        run: python -m pip install -e .
+      - run: python -m compileall -q src tests
+      - run: pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: bash -n run-owndash.sh
+      - name: Commit verified implementation and remove temporary workflow
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git rm .github/workflows/apply-fit-width-editor.yml
+          git add src/owndash/gui/canvas.py src/owndash/gui/main_window.py tests/test_display_editor_native_zoom.py
+          git commit -m "feat: add adaptive fit-width editor view"
+          git push origin HEAD:feat/autostart-display-resume
