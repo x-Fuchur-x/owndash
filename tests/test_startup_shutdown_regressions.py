@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -11,15 +9,7 @@ from owndash.core.system_state import SystemState
 from owndash.gui.app_window import SafeShutdownWindow
 from owndash.service import startup
 from owndash.service.autostart import autostart_path, set_autostart_enabled
-from owndash.service.system_state_linux import _LogindDbusSource
-
-
-class FakeVariant:
-    def __init__(self, value):
-        self._value = value
-
-    def variant(self):
-        return self._value
+from owndash.service.session_shutdown import prepare_window_for_session_shutdown
 
 
 class RecordingStreamer:
@@ -82,33 +72,14 @@ def test_startup_cli_consumes_minimized_flag_before_qt_sees_it():
     assert qt_argv == ["OwnDash.AppImage", "--platform", "offscreen"]
 
 
-def test_late_shutdown_metadata_upgrades_pending_transition_to_restart(monkeypatch):
-    source = _LogindDbusSource()
-    events: list[tuple[str, bool]] = []
-    source._callback = lambda kind, enabled: events.append((kind, enabled))
-    monkeypatch.setattr(source, "_scheduled_shutdown_kind", lambda: None)
-
-    source._on_prepare_for_shutdown(True)
-    source._on_prepare_for_shutdown_with_metadata(
-        True,
-        {"type": FakeVariant("reboot")},
-    )
-
-    assert events == [
-        ("terminal_pending", True),
-        ("terminal_pending", False),
-        ("restart", True),
-    ]
-
-
-def test_desktop_session_commit_pushes_transition_frame_before_logout(state_window):
+def test_kde_session_handoff_pushes_transition_frame_before_logout(state_window):
     window = state_window
     streamer = RecordingStreamer()
     window.display_streamer = streamer
     window.display_connected = True
     window.display_timer.start(250)
 
-    window._handle_session_commit(SimpleNamespace())
+    assert prepare_window_for_session_shutdown(window) is True
 
     assert window._session_shutdown_requested is True
     assert window._system_state_runtime.visible_state is SystemState.TRANSITIONING
@@ -117,3 +88,14 @@ def test_desktop_session_commit_pushes_transition_frame_before_logout(state_wind
     payload, timeout = streamer.final_frames[0]
     assert payload
     assert timeout <= 0.35
+
+
+def test_kde_session_handoff_is_idempotent(state_window):
+    window = state_window
+    streamer = RecordingStreamer()
+    window.display_streamer = streamer
+    window.display_connected = True
+
+    assert prepare_window_for_session_shutdown(window) is True
+    assert prepare_window_for_session_shutdown(window) is False
+    assert len(streamer.final_frames) == 1
