@@ -201,7 +201,8 @@ EN: dict[str, str] = {
     "Temperatur": "Temperature", "Leistung": "Power", "Uhr": "Clock",
     "Tacho · CPU": "Gauge · CPU", "Tacho · GPU": "Gauge · GPU",
     "Tacho · Temperatur": "Gauge · Temperature", "Tacho · Leistung": "Gauge · Power",
-    "Diagramm": "Chart", "Text": "Text",
+    "Diagramm": "Chart", "Text": "Text", "Bild": "Image",
+    "CPU Verlauf": "CPU history", "GPU Verlauf": "GPU history",
 }
 
 def resolved_language(preference: str) -> str:

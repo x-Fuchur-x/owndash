@@ -66,6 +66,26 @@ from owndash.widgets.registry import DEFAULT_WIDGETS, widget_type
 from .canvas import DashboardCanvas, WidgetItem
 
 
+_BUILTIN_WIDGET_TITLE_SOURCES: dict[str, tuple[str, ...]] = {
+    "cpu": ("CPU",),
+    "gpu": ("GPU",),
+    "memory": ("Arbeitsspeicher", "RAM"),
+    "storage": ("Speicher",),
+    "network": ("Netzwerk",),
+    "temperature": ("Temperatur",),
+    "power": ("Leistung",),
+    "clock": ("Uhr",),
+    "gauge_cpu": ("Tacho · CPU", "CPU"),
+    "gauge_gpu": ("Tacho · GPU", "GPU"),
+    "gauge_temp": ("Tacho · Temperatur", "Temperatur", "TEMP"),
+    "gauge_power": ("Tacho · Leistung", "Leistung"),
+    "chart": ("Diagramm", "CPU Verlauf", "GPU Verlauf"),
+    "sparkline": ("Sparkline", "Temperatur"),
+    "text": ("Text",),
+    "image": ("Bild",),
+}
+
+
 
 
 
@@ -195,6 +215,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self._t("Bereit · Live-Vorschau aktiv"))
 
         self._load_default_if_present()
+        self._retranslate_builtin_widget_titles()
         if not self.canvas.widget_items():
             self._apply_theme(DEFAULT_THEME_NAME, commit=False)
 
@@ -229,6 +250,37 @@ class MainWindow(QMainWindow):
     def _t(self, text: str) -> str:
         return tr(text, self.language)
 
+    def _localized_builtin_widget_title(self, kind: str, title: str) -> str:
+        """Translate OwnDash-provided widget titles without touching custom names."""
+        for source in _BUILTIN_WIDGET_TITLE_SOURCES.get(kind, ()):
+            if title in {source, tr(source, "de"), tr(source, "en")}:
+                return self._t(source)
+        return title
+
+    def _retranslate_builtin_widget_titles(self) -> None:
+        changed = False
+        if hasattr(self, "canvas"):
+            for item in self.canvas.widget_items():
+                translated = self._localized_builtin_widget_title(item.kind, item.label)
+                if translated != item.label:
+                    item.label = translated
+                    item.update()
+                    changed = True
+        for page in getattr(self, "dashboard_pages", []):
+            for widget in page.widgets:
+                translated = self._localized_builtin_widget_title(widget.kind, widget.title)
+                if translated != widget.title:
+                    widget.title = translated
+                    changed = True
+        if changed and hasattr(self, "canvas"):
+            self.canvas.viewport().update()
+            if hasattr(self, "title_edit"):
+                selected = self._selected_widget()
+                if selected is not None:
+                    self.title_edit.setText(selected.label)
+            if hasattr(self, "layers_list"):
+                self._refresh_layers()
+
     def _retranslate_ui(self) -> None:
         retranslate_tree(self, self.language)
         if hasattr(self, "widget_list"):
@@ -237,6 +289,7 @@ class MainWindow(QMainWindow):
                 definition = widget_type(str(item.data(Qt.UserRole)))
                 if definition is not None:
                     item.setText(self._t(definition.label))
+        self._retranslate_builtin_widget_titles()
         self.setWindowTitle("")
         if hasattr(self, "tray_icon"):
             self.tray_icon.setToolTip("OwnDash")

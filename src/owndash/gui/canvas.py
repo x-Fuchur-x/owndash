@@ -924,8 +924,13 @@ class DashboardCanvas(QGraphicsView):
         self.setAlignment(Qt.AlignCenter)
         self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)
 
-    def fit_canvas_width(self) -> None:
-        """Fit the dashboard width for comfortable editing while keeping vertical scrolling."""
+    def fit_canvas_width(self, *, anchor_top_y: float | None = None) -> None:
+        """Fit dashboard width and keep vertical navigation predictable.
+
+        Entering width-fit starts at the dashboard top. During a window resize
+        the caller can preserve the scene coordinate that was visible at the
+        top edge, so maximizing/restoring the window does not jump elsewhere.
+        """
         self.auto_fit = False
         self.auto_fit_width = True
         gutter = 24
@@ -935,14 +940,30 @@ class DashboardCanvas(QGraphicsView):
         self.scale(target, target)
         self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
+        bar = self.verticalScrollBar()
+        if anchor_top_y is None:
+            bar.setValue(bar.minimum())
+        else:
+            bar.setValue(round(max(0.0, anchor_top_y) * target))
+
     def resizeEvent(self, event) -> None:  # noqa: ANN001
+        anchor_top_y = None
+        if self.auto_fit_width:
+            anchor_top_y = self.mapToScene(self.viewport().rect().topLeft()).y()
         super().resizeEvent(event)
-        if self.auto_fit or self.auto_fit_width:
+        if self.auto_fit_width:
+            QTimer.singleShot(0, lambda y=anchor_top_y: self._fit_width_after_resize(y))
+        elif self.auto_fit:
             QTimer.singleShot(0, self._fit_if_enabled)
+
+    def _fit_width_after_resize(self, anchor_top_y: float | None) -> None:
+        if self.auto_fit_width:
+            self.fit_canvas_width(anchor_top_y=anchor_top_y)
 
     def _fit_if_enabled(self) -> None:
         if self.auto_fit_width:
-            self.fit_canvas_width()
+            anchor_top_y = self.mapToScene(self.viewport().rect().topLeft()).y()
+            self.fit_canvas_width(anchor_top_y=anchor_top_y)
         elif self.auto_fit:
             self.fit_canvas()
 
