@@ -31,7 +31,9 @@ from owndash.hardware.usb_setup import (
     probe_artinchip_usb,
 )
 from owndash.i18n import resolved_language
+from owndash.service.autostart import set_autostart_enabled
 from owndash.service.idle_state import IdleStateMonitor
+from owndash.service.startup import should_auto_start_display
 from owndash.service.system_state_linux import LinuxSystemStateAdapter
 from owndash.service.system_state_runtime import SystemStateRuntime
 
@@ -106,6 +108,7 @@ class SafeShutdownWindow(MainWindow):
             lambda idle: self._handle_system_state_condition(SystemState.IDLE, idle)
         )
         self._apply_system_state_preferences()
+        QTimer.singleShot(1200, self._auto_start_display_if_enabled)
 
         app = QApplication.instance()
         if app is not None:
@@ -446,6 +449,22 @@ class SafeShutdownWindow(MainWindow):
         update_hint.setWordWrap(True)
         outer.addWidget(update_hint)
 
+        startup_box = QGroupBox(self._t("Systemstart"), dialog)
+        startup_layout = QVBoxLayout(startup_box)
+        launch_at_login_check = QCheckBox(self._t("OwnDash mit dem System starten"), startup_box)
+        launch_at_login_check.setChecked(self.preferences.launch_at_login)
+        startup_layout.addWidget(launch_at_login_check)
+        display_on_launch_check = QCheckBox(self._t("USB-Display beim Start automatisch verbinden"), startup_box)
+        display_on_launch_check.setChecked(self.preferences.start_display_on_launch)
+        startup_layout.addWidget(display_on_launch_check)
+        startup_hint = QLabel(
+            self._t("Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen."),
+            startup_box,
+        )
+        startup_hint.setWordWrap(True)
+        startup_layout.addWidget(startup_hint)
+        outer.addWidget(startup_box)
+
         system_state_settings = SystemStateSettingsWidget(
             self.preferences,
             dialog,
@@ -473,7 +492,20 @@ class SafeShutdownWindow(MainWindow):
 
         self.preferences.language = str(language_combo.currentData())
         self.preferences.appearance = str(appearance_combo.currentData())
+        requested_launch_at_login = launch_at_login_check.isChecked()
+        try:
+            set_autostart_enabled(requested_launch_at_login)
+        except OSError as exc:
+            QMessageBox.warning(
+                self,
+                self._t("Systemstart"),
+                f"{self._t('Autostart konnte nicht eingerichtet werden')}: {exc}",
+            )
+            return
+
         self.preferences.check_updates = update_check.isChecked()
+        self.preferences.launch_at_login = requested_launch_at_login
+        self.preferences.start_display_on_launch = display_on_launch_check.isChecked()
         system_state_settings.apply_to(self.preferences)
         save_preferences(self.preferences)
 
@@ -487,6 +519,21 @@ class SafeShutdownWindow(MainWindow):
 
         if self.preferences.check_updates and not was_checking_updates:
             self._schedule_update_check()
+
+    def _auto_start_display_if_enabled(self) -> None:
+        streamer = self.display_streamer
+        streamer_running = bool(streamer is not None and streamer.running)
+        if not should_auto_start_display(
+            enabled=self.preferences.start_display_on_launch,
+            setup_completed=self.preferences.setup_completed,
+            backend_key=self.display_backend_key,
+            streamer_running=streamer_running,
+        ):
+            return
+        self.display_action.blockSignals(True)
+        self.display_action.setChecked(True)
+        self.display_action.blockSignals(False)
+        self._start_display_stream()
 
     def _apply_system_state_preferences(self) -> None:
         """Apply preferences without adding any periodic polling."""

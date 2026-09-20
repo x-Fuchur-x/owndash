@@ -13,6 +13,8 @@ class AppPreferences:
     appearance: str = "system"     # system | dark | light
     setup_completed: bool = False   # first-run compatibility assistant
     check_updates: bool = True      # background GitHub release check
+    launch_at_login: bool = False    # XDG desktop autostart
+    start_display_on_launch: bool = False  # reconnect USB display after app launch
     system_state_screens: bool = True
     system_state_theme: str = "owndash"  # owndash | bazzite-inspired
     idle_mode: bool = True
@@ -50,6 +52,8 @@ class AppPreferences:
             appearance=appearance,
             setup_completed=bool(raw.get("setup_completed", False)),
             check_updates=bool(raw.get("check_updates", True)),
+            launch_at_login=bool(raw.get("launch_at_login", False)),
+            start_display_on_launch=bool(raw.get("start_display_on_launch", False)),
             system_state_screens=bool(raw.get("system_state_screens", True)),
             system_state_theme=theme,
             idle_mode=bool(raw.get("idle_mode", True)),

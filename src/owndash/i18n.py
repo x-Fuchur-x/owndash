@@ -142,6 +142,12 @@ EN: dict[str, str] = {
     "Sprache und Erscheinungsbild werden sofort angewendet.":
         "Language and appearance are applied immediately.",
     "Systemeinstellung": "System setting",
+    "Systemstart": "Startup",
+    "OwnDash mit dem System starten": "Start OwnDash with the system",
+    "USB-Display beim Start automatisch verbinden": "Automatically connect USB display on startup",
+    "Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen.":
+        "Also works with the portable AppImage version. Standard monitors are not taken over automatically for safety.",
+    "Autostart konnte nicht eingerichtet werden": "Autostart could not be configured",
     "Systemzustandsanzeigen": "System state screens",
     "Systemzustände auf dem Display anzeigen": "Show system states on the display",
     "Bazzite-inspiriert": "Bazzite-inspired",
