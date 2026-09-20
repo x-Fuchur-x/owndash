@@ -33,7 +33,8 @@ class _LogindDbusSource(QObject):
 
     It subscribes to event signals; there is no polling loop. Restart is only
     reported when there is positive evidence (a scheduled reboot or a systemd
-    reboot target job). Ambiguous PrepareForShutdown events remain shutdowns.
+    reboot target job). Ambiguous PrepareForShutdown events stay neutral until
+    systemd exposes whether the machine is rebooting or powering off.
     """
 
     _LOGIN_SERVICE = "org.freedesktop.login1"
@@ -49,7 +50,8 @@ class _LogindDbusSource(QObject):
         self._callback: SourceCallback | None = None
         self._bus = None
         self._session_path = ""
-        self._terminal_kind = "shutdown"
+        self._terminal_kind = "terminal_pending"
+        self._terminal_active = False
         self._pending_terminal_kind: str | None = None
         self._connections: list[tuple[str, str, str, str, str]] = []
 
@@ -130,7 +132,8 @@ class _LogindDbusSource(QObject):
         self._bus = None
         self._session_path = ""
         self._pending_terminal_kind = None
-        self._terminal_kind = "shutdown"
+        self._terminal_active = False
+        self._terminal_kind = "terminal_pending"
 
     def _connect(self, service: str, path: str, interface: str, name: str, slot: str) -> bool:
         assert self._bus is not None
@@ -244,23 +247,38 @@ class _LogindDbusSource(QObject):
     @Slot("uint", QDBusObjectPath, str)
     def _on_job_new(self, _job_id: int, _job_path: object, unit: str) -> None:
         unit = str(unit)
+        new_kind: str | None = None
         if unit in {"reboot.target", "soft-reboot.target", "kexec.target"}:
-            self._pending_terminal_kind = "restart"
+            new_kind = "restart"
         elif unit in {"poweroff.target", "halt.target"}:
-            self._pending_terminal_kind = "shutdown"
+            new_kind = "shutdown"
+        if new_kind is None:
+            return
+
+        self._pending_terminal_kind = new_kind
+        if self._terminal_active and self._terminal_kind == "terminal_pending":
+            self._emit("terminal_pending", False)
+            self._terminal_kind = new_kind
+            self._pending_terminal_kind = None
+            self._emit(new_kind, True)
 
     @Slot(bool)
     def _on_prepare_for_shutdown(self, start: bool) -> None:
         if start:
+            self._terminal_active = True
             self._terminal_kind = (
                 self._pending_terminal_kind
                 or self._scheduled_shutdown_kind()
-                or "shutdown"
+                or "terminal_pending"
             )
             self._pending_terminal_kind = None
-        self._emit(self._terminal_kind, bool(start))
-        if not start:
-            self._terminal_kind = "shutdown"
+            self._emit(self._terminal_kind, True)
+            return
+
+        self._emit(self._terminal_kind, False)
+        self._terminal_active = False
+        self._terminal_kind = "terminal_pending"
+        self._pending_terminal_kind = None
 
 
 class LinuxSystemStateAdapter(QObject):
@@ -272,6 +290,7 @@ class LinuxSystemStateAdapter(QObject):
     _EVENT_TO_STATE = {
         "sleep": SystemState.SUSPENDING,
         "lock": SystemState.LOCKED,
+        "terminal_pending": SystemState.TRANSITIONING,
         "shutdown": SystemState.SHUTTING_DOWN,
         "restart": SystemState.RESTARTING,
     }
@@ -325,11 +344,12 @@ class LinuxSystemStateAdapter(QObject):
             log.debug("Ignoring unknown system-state event: %s", kind)
             return
 
-        if enabled and state in {SystemState.SHUTTING_DOWN, SystemState.RESTARTING}:
-            other = (
-                SystemState.RESTARTING
-                if state is SystemState.SHUTTING_DOWN
-                else SystemState.SHUTTING_DOWN
-            )
-            self._set_condition(other, False)
+        terminal_states = {
+            SystemState.TRANSITIONING,
+            SystemState.SHUTTING_DOWN,
+            SystemState.RESTARTING,
+        }
+        if enabled and state in terminal_states:
+            for other in terminal_states - {state}:
+                self._set_condition(other, False)
         self._set_condition(state, enabled)

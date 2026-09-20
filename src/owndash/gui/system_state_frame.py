@@ -87,6 +87,7 @@ _STATE_ACCENTS = {
     SystemState.IDLE: "#50f38a",
     SystemState.LOCKED: "#00e5ff",
     SystemState.SUSPENDING: "#63d8ff",
+    SystemState.TRANSITIONING: "#78cfff",
     SystemState.SHUTTING_DOWN: "#ff9c62",
     SystemState.RESTARTING: "#cf7cff",
 }
@@ -95,6 +96,7 @@ _STATE_KEYS = {
     SystemState.IDLE: ("idle", ""),
     SystemState.LOCKED: ("system_locked", ""),
     SystemState.SUSPENDING: ("standby", "entering_standby"),
+    SystemState.TRANSITIONING: ("system_transition", "ending_session"),
     SystemState.SHUTTING_DOWN: ("shutting_down", ""),
     SystemState.RESTARTING: ("restarting", ""),
 }
@@ -192,6 +194,8 @@ def _state_text(state: SystemState, strings: dict[str, str]) -> tuple[str, str]:
         "system_locked": "System locked",
         "standby": "Standby",
         "entering_standby": "Entering standby",
+        "system_transition": "System transition",
+        "ending_session": "OwnDash is ending the current session.",
         "shutting_down": "Shutting down",
         "restarting": "Restarting",
     }

@@ -238,3 +238,24 @@ def test_locked_hint_properties_slot_has_exact_dbus_signature():
     source = _LogindDbusSource()
     signature = "_on_session_properties_changed(QString,QVariantMap,QStringList)"
     assert source.metaObject().indexOfSlot(signature) >= 0
+
+
+def test_ambiguous_shutdown_stays_neutral_until_late_reboot_evidence(monkeypatch):
+    source = _LogindDbusSource()
+    events = []
+    source._callback = lambda kind, enabled: events.append((kind, enabled))
+    monkeypatch.setattr(source, "_scheduled_shutdown_kind", lambda: None)
+
+    source._on_prepare_for_shutdown(True)
+    assert events == [("terminal_pending", True)]
+
+    source._on_job_new(1, object(), "reboot.target")
+    assert events == [
+        ("terminal_pending", True),
+        ("terminal_pending", False),
+        ("restart", True),
+    ]
+
+
+def test_transitioning_state_exists_for_ambiguous_terminal_phase():
+    assert "transitioning" in {state.value for state in SystemState}

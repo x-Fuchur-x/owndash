@@ -570,6 +570,8 @@ class SafeShutdownWindow(MainWindow):
             "system_locked": self._t("System gesperrt"),
             "standby": self._t("Standby"),
             "entering_standby": self._t("Standby wird vorbereitet"),
+            "system_transition": self._t("Systemwechsel"),
+            "ending_session": self._t("OwnDash beendet die aktuelle Sitzung."),
             "shutting_down": self._t("Herunterfahren"),
             "restarting": self._t("Neustart"),
         }

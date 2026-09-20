@@ -17,6 +17,8 @@ STRINGS = {
     "system_locked": "System locked",
     "shutting_down": "Shutting down",
     "restarting": "Restarting",
+    "system_transition": "System transition",
+    "ending_session": "OwnDash is ending the current session.",
     "idle": "Idle",
 }
 
@@ -299,3 +301,12 @@ def test_invalid_dimensions_are_rejected():
             pass
         else:
             raise AssertionError("non-positive dimensions must be rejected")
+
+
+def test_neutral_terminal_transition_renders_when_shutdown_kind_is_unknown():
+    states = {state.value: state for state in SystemState}
+    assert "transitioning" in states
+    image = render(480, 1920, states["transitioning"])
+    assert not image.isNull()
+    assert image.width() == 480
+    assert image.height() == 1920

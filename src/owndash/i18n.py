@@ -152,6 +152,8 @@ EN: dict[str, str] = {
     "Standby": "Standby",
     "Standby wird vorbereitet": "Entering standby",
     "System gesperrt": "System locked",
+    "Systemwechsel": "System transition",
+    "OwnDash beendet die aktuelle Sitzung.": "OwnDash is ending the current session.",
     "Herunterfahren": "Shutting down",
     "Neustart": "Restarting",
     "Display auswählen": "Select display", "Display auswählen …": "Select display …",
