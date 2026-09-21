@@ -133,6 +133,6 @@ def test_portrait_status_branding_is_present_but_status_remains_primary():
     assert layout.brand_icon_rect.width() >= 480 * 0.12
     assert layout.status_font_px > layout.wordmark_font_px
     assert layout.status_font_px <= layout.wordmark_font_px * 1.35
-    assert layout.wordmark_rect.width() >= 480 * 0.76
+    assert 480 * 0.60 <= layout.wordmark_rect.width() <= 480 * 0.68
     assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
     assert layout.wordmark_rect.bottom() < layout.status_rect.top()
