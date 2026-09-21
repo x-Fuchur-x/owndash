@@ -6,6 +6,7 @@ on:
       - feat/autostart-display-resume
     paths:
       - tools/patch_status_reference_v11.py
+      - tools/patch_status_reference_tests_v11.py
       - .github/workflows/status-reference-v11.yml
 
 jobs:
@@ -24,7 +25,9 @@ jobs:
           sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libfontconfig1 libfreetype6 libdbus-1-3 libx11-6 >/dev/null
 
       - name: Apply approved reference composition
-        run: python3 tools/patch_status_reference_v11.py
+        run: |
+          python3 tools/patch_status_reference_v11.py
+          python3 tools/patch_status_reference_tests_v11.py
 
       - name: Verify approved reference tests
         env:
@@ -40,7 +43,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/owndash/gui/system_state_frame.py
+          git add src/owndash/gui/system_state_frame.py tests/test_system_state_frame.py tests/test_system_state_frame_v8.py tests/test_system_state_frame_v9.py tests/test_system_state_frame_v10.py tests/test_system_state_orientation_polish.py
           git commit -m "feat: match approved status screen reference" || true
           git push origin HEAD:feat/autostart-display-resume
 
