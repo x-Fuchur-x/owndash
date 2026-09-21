@@ -16,10 +16,14 @@ text = text.replace(
 text = text.replace('context_top=height * 0.715,', 'context_top=height * 0.725,', 1)
 frame.write_text(text)
 
-# Supersede historical visual contracts from v8/v9. Functional behavior tests
+# Supersede historical visual contracts from v5-v9. Functional behavior tests
 # remain untouched; only assertions describing the discarded composition move
 # to the approved v10 geometry.
 replacements = {
+    "tests/test_system_state_frame_v5.py": [
+        ("test_portrait_v5_brand_icon_is_visible_and_separate_from_wordmark", "test_v10_brand_icon_is_visible_above_wordmark_inside_ring"),
+        ("< radius * 0.72", "< radius * 0.82"),
+    ],
     "tests/test_system_state_frame_v8.py": [
         ("test_v9_portrait_branding_is_present_without_colliding_with_status", "test_v10_portrait_branding_is_present_without_colliding_with_status"),
         ("assert width * 0.72 <= layout.hud_diameter <= width * 0.78", "assert width * 0.82 <= layout.hud_diameter <= width * 0.86"),
@@ -57,3 +61,13 @@ for filename, pairs in replacements.items():
     for old, new in pairs:
         text = text.replace(old, new)
     path.write_text(text)
+
+# v6 asserted legacy side-rail bridge pixels. v10 deliberately removes those
+# rails, so the regression now verifies that the compact HUD itself renders and
+# remains animated without depending on rail junctions.
+v6 = Path("tests/test_system_state_frame_v6.py")
+t = v6.read_text()
+start = t.index("def test_v6_rail_ring_junctions_have_phase_independent_bridge_segments():")
+replacement = '''def test_v10_compact_hud_animates_without_legacy_rail_bridges():\n    layout = _portrait_layout(480, 1920)\n    phase_a = _render(0.0)\n    phase_b = _render(0.5)\n\n    assert phase_a.size().width() == 480\n    assert phase_a.size().height() == 1920\n    assert phase_b.size() == phase_a.size()\n    assert bytes(phase_a.constBits()) != bytes(phase_b.constBits())\n    assert layout.hud_diameter >= 480 * 0.82\n'''
+t = t[:start] + replacement + "\n"
+v6.write_text(t)
