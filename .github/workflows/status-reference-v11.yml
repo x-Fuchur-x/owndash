@@ -1,0 +1,264 @@
+name: Approved Status Reference Build
+
+on:
+  push:
+    branches:
+      - feat/autostart-display-resume
+    paths:
+      - .github/workflows/status-reference-v11.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/autostart-display-resume
+
+      - name: Apply approved reference composition
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/owndash/gui/system_state_frame.py')
+          text = path.read_text()
+
+          text = text.replace(
+          '''    tagline_rect: QRectF\n    bar_rect: QRectF\n    status_rect: QRectF\n    status_font_px: float\n    context_top: float\n    floor_horizon: float\n''',
+          '''    tagline_rect: QRectF\n    separator_y: float\n    state_icon_rect: QRectF\n    status_rect: QRectF\n    status_font_px: float\n    detail_rect: QRectF\n    bar_rect: QRectF\n    context_top: float\n    floor_horizon: float\n''')
+
+          old_layout = re.compile(r'def _portrait_layout\(width: int, height: int\) -> _PortraitLayout:\n.*?\n\ndef _portrait_brand_icon_rect', re.S)
+          new_layout = '''def _portrait_layout(width: int, height: int) -> _PortraitLayout:\n    """Geometry derived from the approved portrait reference image."""\n    width = int(width)\n    height = int(height)\n    if width <= 0 or height <= 0:\n        raise ValueError("portrait layout dimensions must be positive")\n\n    # The reference has three independent visual zones: brand ring, state block,\n    # and clock/footer.  None of them overlap.  Values are tuned for 480x1920.\n    center = QPointF(width * 0.50, height * 0.235)\n    diameter = width * 0.88\n    icon_side = width * 0.235\n    return _PortraitLayout(\n        hud_center=center,\n        hud_diameter=diameter,\n        brand_icon_rect=QRectF(\n            width * 0.50 - icon_side / 2.0,\n            height * 0.165,\n            icon_side,\n            icon_side,\n        ),\n        wordmark_rect=QRectF(width * 0.10, height * 0.242, width * 0.80, height * 0.050),\n        wordmark_font_px=width * 0.135,\n        tagline_rect=QRectF(width * 0.22, height * 0.296, width * 0.56, height * 0.020),\n        separator_y=height * 0.356,\n        state_icon_rect=QRectF(width * 0.405, height * 0.382, width * 0.19, height * 0.060),\n        status_rect=QRectF(width * 0.075, height * 0.452, width * 0.85, height * 0.060),\n        status_font_px=width * 0.103,\n        detail_rect=QRectF(width * 0.12, height * 0.516, width * 0.76, height * 0.032),\n        bar_rect=QRectF(width * 0.245, height * 0.574, width * 0.51, max(7.0, width * 0.015)),\n        context_top=height * 0.672,\n        floor_horizon=height * 0.885,\n    )\n\ndef _portrait_brand_icon_rect'''
+          text, count = old_layout.subn(new_layout, text, count=1)
+          assert count == 1, f'layout replacement count={count}'
+
+          anchor = '\ndef _draw_state_icon(\n'
+          helpers = r'''
+
+def _portrait_state_copy(state: SystemState, title: str, detail: str) -> tuple[str, str]:
+    """Turn localized runtime copy into the approved compact reference copy."""
+    lowered = title.strip().lower()
+    english = any(token in lowered for token in ("locked", "shutting", "restart", "transition", "idle"))
+    if state is SystemState.LOCKED:
+        return ("LOCKED", "System is locked") if english else ("GESPERRT", "System ist gesperrt")
+    if state is SystemState.SHUTTING_DOWN:
+        return ("SHUTTING DOWN", "System is shutting down safely") if english else ("HERUNTERFAHREN", "System wird sicher beendet")
+    if state is SystemState.RESTARTING:
+        return ("RESTARTING", "System is restarting") if english else ("NEUSTART", "System wird neu gestartet")
+    if state is SystemState.SUSPENDING:
+        return ("STANDBY", "Entering standby") if english else ("STANDBY", "Standby wird vorbereitet")
+    if state is SystemState.TRANSITIONING:
+        return ("TRANSITION", "Ending current session") if english else ("SYSTEMWECHSEL", "Aktuelle Sitzung wird beendet")
+    if state is SystemState.IDLE:
+        return ("IDLE", "Waiting for activity") if english else ("BEREIT", "Warten auf Aktivität")
+    return title.upper(), detail or _fallback_state_detail(state, title)
+
+
+def _draw_reference_side_frame(painter: QPainter, width: int, height: int, short: float, palette: _Theme) -> None:
+    """Draw the independent cyan/magenta enclosure from the approved reference."""
+    painter.save()
+    for side, color_name in ((1, palette.cyan), (-1, palette.magenta)):
+        color = QColor(color_name)
+        color.setAlpha(225)
+        x_outer = width * (0.055 if side > 0 else 0.945)
+        x_inner = width * (0.095 if side > 0 else 0.905)
+        direction = 1 if side > 0 else -1
+        top_path = QPainterPath(QPointF(x_outer, 0))
+        top_path.lineTo(QPointF(x_outer, height * 0.060))
+        top_path.lineTo(QPointF(x_inner, height * 0.095))
+        top_path.lineTo(QPointF(x_inner, height * 0.160))
+        top_path.lineTo(QPointF(x_outer + direction * width * 0.018, height * 0.190))
+        top_path.lineTo(QPointF(x_outer + direction * width * 0.018, height * 0.705))
+        top_path.lineTo(QPointF(x_inner, height * 0.745))
+        top_path.lineTo(QPointF(x_inner, height * 0.835))
+        top_path.lineTo(QPointF(x_outer, height * 0.865))
+        top_path.lineTo(QPointF(x_outer, height * 0.930))
+        glow = QColor(color)
+        glow.setAlpha(38)
+        painter.setPen(QPen(glow, max(5.0, short * 0.020), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawPath(top_path)
+        painter.setPen(QPen(color, max(1.2, short * 0.0040), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.drawPath(top_path)
+
+        # Reference corner indicator pods.
+        dot_x = width * (0.036 if side > 0 else 0.964)
+        for base in (0.082, 0.778):
+            for idx in range(5):
+                dot = QColor(color_name)
+                dot.setAlpha(185 - idx * 12)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(dot)
+                painter.drawEllipse(QPointF(dot_x, height * base + idx * short * 0.030), short * 0.005, short * 0.005)
+    painter.restore()
+
+
+def _draw_reference_separator(painter: QPainter, width: int, y: float, short: float, palette: _Theme) -> None:
+    gradient = QLinearGradient(width * 0.24, y, width * 0.76, y)
+    gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
+    gradient.setColorAt(0.38, QColor(palette.cyan))
+    gradient.setColorAt(0.62, QColor(palette.magenta))
+    gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+    painter.save()
+    painter.setOpacity(0.18)
+    painter.setPen(QPen(QBrush(gradient), max(7.0, short * 0.017), Qt.SolidLine, Qt.RoundCap))
+    painter.drawLine(QPointF(width * 0.24, y), QPointF(width * 0.76, y))
+    painter.setOpacity(1.0)
+    painter.setPen(QPen(QBrush(gradient), max(1.4, short * 0.003), Qt.SolidLine, Qt.RoundCap))
+    painter.drawLine(QPointF(width * 0.24, y), QPointF(width * 0.76, y))
+    painter.restore()
+
+
+def _draw_reference_floor(painter: QPainter, width: int, height: int, short: float, palette: _Theme, horizon: float) -> None:
+    """Reference-style luminous floor with a curved horizon and sparse perspective lines."""
+    painter.save()
+    path = QPainterPath(QPointF(width * 0.10, horizon + short * 0.020))
+    path.quadTo(QPointF(width * 0.50, horizon - short * 0.020), QPointF(width * 0.90, horizon + short * 0.020))
+    grad = QLinearGradient(width * 0.10, horizon, width * 0.90, horizon)
+    grad.setColorAt(0.0, QColor(palette.cyan))
+    grad.setColorAt(0.50, QColor(palette.green))
+    grad.setColorAt(1.0, QColor(palette.magenta))
+    painter.setPen(QPen(QBrush(grad), max(2.0, short * 0.005), Qt.SolidLine, Qt.RoundCap))
+    painter.setBrush(Qt.NoBrush)
+    painter.drawPath(path)
+    for x_ratio, color_name in ((0.32, palette.cyan), (0.50, palette.green), (0.68, palette.magenta)):
+        color = QColor(color_name)
+        color.setAlpha(120)
+        painter.setPen(QPen(color, max(1.0, short * 0.0022)))
+        x = width * x_ratio
+        painter.drawLine(QPointF(x, horizon), QPointF(x, height * 0.965))
+    grid = QColor(palette.secondary)
+    grid.setAlpha(32)
+    painter.setPen(QPen(grid, max(1.0, short * 0.0013)))
+    for ratio in (0.915, 0.940, 0.963, 0.982):
+        painter.drawLine(QPointF(width * 0.02, height * ratio), QPointF(width * 0.98, height * ratio))
+    painter.restore()
+'''
+          assert anchor in text
+          text = text.replace(anchor, helpers + anchor, 1)
+
+          portrait_pattern = re.compile(r'    if portrait:\n.*?\n    else:\n', re.S)
+          portrait_block = r'''    if portrait:
+        layout = _portrait_layout(width, height)
+        headline, state_detail = _portrait_state_copy(state, title, detail)
+
+        # The approved reference uses a full-height enclosure independent from
+        # the hero ring.  The ring itself contains branding only.
+        _draw_reference_side_frame(painter, width, height, short, palette)
+        _draw_portrait_brand_hud(
+            painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase
+        )
+        _draw_brand_icon(painter, icon, layout.brand_icon_rect, short, palette)
+        _draw_gradient_wordmark(
+            painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px
+        )
+
+        _draw_reference_separator(painter, width, layout.separator_y, short, palette)
+        _draw_state_icon(painter, layout.state_icon_rect, state, palette, short)
+        accent = QColor(_STATE_ACCENTS[state])
+        _draw_centered_single_line(
+            painter, image, layout.status_rect, headline, layout.status_font_px,
+            palette.primary, bold=False, glow=accent.name(), family="DejaVu Sans"
+        )
+        _draw_centered_single_line(
+            painter, image, layout.detail_rect, state_detail, width * 0.040,
+            palette.secondary, bold=False, family="DejaVu Sans"
+        )
+        _draw_state_rail(painter, layout.bar_rect, palette, state, phase)
+
+        context_y = layout.context_top
+        if clock_text:
+            _draw_centered_single_line(
+                painter, image, QRectF(width * 0.13, context_y, width * 0.74, height * 0.060),
+                clock_text, width * 0.118, palette.primary, bold=False, glow=palette.cyan,
+                family="DejaVu Sans Condensed"
+            )
+        if date_text:
+            _draw_centered_single_line(
+                painter, image, QRectF(width * 0.17, context_y + height * 0.062, width * 0.66, height * 0.028),
+                date_text, width * 0.040, palette.secondary, family="DejaVu Sans"
+            )
+
+        _draw_reference_floor(painter, width, height, short, palette, layout.floor_horizon)
+        footer = f"{APP_NAME} {__version__}"
+        _draw_centered_single_line(
+            painter, image, QRectF(width * 0.16, height * 0.905, width * 0.68, height * 0.024),
+            footer, width * 0.025, palette.muted, family="DejaVu Sans"
+        )
+    else:
+'''
+          text, count = portrait_pattern.subn(portrait_block, text, count=1)
+          assert count == 1, f'portrait replacement count={count}'
+
+          path.write_text(text)
+          PY
+
+      - name: Verify approved reference tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pip install -q -e . pytest
+          pytest -q tests/test_status_screen_reference_v11.py
+          pytest -q
+          python -m compileall -q src tests
+          bash -n run-owndash.sh
+
+      - name: Commit reference implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/owndash/gui/system_state_frame.py
+          git commit -m "feat: match approved status screen reference" || true
+          git push origin HEAD:feat/autostart-display-resume
+
+      - name: Build AppImage on Debian 12 compatibility baseline
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            debian:12-slim \
+            sh -c '
+              set -eu
+              apt-get update -qq
+              apt-get install -y -qq python3 python3-venv libpython3.11 curl file libfuse2 binutils libusb-1.0-0 >/dev/null
+              curl -L -sS https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o /tmp/appimagetool
+              chmod +x /tmp/appimagetool
+              APPIMAGETOOL=/tmp/appimagetool packaging/appimage/build-appimage.sh
+            '
+
+      - name: Verify GLIBC compatibility
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$APPIMAGE"
+          CHECK_DIR="$(mktemp -d)"
+          trap 'rm -rf "$CHECK_DIR"' EXIT
+          cd "$CHECK_DIR"
+          "$GITHUB_WORKSPACE/$APPIMAGE" --appimage-extract >/dev/null
+          MAX_GLIBC="$(find squashfs-root -type f -exec sh -c 'file "$1" | grep -q ELF && readelf --version-info "$1" 2>/dev/null' _ {} \; | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1)"
+          echo "Maximum required GLIBC version: $MAX_GLIBC"
+          test "$(printf '%s\n' "$MAX_GLIBC" GLIBC_2.36 | sort -V | tail -1)" = "GLIBC_2.36"
+
+      - name: Test AppImage on Debian 12
+        run: |
+          docker run --rm -v "$PWD/dist:/app:ro" debian:12-slim sh -c '
+            set -eu
+            apt-get update -qq
+            apt-get install -y -qq libglib2.0-0 libxkbcommon0 libfontconfig1 libfreetype6 libdbus-1-3 libx11-6 libgl1 libegl1 >/dev/null
+            APPIMAGE="$(find /app -maxdepth 1 -name "*.AppImage" -print -quit)"
+            test -n "$APPIMAGE"
+            set +e
+            QT_QPA_PLATFORM=offscreen APPIMAGE_EXTRACT_AND_RUN=1 timeout 10s "$APPIMAGE"
+            RC=$?
+            set -e
+            test "$RC" -eq 124
+          '
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-Approved-Status-Reference
+          path: dist/*.AppImage
+          if-no-files-found: error
