@@ -1,6 +1,10 @@
 from PySide6.QtGui import QFontMetricsF, QImage
+from PySide6.QtWidgets import QApplication
 
 from owndash.gui.system_state_frame import _fit_single_line_font, _portrait_layout
+
+
+_APP = QApplication.instance() or QApplication([])
 
 
 def test_v10_keeps_brand_and_status_inside_one_compact_hero_hud():
