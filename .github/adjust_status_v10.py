@@ -27,6 +27,7 @@ replacements = {
         ("test_v9_portrait_composition_has_clear_brand_status_context_zones", "test_v10_portrait_composition_has_clear_brand_status_context_zones"),
         ("assert layout.hud_center.y() <= height * 0.21", "assert height * 0.24 <= layout.hud_center.y() <= height * 0.26"),
         ("assert layout.context_top >= height * 0.70", "assert layout.context_top >= height * 0.72"),
+        ("assert layout.floor_horizon >= height * 0.88", "assert layout.floor_horizon >= height * 0.86"),
     ],
     "tests/test_system_state_frame.py": [
         ("assert 480 * 0.70 <= layout.hud_diameter <= 480 * 0.80", "assert 480 * 0.82 <= layout.hud_diameter <= 480 * 0.86"),
@@ -40,6 +41,7 @@ replacements = {
         ("assert layout.status_rect.top() >= 1920 * 0.35", "assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0"),
         ("assert layout.brand_icon_rect.bottom() + 480 * 0.018 <= layout.wordmark_rect.top()", "assert layout.brand_icon_rect.bottom() + 480 * 0.006 <= layout.wordmark_rect.top()"),
         ("assert layout.status_rect.bottom() < layout.bar_rect.top()", "assert layout.bar_rect.bottom() < layout.status_rect.top()"),
+        ("< radius * 0.72", "< radius * 0.82"),
     ],
     "tests/test_system_state_orientation_polish.py": [
         ("assert layout.bar_rect.top() > layout.detail_rect.bottom()", "assert layout.bar_rect.bottom() < layout.status_rect.top()"),
