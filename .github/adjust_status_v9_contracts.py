@@ -6,6 +6,11 @@ from pathlib import Path
 frame = Path("src/owndash/gui/system_state_frame.py")
 text = frame.read_text()
 text = text.replace("status_font_px=width * 0.150,", "status_font_px=width * 0.160,", 1)
+text = text.replace(
+    "detail_rect=QRectF(width * 0.12, height * 0.585, width * 0.76, height * 0.036),",
+    "detail_rect=QRectF(width * 0.12, height * 0.590, width * 0.76, height * 0.036),",
+    1,
+)
 frame.write_text(text)
 
 path = Path("tests/test_display_editor_native_zoom.py")
