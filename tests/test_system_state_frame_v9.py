@@ -31,15 +31,15 @@ def _render(state: SystemState, *, icon: QIcon | None = None) -> QImage:
     )
 
 
-def test_v10_portrait_uses_compact_hero_and_separate_context_zone():
+def test_v11_portrait_uses_reference_ring_then_separate_state_block():
     layout = _portrait_layout(480, 1920)
+    ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
 
-    # The approved v9 composition leaves the top third to the OwnDash ring,
-    # then places the status block clearly below it instead of crowding it.
-    assert layout.status_rect.top() < 1920 * 0.40
-    assert layout.context_top >= 1920 * 0.70
-    assert layout.status_rect.bottom() < layout.context_top
-
+    assert layout.separator_y > ring_bottom
+    assert layout.state_icon_rect.top() > layout.separator_y
+    assert layout.status_rect.top() > layout.state_icon_rect.bottom()
+    assert layout.context_top >= 1920 * 0.65
+    assert layout.bar_rect.bottom() < layout.context_top
 
 def test_v10_long_terminal_title_fits_status_width_without_touching_edges():
     layout = _portrait_layout(480, 1920)

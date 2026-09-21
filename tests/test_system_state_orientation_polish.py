@@ -76,15 +76,17 @@ def test_usb_system_state_renderer_uses_dashboard_logical_orientation(
     assert (transport.width(), transport.height()) == (logical_w, logical_h)
 
 
-def test_portrait_status_layout_prioritizes_state_over_branding():
-    """The 480x1920 screen should read as a status screen, not a logo screen."""
+def test_portrait_status_layout_matches_approved_reference_hierarchy():
     width, height = 480, 1920
     layout = _portrait_layout(width, height)
+    ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
 
-    assert layout.hud_diameter <= width * 0.86
+    assert layout.hud_diameter <= width * 0.90
     assert layout.status_font_px < layout.wordmark_font_px
-    assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0
-    assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0
-    assert layout.bar_rect.bottom() < layout.status_rect.top()
+    assert layout.separator_y > ring_bottom
+    assert layout.state_icon_rect.top() > layout.separator_y
+    assert layout.status_rect.top() > layout.state_icon_rect.bottom()
+    assert layout.detail_rect.top() > layout.status_rect.bottom()
+    assert layout.bar_rect.top() > layout.detail_rect.bottom()
     assert layout.context_top > layout.bar_rect.bottom()
     assert layout.floor_horizon > layout.context_top
