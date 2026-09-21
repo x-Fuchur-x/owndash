@@ -2,7 +2,7 @@ from PySide6.QtCore import QRectF
 from PySide6.QtGui import QFontMetricsF, QIcon, QImage
 
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import _fit_font, _portrait_layout, render_system_state_image
+from owndash.gui.system_state_frame import _fit_single_line_font, _portrait_layout, render_system_state_image
 
 
 STRINGS = {
@@ -31,32 +31,21 @@ def _render(state: SystemState, *, icon: QIcon | None = None) -> QImage:
     )
 
 
-def test_v9_portrait_uses_separate_brand_status_and_context_zones():
+def test_v10_portrait_uses_compact_hero_and_separate_context_zone():
     layout = _portrait_layout(480, 1920)
 
     # The approved v9 composition leaves the top third to the OwnDash ring,
     # then places the status block clearly below it instead of crowding it.
-    assert layout.status_rect.top() >= 1920 * 0.50
+    assert layout.status_rect.top() < 1920 * 0.40
     assert layout.context_top >= 1920 * 0.70
     assert layout.status_rect.bottom() < layout.context_top
 
 
-def test_v9_layout_reserves_state_icon_panel_and_progress_caption():
-    layout = _portrait_layout(480, 1920)
-
-    assert isinstance(layout.status_panel_rect, QRectF)
-    assert isinstance(layout.status_icon_rect, QRectF)
-    assert isinstance(layout.progress_label_rect, QRectF)
-    assert layout.status_panel_rect.contains(layout.status_icon_rect)
-    assert layout.status_panel_rect.contains(layout.status_rect)
-    assert layout.status_panel_rect.bottom() < layout.context_top
-
-
-def test_v9_long_terminal_title_fits_status_width_without_touching_edges():
+def test_v10_long_terminal_title_fits_status_width_without_touching_edges():
     layout = _portrait_layout(480, 1920)
     safe_rect = layout.status_rect.adjusted(14, 0, -14, 0)
     title = "HERUNTERFAHREN"
-    font = _fit_font(QImage(480, 1920, QImage.Format_RGB32), title, safe_rect, layout.status_font_px, bold=True)
+    font = _fit_single_line_font(QImage(480, 1920, QImage.Format_RGB32), title, safe_rect, layout.status_font_px, bold=False)
     metrics = QFontMetricsF(font)
 
     assert metrics.horizontalAdvance(title) <= safe_rect.width()
@@ -64,7 +53,7 @@ def test_v9_long_terminal_title_fits_status_width_without_touching_edges():
     assert safe_rect.right() <= 480 * 0.92
 
 
-def test_v9_every_supported_state_still_renders_at_native_portrait_size():
+def test_v10_every_supported_state_still_renders_at_native_portrait_size():
     for state in (
         SystemState.IDLE,
         SystemState.LOCKED,

@@ -46,14 +46,10 @@ class _PortraitLayout:
     brand_icon_rect: QRectF
     wordmark_rect: QRectF
     wordmark_font_px: float
-    status_panel_rect: QRectF
-    status_icon_rect: QRectF
+    tagline_rect: QRectF
+    bar_rect: QRectF
     status_rect: QRectF
     status_font_px: float
-    detail_rect: QRectF
-    detail_font_px: float
-    bar_rect: QRectF
-    progress_label_rect: QRectF
     context_top: float
     floor_horizon: float
 
@@ -107,48 +103,36 @@ _ANIMATED_STATES = {SystemState.IDLE, SystemState.LOCKED}
 
 
 def _portrait_layout(width: int, height: int) -> _PortraitLayout:
-    """Return the approved v9 portrait composition for narrow case displays."""
+    """Return the approved v10 portrait composition for 480×1920 case displays."""
     width = int(width)
     height = int(height)
     if width <= 0 or height <= 0:
         raise ValueError("portrait layout dimensions must be positive")
 
-    # v9 is intentionally zoned: brand HUD, system state, then clock/context.
-    # The OwnDash wordmark stays inside the clear center of the ring while the
-    # status area has generous fixed side margins for long localized labels.
-    center = QPointF(width * 0.50, height * 0.205)
-    diameter = width * 0.76
-    icon_side = width * 0.22
-    icon_center = QPointF(center.x(), center.y() - diameter * 0.105)
-    brand_icon_rect = QRectF(
-        icon_center.x() - icon_side / 2.0,
-        icon_center.y() - icon_side / 2.0,
-        icon_side,
-        icon_side,
-    )
-    status_panel = QRectF(width * 0.08, height * 0.455, width * 0.84, height * 0.205)
-    state_icon_side = width * 0.115
+    # v10 mirrors the approved reference: one compact hero instrument contains
+    # the complete OwnDash identity and the current system state. The footer is
+    # deliberately separate, leaving clean negative space instead of the old
+    # tall framed status channel.
+    center = QPointF(width * 0.50, height * 0.250)
+    diameter = width * 0.84
+    icon_side = width * 0.20
     return _PortraitLayout(
         hud_center=center,
         hud_diameter=diameter,
-        brand_icon_rect=brand_icon_rect,
-        wordmark_rect=QRectF(width * 0.18, center.y() + diameter * 0.095, width * 0.64, height * 0.048),
-        wordmark_font_px=width * 0.125,
-        status_panel_rect=status_panel,
-        status_icon_rect=QRectF(
-            width * 0.50 - state_icon_side / 2.0,
-            height * 0.475,
-            state_icon_side,
-            state_icon_side,
+        brand_icon_rect=QRectF(
+            width * 0.50 - icon_side / 2.0,
+            height * 0.166,
+            icon_side,
+            icon_side,
         ),
-        status_rect=QRectF(width * 0.08, height * 0.525, width * 0.84, height * 0.060),
-        status_font_px=width * 0.160,
-        detail_rect=QRectF(width * 0.12, height * 0.590, width * 0.76, height * 0.036),
-        detail_font_px=width * 0.035,
-        bar_rect=QRectF(width * 0.21, height * 0.632, width * 0.58, max(8.0, width * 0.018)),
-        progress_label_rect=QRectF(width * 0.18, height * 0.642, width * 0.64, height * 0.025),
-        context_top=height * 0.720,
-        floor_horizon=height * 0.900,
+        wordmark_rect=QRectF(width * 0.10, height * 0.220, width * 0.80, height * 0.045),
+        wordmark_font_px=width * 0.128,
+        tagline_rect=QRectF(width * 0.20, height * 0.268, width * 0.60, height * 0.024),
+        bar_rect=QRectF(width * 0.225, height * 0.301, width * 0.55, max(7.0, width * 0.016)),
+        status_rect=QRectF(width * 0.13, height * 0.315, width * 0.74, height * 0.035),
+        status_font_px=width * 0.060,
+        context_top=height * 0.725,
+        floor_horizon=height * 0.875,
     )
 
 def _portrait_brand_icon_rect(layout: _PortraitLayout) -> QRectF:
@@ -985,99 +969,55 @@ def render_system_state_image(
 
     if portrait:
         layout = _portrait_layout(width, height)
-        _draw_side_rails(painter, width, height, short, palette, layout=layout)
-        _draw_portrait_brand_hud(painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase)
-        _draw_rail_ring_bridges(painter, layout, short, palette)
-        _draw_brand_icon(painter, icon, layout.brand_icon_rect, short, palette)
-        _draw_gradient_wordmark(painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px)
 
-        # A single luminous separator mirrors the approved reference without
-        # adding another box around the state information.
-        separator_y = height * 0.405
-        separator = QLinearGradient(width * 0.18, separator_y, width * 0.82, separator_y)
-        transparent = QColor(0, 0, 0, 0)
-        cyan_sep = QColor(palette.cyan)
-        cyan_sep.setAlpha(175)
-        magenta_sep = QColor(palette.magenta)
-        magenta_sep.setAlpha(145)
-        separator.setColorAt(0.0, transparent)
-        separator.setColorAt(0.38, cyan_sep)
-        separator.setColorAt(0.62, magenta_sep)
-        separator.setColorAt(1.0, transparent)
-        painter.setPen(QPen(QBrush(separator), max(1.2, short * 0.0030), Qt.SolidLine, Qt.RoundCap))
-        painter.drawLine(QPointF(width * 0.18, separator_y), QPointF(width * 0.82, separator_y))
-
-        _draw_state_icon(painter, layout.status_icon_rect, state, palette, short)
-        _draw_centered_single_line(
-            painter,
-            image,
-            layout.status_rect,
-            title.upper(),
-            layout.status_font_px,
-            palette.primary,
-            bold=True,
-            glow=accent.name(),
-            family="DejaVu Sans Condensed",
+        _draw_portrait_brand_hud(
+            painter, layout.hud_center, layout.hud_diameter, short, palette, state, phase
         )
-        status_detail = detail or _fallback_state_detail(state, title)
+        _draw_brand_icon(painter, icon, layout.brand_icon_rect, short, palette)
+        _draw_gradient_wordmark(
+            painter, image, layout.wordmark_rect, palette, layout.wordmark_font_px
+        )
+
+        subline_color = QColor(palette.secondary)
+        subline_color.setAlpha(225)
+        line_y = layout.tagline_rect.center().y()
+        painter.setPen(QPen(QColor(palette.cyan), max(1.0, short * 0.0022), Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(QPointF(width * 0.13, line_y), QPointF(layout.tagline_rect.left() - width * 0.025, line_y))
+        painter.setPen(QPen(QColor(palette.magenta), max(1.0, short * 0.0022), Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(QPointF(layout.tagline_rect.right() + width * 0.025, line_y), QPointF(width * 0.87, line_y))
         _draw_centered_single_line(
-            painter,
-            image,
-            layout.detail_rect,
-            status_detail,
-            layout.detail_font_px,
-            palette.secondary,
-            glow=accent.name(),
-            family="DejaVu Sans Condensed",
+            painter, image, layout.tagline_rect, "PC DASHBOARD SYSTEM", width * 0.027,
+            subline_color.name(), family="DejaVu Sans"
         )
 
         _draw_state_rail(painter, layout.bar_rect, palette, state, phase)
+        accent = QColor(_STATE_ACCENTS[state])
+        _draw_centered_single_line(
+            painter, image, layout.status_rect, title, layout.status_font_px,
+            palette.primary, bold=False, glow=accent.name(), family="DejaVu Sans"
+        )
 
         context_y = layout.context_top
         if clock_text:
             _draw_centered_single_line(
-                painter,
-                image,
-                QRectF(width * 0.12, context_y, width * 0.76, height * 0.055),
-                clock_text,
-                width * 0.105,
-                palette.primary,
-                bold=True,
-                glow=palette.cyan,
-                family="DejaVu Sans Condensed",
+                painter, image, QRectF(width * 0.16, context_y, width * 0.68, height * 0.050),
+                clock_text, width * 0.105, palette.primary, bold=True, glow=palette.cyan,
+                family="DejaVu Sans Condensed"
             )
-            context_y += height * 0.057
-        if date_text and state is SystemState.LOCKED:
+        if date_text:
             _draw_centered_single_line(
-                painter,
-                image,
-                QRectF(width * 0.15, context_y, width * 0.70, height * 0.030),
-                date_text,
-                width * 0.035,
-                palette.secondary,
-                family="DejaVu Sans Condensed",
-            )
-            context_y += height * 0.034
-        if sensor_text and state in _ANIMATED_STATES:
-            _draw_centered_single_line(
-                painter,
-                image,
-                QRectF(width * 0.10, context_y, width * 0.80, height * 0.028),
-                sensor_text,
-                width * 0.025,
-                palette.muted,
-                family="DejaVu Sans Condensed",
+                painter, image, QRectF(width * 0.20, context_y + height * 0.055, width * 0.60, height * 0.025),
+                date_text, width * 0.032, palette.secondary, family="DejaVu Sans"
             )
 
-        _draw_floor_reflection(painter, width, height, short, palette, horizon=layout.floor_horizon)
+        _draw_floor_reflection(
+            painter, width, height, short, palette, horizon=layout.floor_horizon
+        )
+
+        footer = f"{APP_NAME} · {__version__}"
         _draw_centered_single_line(
-            painter,
-            image,
-            QRectF(width * 0.18, height * 0.944, width * 0.64, height * 0.022),
-            f"{APP_NAME} · {__version__}",
-            width * 0.020,
-            palette.muted,
-            family="DejaVu Sans Condensed",
+            painter, image, QRectF(width * 0.20, height * 0.965, width * 0.60, height * 0.018),
+            footer, width * 0.018, palette.muted, family="DejaVu Sans"
         )
     else:
         _draw_side_rails(painter, width, height, short, palette)

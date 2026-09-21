@@ -81,12 +81,10 @@ def test_portrait_status_layout_prioritizes_state_over_branding():
     width, height = 480, 1920
     layout = _portrait_layout(width, height)
 
-    assert layout.hud_diameter <= width * 0.80
-    assert layout.status_font_px >= layout.wordmark_font_px * 1.25
-    assert layout.status_rect.top() >= (
-        layout.hud_center.y() + layout.hud_diameter / 2.0 + height * 0.02
-    )
-    assert layout.detail_rect.top() >= layout.status_rect.bottom()
-    assert layout.bar_rect.top() > layout.detail_rect.bottom()
+    assert layout.hud_diameter <= width * 0.86
+    assert layout.status_font_px < layout.wordmark_font_px
+    assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0
+    assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0
+    assert layout.bar_rect.bottom() < layout.status_rect.top()
     assert layout.context_top > layout.bar_rect.bottom()
     assert layout.floor_horizon > layout.context_top

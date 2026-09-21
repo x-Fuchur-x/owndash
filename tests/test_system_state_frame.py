@@ -169,20 +169,20 @@ def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections()
 def test_portrait_status_layout_uses_compact_identity_hud():
     layout = _portrait_layout(480, 1920)
 
-    assert 480 * 0.70 <= layout.hud_diameter <= 480 * 0.80
+    assert 480 * 0.82 <= layout.hud_diameter <= 480 * 0.86
     assert 480 * 0.12 <= layout.wordmark_font_px <= 480 * 0.13
-    assert layout.status_font_px >= 480 * 0.13
-    assert 480 * 0.82 <= layout.status_rect.width() <= 480 * 0.86
-    assert layout.status_rect.top() > layout.hud_center.y() + layout.hud_diameter / 2.0
+    assert layout.status_font_px <= 480 * 0.075
+    assert 480 * 0.72 <= layout.status_rect.width() <= 480 * 0.76
+    assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0
     assert 480 * 0.50 <= layout.bar_rect.width() <= 480 * 0.60
 
 
 def test_portrait_system_state_is_the_hero_element():
     layout = _portrait_layout(480, 1920)
 
-    assert 480 * 0.60 <= layout.wordmark_rect.width() <= 480 * 0.68
-    assert layout.wordmark_font_px < layout.status_font_px <= layout.wordmark_font_px * 1.35
-    assert layout.status_rect.width() > layout.wordmark_rect.width()
+    assert 480 * 0.78 <= layout.wordmark_rect.width() <= 480 * 0.82
+    assert layout.status_font_px < layout.wordmark_font_px
+    assert layout.status_rect.width() < layout.wordmark_rect.width()
 
 
 def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
@@ -208,8 +208,8 @@ def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
 def test_portrait_status_composition_is_balanced_for_480x1920():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.hud_center.y() <= 1920 * 0.24
-    assert layout.status_rect.top() >= 1920 * 0.35
+    assert 1920 * 0.24 <= layout.hud_center.y() <= 1920 * 0.26
+    assert layout.status_rect.bottom() < layout.hud_center.y() + layout.hud_diameter / 2.0
     assert 1920 * 0.70 <= layout.context_top <= 1920 * 0.74
     assert layout.floor_horizon >= 1920 * 0.80
 
@@ -253,7 +253,7 @@ def test_portrait_branding_has_breathing_room_without_dominating_status():
     radius = layout.hud_diameter / 2.0
 
     assert 480 * 0.12 <= layout.wordmark_font_px <= 480 * 0.13
-    assert 480 * 0.60 <= layout.wordmark_rect.width() <= 480 * 0.68
+    assert 480 * 0.78 <= layout.wordmark_rect.width() <= 480 * 0.82
     assert layout.brand_icon_rect.width() >= 480 * 0.12
     assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
     assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
@@ -262,7 +262,7 @@ def test_portrait_branding_has_breathing_room_without_dominating_status():
     assert math.hypot(
         icon_center.x() - layout.hud_center.x(),
         icon_center.y() - layout.hud_center.y(),
-    ) + layout.brand_icon_rect.width() / 2.0 < radius * 0.72
+    ) + layout.brand_icon_rect.width() / 2.0 < radius * 0.82
 
 
 def test_portrait_brand_icon_stays_distinct_from_wordmark():
@@ -271,13 +271,13 @@ def test_portrait_brand_icon_stays_distinct_from_wordmark():
     assert layout.brand_icon_rect.width() >= 480 * 0.12
     assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
     assert 480 * 0.12 <= layout.wordmark_font_px <= 480 * 0.13
-    assert layout.brand_icon_rect.bottom() + 480 * 0.018 <= layout.wordmark_rect.top()
+    assert layout.brand_icon_rect.bottom() + 480 * 0.006 <= layout.wordmark_rect.top()
 
 
 def test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.status_rect.bottom() < layout.bar_rect.top()
+    assert layout.bar_rect.bottom() < layout.status_rect.top()
     assert layout.bar_rect.bottom() < 1920 * 0.74
     assert layout.floor_horizon >= 1920 * 0.80
 
