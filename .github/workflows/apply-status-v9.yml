@@ -24,6 +24,8 @@ jobs:
       - run: python -m pip install --upgrade pip pytest .
       - name: Apply approved v9 design
         run: python .github/apply_status_v9.py
+      - name: Align v9 visual contracts
+        run: python .github/adjust_status_v9_contracts.py
       - name: Install patched tree
         run: python -m pip install -e .
       - run: python -m compileall -q src tests
@@ -35,7 +37,7 @@ jobs:
         run: |
           git config user.name "Markus"
           git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
-          git add src/owndash/gui/system_state_frame.py tests/test_system_state_frame.py tests/test_system_state_frame_v9.py
-          git rm .github/apply_status_v9.py .github/workflows/apply-status-v9.yml
+          git add src/owndash/gui/system_state_frame.py tests/test_system_state_frame.py tests/test_system_state_frame_v9.py tests/test_system_state_frame_v8.py tests/test_display_editor_native_zoom.py tests/test_system_state_orientation_polish.py
+          git rm .github/apply_status_v9.py .github/adjust_status_v9_contracts.py .github/workflows/apply-status-v9.yml
           git commit -m "feat: redesign portrait system status screen v9"
           git push origin HEAD:feat/autostart-display-resume
