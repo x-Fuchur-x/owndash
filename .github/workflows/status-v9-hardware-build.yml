@@ -1,0 +1,82 @@
+name: Status Screen v9 Hardware Build
+
+on:
+  push:
+    branches:
+      - feat/autostart-display-resume
+
+permissions:
+  contents: write
+
+jobs:
+  hardware-build:
+    if: contains(github.event.head_commit.message, 'build status v9 hardware test')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/autostart-display-resume
+          fetch-depth: 0
+
+      - name: Build AppImage on Debian 12 compatibility baseline
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            debian:12-slim \
+            sh -c '
+              set -eu
+              apt-get update -qq
+              apt-get install -y -qq python3 python3-venv libpython3.11 curl file libfuse2 binutils libusb-1.0-0 >/dev/null
+              curl -L -sS https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o /tmp/appimagetool
+              chmod +x /tmp/appimagetool
+              APPIMAGETOOL=/tmp/appimagetool packaging/appimage/build-appimage.sh
+            '
+
+      - name: Verify GLIBC compatibility
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$APPIMAGE"
+          CHECK_DIR="$(mktemp -d)"
+          trap 'rm -rf "$CHECK_DIR"' EXIT
+          (
+            cd "$CHECK_DIR"
+            "$GITHUB_WORKSPACE/$APPIMAGE" --appimage-extract >/dev/null
+            MAX_GLIBC="$(find squashfs-root -type f -exec sh -c 'file "$1" | grep -q ELF && readelf --version-info "$1" 2>/dev/null' _ {} \; | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -V | tail -1)"
+            echo "Maximum required GLIBC version: $MAX_GLIBC"
+            test "$(printf '%s\n' "$MAX_GLIBC" GLIBC_2.36 | sort -V | tail -1)" = "GLIBC_2.36"
+          )
+
+      - name: Test AppImage on Debian 12
+        run: |
+          docker run --rm \
+            -v "$PWD/dist:/app:ro" \
+            debian:12-slim \
+            sh -c '
+              set -eu
+              apt-get update -qq
+              apt-get install -y -qq libglib2.0-0 libxkbcommon0 libfontconfig1 libfreetype6 libdbus-1-3 libx11-6 libgl1 libegl1 >/dev/null
+              APPIMAGE="$(find /app -maxdepth 1 -name "*.AppImage" -print -quit)"
+              test -n "$APPIMAGE"
+              set +e
+              QT_QPA_PLATFORM=offscreen APPIMAGE_EXTRACT_AND_RUN=1 timeout 10s "$APPIMAGE"
+              RC=$?
+              set -e
+              echo "OwnDash Debian 12 test exit code: $RC"
+              test "$RC" -eq 124
+            '
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-Status-v9-Hardware-Test
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+      - name: Remove temporary workflow
+        run: |
+          git config user.name "Markus"
+          git config user.email "14039170+x-Fuchur-x@users.noreply.github.com"
+          git rm .github/workflows/status-v9-hardware-build.yml
+          git commit -m "ci: remove temporary status v9 hardware workflow"
+          git push origin HEAD:feat/autostart-display-resume
