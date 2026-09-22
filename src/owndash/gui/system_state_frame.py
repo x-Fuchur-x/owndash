@@ -116,8 +116,8 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
     # deliberately smaller than the old 88%-width HUD and the status/clock
     # occupy their own vertical zones instead of being pulled toward it.
     center = QPointF(width * 0.50, height * 0.275)
-    diameter = width * 0.72
-    icon_side = width * 0.20
+    diameter = width * 0.68
+    icon_side = width * 0.18
     return _PortraitLayout(
         hud_center=center,
         hud_diameter=diameter,
@@ -127,13 +127,13 @@ def _portrait_layout(width: int, height: int) -> _PortraitLayout:
             icon_side,
             icon_side,
         ),
-        wordmark_rect=QRectF(width * 0.20, height * 0.285, width * 0.60, height * 0.047),
-        wordmark_font_px=width * 0.102,
+        wordmark_rect=QRectF(width * 0.23, height * 0.286, width * 0.54, height * 0.045),
+        wordmark_font_px=width * 0.090,
         tagline_rect=QRectF(width * 0.24, height * 0.336, width * 0.52, height * 0.018),
         separator_y=height * 0.393,
         state_icon_rect=QRectF(width * 0.40, height * 0.455, width * 0.20, height * 0.056),
-        status_rect=QRectF(width * 0.15, height * 0.525, width * 0.70, height * 0.052),
-        status_font_px=width * 0.112,
+        status_rect=QRectF(width * 0.18, height * 0.527, width * 0.64, height * 0.050),
+        status_font_px=width * 0.092,
         detail_rect=QRectF(width * 0.14, height * 0.582, width * 0.72, height * 0.030),
         bar_rect=QRectF(width * 0.22, height * 0.635, width * 0.56, max(8.0, width * 0.016)),
         context_top=height * 0.720,
@@ -539,8 +539,8 @@ def _draw_portrait_brand_hud(
     # Deep cyan/magenta bloom behind the ring.  Separate side glows reproduce
     # the strong split-color atmosphere in the master artwork.
     for offset, color_name, alpha in (
-        (-0.20, palette.cyan, 54),
-        (0.20, palette.magenta, 48),
+        (-0.20, palette.cyan, 38),
+        (0.20, palette.magenta, 34),
     ):
         gc = QPointF(center.x() + diameter * offset, center.y())
         glow = QRadialGradient(gc, diameter * 0.72)
@@ -565,12 +565,12 @@ def _draw_portrait_brand_hud(
 
     _draw_segmented_ring(
         painter, center, diameter * 0.985, short, palette,
-        segments=10, coverage=0.62, width_scale=0.023,
+        segments=10, coverage=0.62, width_scale=0.016,
         phase_degrees=phase * 30.0, alpha=255,
     )
     _draw_segmented_ring(
         painter, center, diameter * 0.835, short, palette,
-        segments=16, coverage=0.31, width_scale=0.0075,
+        segments=16, coverage=0.31, width_scale=0.0055,
         phase_degrees=9.0 - phase * 24.0, alpha=205,
     )
 
@@ -910,7 +910,7 @@ def _draw_reference_side_frame(painter: QPainter, width: int, height: int, short
         glow = QColor(color)
         glow.setAlpha(48)
         painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(glow, max(7.0, short * 0.023), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setPen(QPen(glow, max(4.0, short * 0.012), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.drawPath(main)
         painter.setPen(QPen(color, max(1.4, short * 0.0045), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.drawPath(main)
@@ -945,7 +945,7 @@ def _draw_reference_background(painter: QPainter, width: int, height: int, palet
     painter.save()
     top = QRadialGradient(QPointF(width * 0.50, height * 0.10), width * 0.78)
     core = QColor(palette.cyan)
-    core.setAlpha(34)
+    core.setAlpha(18)
     clear = QColor(palette.cyan)
     clear.setAlpha(0)
     top.setColorAt(0.0, core)
@@ -957,7 +957,7 @@ def _draw_reference_background(painter: QPainter, width: int, height: int, palet
     for x, color_name in ((width * 0.04, palette.cyan), (width * 0.96, palette.magenta)):
         side = QRadialGradient(QPointF(x, height * 0.50), width * 0.55)
         color = QColor(color_name)
-        color.setAlpha(18)
+        color.setAlpha(8)
         transparent = QColor(color_name)
         transparent.setAlpha(0)
         side.setColorAt(0.0, color)
@@ -968,7 +968,7 @@ def _draw_reference_background(painter: QPainter, width: int, height: int, palet
 
 
 def _draw_reference_wordmark(painter: QPainter, image: QImage, rect: QRectF, palette: _Theme, px: float) -> None:
-    font = _fit_single_line_font(image, APP_NAME, rect, px, bold=True, family="DejaVu Sans")
+    font = _fit_single_line_font(image, APP_NAME, rect, px, bold=False, family="DejaVu Sans")
     painter.save()
     painter.setFont(font)
     metrics = QFontMetricsF(font, image)
@@ -981,7 +981,7 @@ def _draw_reference_wordmark(painter: QPainter, image: QImage, rect: QRectF, pal
     grad.setColorAt(0.0, QColor(palette.cyan))
     grad.setColorAt(0.48, QColor("#6b7cff"))
     grad.setColorAt(1.0, QColor(palette.magenta))
-    for width_scale, opacity in ((12.0, 0.10), (7.0, 0.18), (3.5, 0.32)):
+    for width_scale, opacity in ((7.0, 0.07), (4.0, 0.12), (2.2, 0.22)):
         painter.setOpacity(opacity)
         painter.setBrush(Qt.NoBrush)
         painter.setPen(QPen(QBrush(grad), width_scale, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
@@ -1095,8 +1095,8 @@ def _draw_reference_floor(painter: QPainter, width: int, height: int, short: flo
     rim.setColorAt(0.48, QColor("#f7ffff"))
     rim.setColorAt(1.0, QColor(palette.magenta))
     painter.setBrush(Qt.NoBrush)
-    painter.setOpacity(0.18)
-    painter.setPen(QPen(QBrush(rim), max(10.0, short * 0.024), Qt.SolidLine, Qt.RoundCap))
+    painter.setOpacity(0.28)
+    painter.setPen(QPen(QBrush(rim), max(9.0, short * 0.020), Qt.SolidLine, Qt.RoundCap))
     painter.drawPath(QPainterPath(cap))
     painter.setOpacity(1.0)
     painter.setPen(QPen(QBrush(rim), max(1.5, short * 0.004), Qt.SolidLine, Qt.RoundCap))
@@ -1127,8 +1127,8 @@ def _draw_reference_floor(painter: QPainter, width: int, height: int, short: flo
         painter.drawLine(vanish, QPointF(width * bottom_x, height))
 
     glow = QRadialGradient(QPointF(width * 0.50, height * 0.965), width * 0.42)
-    gc = QColor(palette.cyan); gc.setAlpha(42)
-    gm = QColor(palette.magenta); gm.setAlpha(22)
+    gc = QColor(palette.cyan); gc.setAlpha(58)
+    gm = QColor(palette.magenta); gm.setAlpha(34)
     clear = QColor(0, 0, 0, 0)
     glow.setColorAt(0.0, gc); glow.setColorAt(0.52, gm); glow.setColorAt(1.0, clear)
     painter.setPen(Qt.NoPen); painter.setBrush(glow)
@@ -1298,13 +1298,13 @@ def render_system_state_image(
         if clock_text:
             _draw_centered_single_line(
                 painter, image, QRectF(width * 0.17, context_y, width * 0.66, height * 0.062),
-                clock_text, width * 0.122, palette.primary, bold=False, glow=palette.cyan,
+                clock_text, width * 0.098, palette.primary, bold=False, glow=palette.cyan,
                 family="DejaVu Sans"
             )
         if date_text:
             _draw_centered_single_line(
                 painter, image, QRectF(width * 0.19, context_y + height * 0.064, width * 0.62, height * 0.030),
-                date_text, width * 0.041, palette.secondary, family="DejaVu Sans"
+                date_text, width * 0.034, palette.secondary, family="DejaVu Sans"
             )
 
         _draw_reference_floor(painter, width, height, short, palette, layout.floor_horizon)
