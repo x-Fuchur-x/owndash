@@ -30,7 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest .
       - name: Apply approved reference renderer
-        run: python scripts/apply_status_reference_v12.py
+        run: |
+          python scripts/apply_status_reference_v12.py
+          python scripts/refine_status_reference_v12.py
       - name: Compile
         run: python -m compileall -q src tests
       - name: Verify new reference contracts
@@ -85,7 +87,7 @@ jobs:
           git config user.name 'Markus'
           git config user.email '14039170+x-Fuchur-x@users.noreply.github.com'
           git add src/owndash/gui/system_state_frame.py
-          git commit -m 'feat: match approved status screen master reference'
+          git commit -m 'feat: refine approved status screen master match'
           git push origin HEAD:feat/autostart-display-resume
       - uses: actions/upload-artifact@v4
         with:
