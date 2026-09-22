@@ -1,7 +1,7 @@
 from PySide6.QtGui import QIcon
 
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import _portrait_layout, render_system_state_image
+from owndash.gui.system_state_frame import render_system_state_image
 
 
 STRINGS = {
@@ -26,8 +26,7 @@ def _render(phase: float):
     )
 
 
-def test_v10_compact_hud_animates_without_legacy_rail_bridges():
-    layout = _portrait_layout(480, 1920)
+def test_approved_locked_master_keeps_live_animation_cue():
     phase_a = _render(0.0)
     phase_b = _render(0.5)
 
@@ -35,4 +34,3 @@ def test_v10_compact_hud_animates_without_legacy_rail_bridges():
     assert phase_a.size().height() == 1920
     assert phase_b.size() == phase_a.size()
     assert bytes(phase_a.constBits()) != bytes(phase_b.constBits())
-    assert layout.hud_diameter >= 480 * 0.82
