@@ -1,0 +1,85 @@
+name: Status Reference v12 Preview
+
+on:
+  push:
+    branches:
+      - feat/autostart-display-resume
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/autostart-display-resume
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Qt runtime and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libopengl0
+          python -m pip install --upgrade pip
+          python -m pip install pytest .
+      - name: Apply approved reference renderer
+        run: python scripts/apply_status_reference_v12.py
+      - name: Compile
+        run: python -m compileall -q src tests
+      - name: Verify new reference contracts
+        run: pytest -q tests/test_status_reference_v12.py
+      - name: Verify functional state rendering
+        run: >-
+          pytest -q tests/test_system_state_frame.py -k
+          'all_states_render_exact_size_in_portrait_and_landscape or
+          terminal_and_suspend_states_are_visually_distinct or
+          themes_are_visually_distinct or
+          lock_and_idle_hud_phase_changes_visual_frame or
+          terminal_states_ignore_animation_phase_for_stable_final_frame or
+          active_state_is_not_a_state_screen or
+          invalid_dimensions_are_rejected'
+      - name: Render exact 480x1920 preview
+        run: |
+          mkdir -p preview
+          python - <<'PY'
+          from PySide6.QtWidgets import QApplication
+          from PySide6.QtGui import QIcon
+          from owndash.core.system_state import SystemState
+          from owndash.gui.system_state_frame import render_system_state_image
+
+          app = QApplication([])
+          icon = QIcon('src/owndash/assets/owndash.svg')
+          strings = {
+              'standby': 'Standby',
+              'entering_standby': 'Standby wird vorbereitet',
+              'system_locked': 'System gesperrt',
+              'shutting_down': 'Herunterfahren',
+              'restarting': 'Neustart',
+              'system_transition': 'Systemwechsel',
+              'ending_session': 'Aktuelle Sitzung wird beendet',
+              'idle': 'Bereit',
+          }
+          image = render_system_state_image(
+              480, 1920, SystemState.LOCKED, 'owndash', icon, strings,
+              clock_text='18:24', date_text='21.09.2026', animation_phase=0.22,
+          )
+          assert image.save('preview/status-reference-v12-480x1920.png')
+          PY
+      - name: Commit renderer only
+        run: |
+          git config user.name 'Markus'
+          git config user.email '14039170+x-Fuchur-x@users.noreply.github.com'
+          git add src/owndash/gui/system_state_frame.py
+          git commit -m 'feat: match approved status screen master reference'
+          git push origin HEAD:feat/autostart-display-resume
+      - uses: actions/upload-artifact@v4
+        with:
+          name: status-reference-v12-preview
+          path: preview/status-reference-v12-480x1920.png
+          if-no-files-found: error
