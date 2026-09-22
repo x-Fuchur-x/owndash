@@ -1,4 +1,5 @@
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
 
 from owndash.core.system_state import SystemState
 from owndash.gui.system_state_frame import _portrait_layout, _portrait_state_copy, render_system_state_image
@@ -50,6 +51,7 @@ def test_long_german_terminal_state_uses_single_reference_headline_copy():
     assert headline == "HERUNTERFAHREN"
     assert detail == "System wird sicher beendet"
 
+    app = QApplication.instance() or QApplication([])
     image = render_system_state_image(
         480,
         1920,
@@ -60,6 +62,7 @@ def test_long_german_terminal_state_uses_single_reference_headline_copy():
         clock_text="18:24",
         date_text="21.09.2026",
     )
+    assert app is not None
     assert not image.isNull()
     assert image.width() == 480
     assert image.height() == 1920
