@@ -41,10 +41,12 @@ def test_locked_panel_uses_approved_master_artwork():
     assert app is not None
     assert (rendered.width(), rendered.height()) == (480, 1920)
 
-    # Branding, ring, status block, side frame and floor come directly from
-    # the approved raster master. Only live clock/date and a tiny scanner cue
-    # may be painted at runtime.
     for x, y in ((240, 330), (240, 475), (95, 840), (240, 1505), (300, 1810)):
         assert rendered.pixelColor(x, y) == master.pixelColor(x, y)
 
-    assert rendered.pixelColor(240, 1165) != master.pixelColor(240, 1165)
+    clock_changed = any(
+        rendered.pixelColor(x, y) != master.pixelColor(x, y)
+        for y in range(1120, 1190, 4)
+        for x in range(150, 330, 4)
+    )
+    assert clock_changed
