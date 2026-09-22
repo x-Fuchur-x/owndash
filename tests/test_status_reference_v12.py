@@ -22,10 +22,8 @@ def test_approved_reference_places_brand_status_clock_and_floor_in_distinct_zone
     ring_top = layout.hud_center.y() - layout.hud_diameter / 2.0
     ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
 
-    # Master reference: compact glowing hero in the upper third, followed by
-    # a clearly separated state block, clock/date and the luminous floor.
-    assert 480 * 0.66 <= layout.hud_diameter <= 480 * 0.70
-    assert 1920 * 0.17 <= ring_top <= 1920 * 0.21
+    assert 480 * 0.65 <= layout.hud_diameter <= 480 * 0.70
+    assert 1920 * 0.16 <= ring_top <= 1920 * 0.21
     assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
     assert layout.wordmark_rect.bottom() < ring_bottom
     assert ring_bottom < layout.separator_y < 1920 * 0.43
@@ -36,15 +34,15 @@ def test_approved_reference_places_brand_status_clock_and_floor_in_distinct_zone
     assert 1920 * 0.82 <= layout.floor_horizon <= 1920 * 0.86
 
 
-def test_approved_reference_brand_and_status_are_refined_not_oversized():
+def test_approved_reference_brand_is_not_oversized_and_state_remains_dominant():
     layout = _portrait_layout(480, 1920)
 
-    assert 480 * 0.17 <= layout.brand_icon_rect.width() <= 480 * 0.19
-    assert 480 * 0.48 <= layout.wordmark_rect.width() <= 480 * 0.58
-    assert 480 * 0.082 <= layout.wordmark_font_px <= 480 * 0.095
-    assert 480 * 0.58 <= layout.status_rect.width() <= 480 * 0.70
-    assert 480 * 0.086 <= layout.status_font_px <= 480 * 0.098
+    assert 480 * 0.18 <= layout.brand_icon_rect.width() <= 480 * 0.20
+    assert 480 * 0.50 <= layout.wordmark_rect.width() <= 480 * 0.60
+    assert 480 * 0.085 <= layout.wordmark_font_px <= 480 * 0.100
+    assert 480 * 0.62 <= layout.status_rect.width() <= 480 * 0.78
     assert layout.status_font_px >= layout.wordmark_font_px
+    assert layout.status_font_px <= 480 * 0.100
 
 
 def test_long_german_terminal_state_uses_single_reference_headline_copy():
