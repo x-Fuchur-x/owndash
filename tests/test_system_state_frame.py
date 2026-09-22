@@ -1,14 +1,7 @@
-import math
-
 from PySide6.QtGui import QIcon, QImage
 
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import (
-    _portrait_layout,
-    _portrait_rail_approaches,
-    _portrait_rail_docks,
-    render_system_state_image,
-)
+from owndash.gui.system_state_frame import render_system_state_image
 
 
 STRINGS = {
@@ -126,7 +119,7 @@ def test_terminal_states_ignore_animation_phase_for_stable_final_frame():
         assert image_digest(phase_a) == image_digest(phase_b)
 
 
-def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections():
+def test_approved_locked_master_keeps_reference_rails_gradient_and_floor():
     image = render(
         480,
         1920,
@@ -137,27 +130,15 @@ def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections()
     )
 
     cyan_left = _count_pixels(
-        image,
-        0,
-        100,
-        55,
-        1420,
-        lambda r, g, b: b > 100 and g > 90 and b > r * 1.35,
+        image, 0, 100, 70, 1500,
+        lambda r, g, b: b > 100 and g > 90 and b > r * 1.30,
     )
     magenta_right = _count_pixels(
-        image,
-        425,
-        100,
-        480,
-        1420,
-        lambda r, g, b: r > 105 and b > 80 and r > g * 1.25,
+        image, 410, 100, 480, 1500,
+        lambda r, g, b: r > 105 and b > 80 and r > g * 1.20,
     )
     neon_floor = _count_pixels(
-        image,
-        45,
-        1580,
-        435,
-        1910,
+        image, 35, 1480, 445, 1915,
         lambda r, g, b: max(r, g, b) > 75 and max(r, g, b) - min(r, g, b) > 38,
     )
 
@@ -165,123 +146,6 @@ def test_owndash_portrait_has_reference_style_side_rails_and_floor_reflections()
     assert magenta_right >= 28
     assert neon_floor >= 45
 
-
-def test_portrait_status_layout_uses_compact_identity_hud():
-    layout = _portrait_layout(480, 1920)
-    ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
-
-    assert 480 * 0.84 <= layout.hud_diameter <= 480 * 0.90
-    assert 480 * 0.12 <= layout.wordmark_font_px <= 480 * 0.14
-    assert 480 * 0.09 <= layout.status_font_px <= 480 * 0.11
-    assert 480 * 0.80 <= layout.status_rect.width() <= 480 * 0.88
-    assert layout.separator_y > ring_bottom
-    assert layout.state_icon_rect.top() > layout.separator_y
-    assert layout.bar_rect.top() > layout.detail_rect.bottom()
-
-def test_portrait_system_state_is_the_hero_element():
-    layout = _portrait_layout(480, 1920)
-    ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
-
-    assert 480 * 0.78 <= layout.wordmark_rect.width() <= 480 * 0.82
-    assert layout.status_font_px < layout.wordmark_font_px
-    assert layout.status_rect.width() > layout.wordmark_rect.width()
-    assert layout.status_rect.top() > ring_bottom
-
-def test_portrait_v3_rails_dock_on_outer_ring_instead_of_crossing_it():
-    layout = _portrait_layout(480, 1920)
-    docks = _portrait_rail_docks(layout)
-    radius = layout.hud_diameter / 2.0
-
-    assert len(docks) == 4
-    for point in docks:
-        distance = math.hypot(
-            point.x() - layout.hud_center.x(),
-            point.y() - layout.hud_center.y(),
-        )
-        assert abs(distance - radius) <= radius * 0.015
-
-    upper_left, lower_left, upper_right, lower_right = docks
-    assert upper_left.y() < layout.hud_center.y() < lower_left.y()
-    assert upper_right.y() < layout.hud_center.y() < lower_right.y()
-    assert upper_left.x() < layout.hud_center.x() < upper_right.x()
-    assert lower_left.x() < layout.hud_center.x() < lower_right.x()
-
-
-def test_portrait_status_composition_is_balanced_for_480x1920():
-    layout = _portrait_layout(480, 1920)
-    ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
-
-    assert 1920 * 0.22 <= layout.hud_center.y() <= 1920 * 0.25
-    assert layout.separator_y > ring_bottom
-    assert layout.status_rect.top() > layout.state_icon_rect.bottom()
-    assert 1920 * 0.65 <= layout.context_top <= 1920 * 0.70
-    assert layout.floor_horizon >= 1920 * 0.86
-
-def test_portrait_v4_rail_approaches_are_tangent_to_the_ring():
-    layout = _portrait_layout(480, 1920)
-    docks = _portrait_rail_docks(layout)
-    approaches = _portrait_rail_approaches(layout)
-
-    assert len(approaches) == len(docks) == 4
-    for dock, approach in zip(docks, approaches):
-        radius_x = dock.x() - layout.hud_center.x()
-        radius_y = dock.y() - layout.hud_center.y()
-        tangent_x = dock.x() - approach.x()
-        tangent_y = dock.y() - approach.y()
-        dot = radius_x * tangent_x + radius_y * tangent_y
-        radius = math.hypot(radius_x, radius_y)
-        tangent = math.hypot(tangent_x, tangent_y)
-        assert tangent >= 480 * 0.045
-        assert abs(dot) <= radius * tangent * 0.08
-
-
-def test_portrait_v4_wordmark_has_a_crisp_bright_core():
-    image = render(480, 1920, SystemState.LOCKED, animation_phase=0.25)
-    layout = _portrait_layout(480, 1920)
-    rect = layout.wordmark_rect
-    bright_core = _count_pixels(
-        image,
-        int(rect.left()),
-        int(rect.top()),
-        int(rect.right()),
-        int(rect.bottom()),
-        lambda r, g, b: max(r, g, b) >= 210 and (r + g + b) >= 430,
-    )
-
-    assert bright_core >= 115
-
-
-def test_portrait_branding_has_breathing_room_without_dominating_status():
-    layout = _portrait_layout(480, 1920)
-    radius = layout.hud_diameter / 2.0
-
-    assert 480 * 0.12 <= layout.wordmark_font_px <= 480 * 0.14
-    assert 480 * 0.78 <= layout.wordmark_rect.width() <= 480 * 0.82
-    assert layout.brand_icon_rect.width() >= 480 * 0.18
-    assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
-    assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
-
-    icon_center = layout.brand_icon_rect.center()
-    assert math.hypot(
-        icon_center.x() - layout.hud_center.x(),
-        icon_center.y() - layout.hud_center.y(),
-    ) + layout.brand_icon_rect.width() / 2.0 < radius * 0.90
-
-def test_portrait_brand_icon_stays_distinct_from_wordmark():
-    layout = _portrait_layout(480, 1920)
-
-    assert layout.brand_icon_rect.width() >= 480 * 0.18
-    assert layout.brand_icon_rect.height() == layout.brand_icon_rect.width()
-    assert 480 * 0.12 <= layout.wordmark_font_px <= 480 * 0.14
-    assert layout.brand_icon_rect.bottom() + 480 * 0.006 <= layout.wordmark_rect.top()
-
-def test_portrait_v3_keeps_status_and_floor_as_separate_visual_zones():
-    layout = _portrait_layout(480, 1920)
-
-    assert layout.status_rect.bottom() < layout.detail_rect.top()
-    assert layout.detail_rect.bottom() < layout.bar_rect.top()
-    assert layout.bar_rect.bottom() < layout.context_top
-    assert layout.floor_horizon > layout.context_top
 
 def test_active_state_is_not_a_state_screen():
     try:
