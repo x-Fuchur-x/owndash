@@ -23,7 +23,7 @@ def _master_image() -> QImage:
     image = QImage.fromData(resource.read_bytes(), "JPG")
     if image.isNull() or image.width() != 480 or image.height() != 1920:
         raise RuntimeError("invalid approved OwnDash status master artwork")
-    return image
+    return image.convertToFormat(QImage.Format_RGB32)
 
 
 def _fit_single_line(image: QImage, text: str, rect: QRectF, px: int) -> QFont:
@@ -55,17 +55,14 @@ def _draw_live_text(painter: QPainter, image: QImage, rect: QRectF, text: str, p
 
 
 def render_locked_master(clock_text: str | None, date_text: str | None, animation_phase: float) -> QImage:
-    """Return the exact approved 480x1920 locked design with live context."""
+    """Return the approved 480x1920 locked design with live context."""
     image = _master_image().copy()
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
 
-    # These boxes match the clock/date positions of the approved reference.
     _draw_live_text(painter, image, QRectF(105, 1110, 270, 92), clock_text or "", 52, glow=True)
     _draw_live_text(painter, image, QRectF(110, 1190, 260, 44), date_text or "", 20, glow=False)
 
-    # Preserve a very subtle animated cue so LOCKED remains a live state while
-    # the approved raster composition itself stays untouched.
     phase = float(animation_phase) % 1.0
     scanner_x = 138.0 + 204.0 * (0.5 + 0.5 * math.sin(phase * math.tau - math.pi / 2.0))
     scanner = QColor("#f7fcff")
