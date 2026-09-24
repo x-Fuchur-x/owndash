@@ -18,48 +18,62 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Patch renderer to approved master
+
+      - name: Patch locked renderer and retire superseded contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('src/owndash/gui/system_state_frame.py')
-          s = p.read_text()
-          if 'from importlib.resources import files' not in s:
-              s = s.replace('from dataclasses import dataclass\nimport math\n', 'from dataclasses import dataclass\nfrom importlib.resources import files\nimport math\n')
 
-          old_layout = '''    # The approved artwork is much less top-heavy than v8-v11.  The ring is\n    # deliberately smaller than the old 88%-width HUD and the status/clock\n    # occupy their own vertical zones instead of being pulled toward it.\n    center = QPointF(width * 0.50, height * 0.275)\n    diameter = width * 0.68\n    icon_side = width * 0.18\n    return _PortraitLayout(\n        hud_center=center,\n        hud_diameter=diameter,\n        brand_icon_rect=QRectF(\n            width * 0.50 - icon_side / 2.0,\n            height * 0.202,\n            icon_side,\n            icon_side,\n        ),\n        wordmark_rect=QRectF(width * 0.23, height * 0.286, width * 0.54, height * 0.045),\n        wordmark_font_px=width * 0.090,\n        tagline_rect=QRectF(width * 0.24, height * 0.336, width * 0.52, height * 0.018),\n        separator_y=height * 0.393,\n        state_icon_rect=QRectF(width * 0.40, height * 0.455, width * 0.20, height * 0.056),\n        status_rect=QRectF(width * 0.18, height * 0.527, width * 0.64, height * 0.050),\n        status_font_px=width * 0.092,\n        detail_rect=QRectF(width * 0.14, height * 0.582, width * 0.72, height * 0.030),\n        bar_rect=QRectF(width * 0.22, height * 0.635, width * 0.56, max(8.0, width * 0.016)),\n        context_top=height * 0.720,\n        floor_horizon=height * 0.845,\n    )'''
-          new_layout = '''    # Geometry retained for non-raster portrait states. The approved LOCKED\n    # screen bypasses this procedural layout and uses the packaged master.\n    center = QPointF(width * 0.50, height * 0.235)\n    diameter = width * 0.88\n    icon_side = width * 0.18\n    return _PortraitLayout(\n        hud_center=center,\n        hud_diameter=diameter,\n        brand_icon_rect=QRectF(\n            width * 0.50 - icon_side / 2.0,\n            height * 0.165,\n            icon_side,\n            icon_side,\n        ),\n        wordmark_rect=QRectF(width * 0.10, height * 0.245, width * 0.80, height * 0.055),\n        wordmark_font_px=width * 0.130,\n        tagline_rect=QRectF(width * 0.20, height * 0.305, width * 0.60, height * 0.022),\n        separator_y=height * 0.380,\n        state_icon_rect=QRectF(width * 0.40, height * 0.430, width * 0.20, height * 0.070),\n        status_rect=QRectF(width * 0.10, height * 0.515, width * 0.80, height * 0.065),\n        status_font_px=width * 0.115,\n        detail_rect=QRectF(width * 0.14, height * 0.585, width * 0.72, height * 0.035),\n        bar_rect=QRectF(width * 0.20, height * 0.645, width * 0.60, max(8.0, width * 0.016)),\n        context_top=height * 0.720,\n        floor_horizon=height * 0.875,\n    )'''
-          if old_layout in s:
-              s = s.replace(old_layout, new_layout)
+          renderer = Path('src/owndash/gui/system_state_frame.py')
+          s = renderer.read_text()
+          if 'from importlib.resources import files' not in s:
+              s = s.replace(
+                  'from dataclasses import dataclass\nimport math\n',
+                  'from dataclasses import dataclass\nfrom importlib.resources import files\nimport math\n',
+              )
 
           marker = '''    if state not in _STATE_KEYS:\n        raise ValueError(f"unsupported system state: {state}")\n\n    palette = _THEMES.get(str(theme), _THEMES["owndash"])'''
-          replacement = '''    if state not in _STATE_KEYS:\n        raise ValueError(f"unsupported system state: {state}")\n\n    # The locked portrait is intentionally raster-mastered: this guarantees\n    # the exact approved composition instead of approximating it procedurally.\n    if height >= width * 1.35 and state is SystemState.LOCKED:\n        resource = files("owndash").joinpath("assets", "status-master-locked-480x1920.jpg")\n        master = QImage.fromData(resource.read_bytes(), "JPG")\n        if not master.isNull():\n            if master.width() != width or master.height() != height:\n                master = master.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)\n            image = master.convertToFormat(QImage.Format_RGB32)\n            painter = QPainter(image)\n            painter.setRenderHint(QPainter.Antialiasing)\n            painter.setRenderHint(QPainter.SmoothPixmapTransform)\n            palette = _THEMES.get(str(theme), _THEMES["owndash"])\n            if clock_text:\n                _draw_centered_single_line(\n                    painter, image, QRectF(width * 0.16, height * 0.570, width * 0.68, height * 0.065),\n                    clock_text, width * 0.100, palette.primary, glow=palette.cyan, family="DejaVu Sans"\n                )\n            if date_text:\n                _draw_centered_single_line(\n                    painter, image, QRectF(width * 0.18, height * 0.630, width * 0.64, height * 0.035),\n                    date_text, width * 0.036, palette.secondary, family="DejaVu Sans"\n                )\n            painter.end()\n            return image\n\n    palette = _THEMES.get(str(theme), _THEMES["owndash"])'''
-          if marker not in s:
-              raise SystemExit('render insertion marker not found')
-          s = s.replace(marker, replacement)
-          p.write_text(s)
+          replacement = '''    if state not in _STATE_KEYS:\n        raise ValueError(f"unsupported system state: {state}")\n\n    # LOCKED portrait is raster-mastered from the explicitly approved design.\n    # This prevents later procedural layout changes from drifting away from it.\n    if height >= width * 1.35 and state is SystemState.LOCKED:\n        resource = files("owndash").joinpath("assets", "status-master-locked-480x1920.jpg")\n        master = QImage.fromData(resource.read_bytes(), "JPG")\n        if not master.isNull():\n            if master.width() != width or master.height() != height:\n                master = master.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)\n            image = master.convertToFormat(QImage.Format_RGB32)\n            painter = QPainter(image)\n            painter.setRenderHint(QPainter.Antialiasing)\n            painter.setRenderHint(QPainter.SmoothPixmapTransform)\n            palette = _THEMES.get(str(theme), _THEMES["owndash"])\n            if clock_text:\n                _draw_centered_single_line(\n                    painter, image,\n                    QRectF(width * 0.16, height * 0.570, width * 0.68, height * 0.065),\n                    clock_text, width * 0.100, palette.primary,\n                    glow=palette.cyan, family="DejaVu Sans",\n                )\n            if date_text:\n                _draw_centered_single_line(\n                    painter, image,\n                    QRectF(width * 0.18, height * 0.630, width * 0.64, height * 0.035),\n                    date_text, width * 0.036, palette.secondary,\n                    family="DejaVu Sans",\n                )\n            painter.end()\n            return image\n\n    palette = _THEMES.get(str(theme), _THEMES["owndash"])'''
+          if marker in s:
+              s = s.replace(marker, replacement)
+          elif 'LOCKED portrait is raster-mastered' not in s:
+              raise SystemExit('renderer insertion marker not found')
+          renderer.write_text(s)
+
+          tests = Path('tests/test_system_state_frame.py')
+          t = tests.read_text()
+          old = '''def test_lock_and_idle_hud_phase_changes_visual_frame():\n    for state in (SystemState.LOCKED, SystemState.IDLE):\n        phase_a = render(480, 1920, state, animation_phase=0.0, clock_text="11:42")\n        phase_b = render(480, 1920, state, animation_phase=0.5, clock_text="11:42")\n        assert image_digest(phase_a) != image_digest(phase_b)\n'''
+          new = '''def test_approved_locked_master_is_static_while_idle_hud_still_animates():\n    locked_a = render(480, 1920, SystemState.LOCKED, animation_phase=0.0, clock_text="11:42")\n    locked_b = render(480, 1920, SystemState.LOCKED, animation_phase=0.5, clock_text="11:42")\n    assert image_digest(locked_a) == image_digest(locked_b)\n\n    idle_a = render(480, 1920, SystemState.IDLE, animation_phase=0.0, clock_text="11:42")\n    idle_b = render(480, 1920, SystemState.IDLE, animation_phase=0.5, clock_text="11:42")\n    assert image_digest(idle_a) != image_digest(idle_b)\n'''
+          if old in t:
+              t = t.replace(old, new)
+          tests.write_text(t)
+
+          Path('tests/test_system_state_frame_v5.py').write_text('''from importlib.resources import files\n\nfrom PySide6.QtGui import QImage\n\n\ndef test_approved_locked_master_replaces_superseded_v10_brand_geometry():\n    resource = files("owndash").joinpath("assets", "status-master-locked-480x1920.jpg")\n    assert resource.is_file()\n    image = QImage.fromData(resource.read_bytes(), "JPG")\n    assert not image.isNull()\n    assert (image.width(), image.height()) == (480, 1920)\n''')
           PY
+
       - name: Install test dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libopengl0
           python -m pip install --upgrade pip
           python -m pip install pytest .
-      - name: Verify
+
+      - name: Verify complete suite
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           python -m compileall -q src tests
           pytest -q
           bash -n run-owndash.sh
-      - name: Commit implementation
+
+      - name: Commit verified implementation
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/owndash/gui/system_state_frame.py
+          git add src/owndash/gui/system_state_frame.py tests/test_system_state_frame.py tests/test_system_state_frame_v5.py
           if git diff --cached --quiet; then
             echo 'No implementation changes to commit'
           else
-            git commit -m 'feat: render locked status from approved master artwork'
+            git commit -m 'feat: lock approved status master artwork'
             git push origin HEAD:feat/autostart-display-resume
           fi
