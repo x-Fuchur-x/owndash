@@ -27,14 +27,8 @@ def state_window(monkeypatch, tmp_path):
     )
     monkeypatch.setattr("owndash.gui.main_window.load_preferences", lambda: prefs)
     monkeypatch.setattr("owndash.gui.main_window.SystemSensorProvider.snapshot", lambda self: {})
-    monkeypatch.setattr(
-        "owndash.service.system_state_linux.LinuxSystemStateAdapter.start",
-        lambda self: False,
-    )
-    monkeypatch.setattr(
-        "owndash.service.idle_state.IdleStateMonitor.start",
-        lambda self: False,
-    )
+    monkeypatch.setattr("owndash.service.system_state_linux.LinuxSystemStateAdapter.start", lambda self: False)
+    monkeypatch.setattr("owndash.service.idle_state.IdleStateMonitor.start", lambda self: False)
     window = SafeShutdownWindow()
     yield window
     for timer in window.findChildren(QTimer):
@@ -45,15 +39,8 @@ def state_window(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
-def test_usb_system_state_renderer_uses_dashboard_logical_orientation(
-    state_window, monkeypatch, rotation
-):
-    """Status art must enter the backend exactly like a normal dashboard JPEG.
-
-    The AIC backend owns panel rotation. Pre-rotating status art in the GUI
-    creates a second, different orientation path and produced the sideways
-    restart screen seen on the physical 480x1920 display.
-    """
+def test_usb_system_state_renderer_uses_dashboard_logical_orientation(state_window, monkeypatch, rotation):
+    """Status art enters the backend in dashboard logical orientation."""
     window = state_window
     window.display_backend_key = "aic_usb"
     window._display_rotation = rotation
@@ -68,7 +55,6 @@ def test_usb_system_state_renderer_uses_dashboard_logical_orientation(
         return image
 
     monkeypatch.setattr(app_window_module, "render_system_state_image", fake_render)
-
     payload = window._render_system_state_payload(SystemState.RESTARTING)
     transport = QImage.fromData(payload)
 
@@ -81,8 +67,8 @@ def test_portrait_status_layout_matches_approved_reference_hierarchy():
     layout = _portrait_layout(width, height)
     ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
 
-    assert layout.hud_diameter <= width * 0.90
-    assert layout.status_font_px < layout.wordmark_font_px
+    assert width * 0.65 <= layout.hud_diameter <= width * 0.70
+    assert layout.status_font_px >= layout.wordmark_font_px
     assert layout.separator_y > ring_bottom
     assert layout.state_icon_rect.top() > layout.separator_y
     assert layout.status_rect.top() > layout.state_icon_rect.bottom()
