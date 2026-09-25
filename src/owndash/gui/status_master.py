@@ -6,21 +6,25 @@ and a tiny lock-animation scanner point are painted at runtime.
 """
 from __future__ import annotations
 
+import base64
 from functools import lru_cache
-from importlib.resources import files
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPen
 
-
-_MASTER_NAME = "status-master-locked-480x1920.jpg"
+from ._status_master_data_00 import DATA as DATA_00
+from ._status_master_data_01 import DATA as DATA_01
+from ._status_master_data_02 import DATA as DATA_02
+from ._status_master_data_03 import DATA as DATA_03
+from ._status_master_data_04 import DATA as DATA_04
+from ._status_master_data_05 import DATA as DATA_05
 
 
 @lru_cache(maxsize=1)
 def _master_image() -> QImage:
-    resource = files("owndash").joinpath("assets", _MASTER_NAME)
-    image = QImage.fromData(resource.read_bytes(), "JPG")
+    payload = base64.b64decode(DATA_00 + DATA_01 + DATA_02 + DATA_03 + DATA_04 + DATA_05)
+    image = QImage.fromData(payload, "JPG")
     if image.isNull() or image.width() != 480 or image.height() != 1920:
         raise RuntimeError("invalid approved OwnDash status master artwork")
     return image.convertToFormat(QImage.Format_RGB32)
