@@ -1,11 +1,7 @@
-from importlib.resources import files
-
-from PySide6.QtGui import QImage
+from owndash.gui.status_master import _master_image
 
 
 def test_approved_locked_master_replaces_superseded_v10_brand_geometry():
-    resource = files("owndash").joinpath("assets", "status-master-locked-480x1920.jpg")
-    assert resource.is_file()
-    image = QImage.fromData(resource.read_bytes(), "JPG")
+    image = _master_image()
     assert not image.isNull()
     assert (image.width(), image.height()) == (480, 1920)
