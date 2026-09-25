@@ -1,9 +1,8 @@
-from importlib.resources import files
-
-from PySide6.QtGui import QIcon, QImage
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from owndash.core.system_state import SystemState
+from owndash.gui.status_master import _master_image
 from owndash.gui.system_state_frame import render_system_state_image
 
 
@@ -21,10 +20,8 @@ STRINGS_DE = {
 
 def test_locked_panel_uses_approved_master_artwork():
     app = QApplication.instance() or QApplication([])
-    resource = files("owndash").joinpath("assets", "status-master-locked-480x1920.jpg")
-    assert resource.is_file(), "approved status master must be packaged"
-
-    master = QImage.fromData(resource.read_bytes(), "JPG")
+    master = _master_image()
+    assert not master.isNull()
     assert (master.width(), master.height()) == (480, 1920)
 
     rendered = render_system_state_image(
