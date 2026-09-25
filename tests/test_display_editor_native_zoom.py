@@ -129,10 +129,10 @@ def test_fit_width_tracks_window_size_but_manual_100_percent_does_not(window):
 def test_portrait_status_branding_is_present_but_status_remains_primary():
     layout = _portrait_layout(480, 1920)
 
-    assert layout.wordmark_font_px >= 480 * 0.11
+    assert 480 * 0.085 <= layout.wordmark_font_px <= 480 * 0.100
     assert layout.brand_icon_rect.width() >= 480 * 0.12
-    assert layout.status_font_px < layout.wordmark_font_px
-    assert layout.status_font_px <= layout.wordmark_font_px
-    assert 480 * 0.78 <= layout.wordmark_rect.width() <= 480 * 0.82
+    assert layout.status_font_px >= layout.wordmark_font_px
+    assert layout.status_font_px <= 480 * 0.100
+    assert 480 * 0.50 <= layout.wordmark_rect.width() <= 480 * 0.60
     assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
     assert layout.wordmark_rect.bottom() < layout.status_rect.top()
