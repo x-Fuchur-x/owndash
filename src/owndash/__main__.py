@@ -14,7 +14,7 @@ def main() -> int:
         return 2
 
     from owndash.assets import app_icon_path
-    from owndash.gui.app_window import SafeShutdownWindow as MainWindow
+    from owndash.gui.device_center_window import DeviceCenterWindow as MainWindow
     from owndash.service.autostart import set_autostart_enabled
     from owndash.service.session_shutdown import bind_session_shutdown
     from owndash.service.startup import resolve_startup_arguments
