@@ -86,12 +86,10 @@ def test_endpoint_semantics_decode_interrupt_and_isochronous_types(tmp_path):
         _write(endpoint / "bmAttributes", f"{attributes}\n")
 
     snapshot = probe_artinchip_usb_inventory(tmp_path)
-    endpoints = snapshot.interfaces[0].endpoints
+    endpoints = {endpoint.address: endpoint for endpoint in snapshot.interfaces[0].endpoints}
 
-    assert [(ep.direction, ep.transfer_type) for ep in endpoints] == [
-        ("IN", "Interrupt"),
-        ("OUT", "Isochronous"),
-    ]
+    assert (endpoints["83"].direction, endpoints["83"].transfer_type) == ("IN", "Interrupt")
+    assert (endpoints["04"].direction, endpoints["04"].transfer_type) == ("OUT", "Isochronous")
 
 
 def test_invalid_endpoint_descriptor_values_degrade_to_unknown(tmp_path):
