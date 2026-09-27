@@ -3,7 +3,8 @@ from __future__ import annotations
 import getpass
 from pathlib import Path
 
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QScrollArea, QVBoxLayout
 
 from owndash import __version__
 from owndash.core.display import DisplayCapabilities, DisplayInfo
@@ -221,10 +222,15 @@ class DeviceCenterWindow(SafeShutdownWindow):
             self._device_diagnostic_snapshot(),
             refresh_snapshot=self._device_diagnostic_snapshot,
             report_text=self._device_diagnostic_report,
-            parent=dialog,
             translate=self._device_t,
         )
-        layout.addWidget(controls, 1)
+
+        scroll = QScrollArea(dialog)
+        scroll.setObjectName("deviceCenterScrollArea")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(controls)
+        layout.addWidget(scroll, 1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close, dialog)
         close_button = buttons.button(QDialogButtonBox.Close)
