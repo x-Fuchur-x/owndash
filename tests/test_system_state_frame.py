@@ -72,10 +72,10 @@ def test_terminal_and_suspend_states_are_visually_distinct():
     assert len(set(images.values())) == 3
 
 
-def test_themes_are_visually_distinct():
+def test_approved_artwork_is_theme_independent():
     own = render(640, 360, SystemState.LOCKED, "owndash", clock_text="12:34")
     bazzite = render(640, 360, SystemState.LOCKED, "bazzite-inspired", clock_text="12:34")
-    assert image_digest(own) != image_digest(bazzite)
+    assert image_digest(own) == image_digest(bazzite)
 
 
 def test_unknown_theme_falls_back_to_owndash():
