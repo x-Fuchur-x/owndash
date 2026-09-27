@@ -14,6 +14,8 @@ class UsbEndpointInventory:
     address: str | None
     attributes: str | None
     max_packet_size: str | None
+    direction: str | None = None
+    transfer_type: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +59,37 @@ def _read_int(path: Path) -> int | None:
         return None
 
 
+def _hex_byte(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        decoded = int(value, 16)
+    except ValueError:
+        return None
+    if not 0 <= decoded <= 0xFF:
+        return None
+    return decoded
+
+
+def _endpoint_direction(address: str | None) -> str | None:
+    decoded = _hex_byte(address)
+    if decoded is None:
+        return None
+    return "IN" if decoded & 0x80 else "OUT"
+
+
+def _endpoint_transfer_type(attributes: str | None) -> str | None:
+    decoded = _hex_byte(attributes)
+    if decoded is None:
+        return None
+    return {
+        0: "Control",
+        1: "Isochronous",
+        2: "Bulk",
+        3: "Interrupt",
+    }[decoded & 0x03]
+
+
 def _driver_name(interface: Path) -> str | None:
     driver = interface / "driver"
     try:
@@ -77,11 +110,15 @@ def _endpoint_inventory(interface: Path) -> tuple[UsbEndpointInventory, ...]:
     for child in children:
         if not child.name.startswith("ep_"):
             continue
+        address = _read_text(child / "bEndpointAddress")
+        attributes = _read_text(child / "bmAttributes")
         endpoints.append(
             UsbEndpointInventory(
-                address=_read_text(child / "bEndpointAddress"),
-                attributes=_read_text(child / "bmAttributes"),
+                address=address,
+                attributes=attributes,
                 max_packet_size=_read_text(child / "wMaxPacketSize"),
+                direction=_endpoint_direction(address),
+                transfer_type=_endpoint_transfer_type(attributes),
             )
         )
     return tuple(endpoints)
