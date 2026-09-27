@@ -88,6 +88,8 @@ Kompatible ArtInChip-basierte Sensordisplays können direkt über USB angesteuer
 
 OwnDash bietet eine jederzeit verfügbare Ansicht **Geräteinformationen** mit passiven Informationen zu Gerät, USB-Zugriff und Funktionsstatus. Das Aktualisieren dieser Diagnosen ist nur lesend und verbindet oder reconnectet keine Hardware und sendet keine Steuerbefehle.
 
+Das Gerätecenter unterscheidet jetzt ausdrücklich zwischen dem **ausgewählten Ausgang** und dem tatsächlich **aktiven Ausgang** und zeigt den Verbindungszustand separat an. Ist ein Backend ausgewählt, aber gerade nicht aktiv, erscheint klar **Kein aktiver Ausgang**. Reine OwnDash-Funktionen wie die Software-Dimmung stehen getrennt von Hardware-Funktionen, damit eine Softwarefunktion nicht als Gerätefähigkeit missverstanden wird.
+
 Die **Software-Dimmung** ist unter **Display → Software-Dimmung …** verfügbar. Der Regler arbeitet von 10–100 %, zeigt Änderungen live an, speichert den gewählten Wert beim Übernehmen und stellt beim Abbrechen den vorherigen Wert wieder her. Diese Funktion dunkelt ausschließlich das von OwnDash erzeugte Bild ab; sie verändert **nicht** die Hintergrundbeleuchtung des Displays und sendet keinen Hardware-Helligkeitsbefehl.
 
 Beim Backend `33C3:0E02` bleiben Hardware-Helligkeit, Geräteversionsabfragen, Panel-Abfragen und Expansion Screen Mode deaktiviert, weil dafür noch kein kompatibler Steuertransport verifiziert wurde. Hardware-Helligkeit bleibt daher ausdrücklich von der Software-Dimmung getrennt. Für dieses Gerät sind weder ein Hardware-Helligkeitsbereich noch ein definiertes Hardware-Power-off-Verhalten bestätigt.
@@ -167,6 +169,7 @@ Die zentralen Abhängigkeiten sind in `pyproject.toml` definiert und umfassen Py
 
 - **[Roadmap](ROADMAP.md)** — geplante Entwicklung Richtung 1.0 und weitere Display-Unterstützung
 - **[Changelog](CHANGELOG.md)** — veröffentlichte Funktionen und Versionshistorie
+- **[Gerätecenter und Display-Verwaltung](docs/device-center.md)** — Ausgabestatus, Software-Dimmung, Hardware-Funktionsstatus und Diagnosen
 - **[Systemstatus-Anzeigen](docs/system-state-screens.md)** — Zustandslogik, Ressourcenverhalten und Suspend/Resume-Details
 - **[Contributing](CONTRIBUTING.md)** — Hinweise zum Mitmachen
 - **[Issues](https://github.com/x-Fuchur-x/owndash/issues)** — Fehler und Funktionswünsche
