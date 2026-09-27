@@ -88,18 +88,38 @@ class DeviceCenterWidget(QWidget):
         report_text: Callable[[DeviceDiagnosticSnapshot], str],
         parent: QWidget | None = None,
         translate: Callable[[str], str] | None = None,
+        software_dimming_percent: int = 100,
     ) -> None:
         super().__init__(parent)
         self._t = translate or (lambda text: text)
         self._refresh_snapshot = refresh_snapshot
         self._report_text = report_text
         self._snapshot = snapshot
+        self._software_dimming_percent = max(10, min(100, int(software_dimming_percent)))
         self._capability_labels: dict[str, QLabel] = {}
         self._capability_name_labels: list[QLabel] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(12)
+
+        self.output_summary_section = QGroupBox(self._t("Ausgabe"), self)
+        self.output_summary_section.setObjectName("deviceCenterOutputSummarySection")
+        self.output_summary_form = QFormLayout(self.output_summary_section)
+        self.selected_output_label = self._value_label("deviceCenterSelectedOutput")
+        self.active_output_label = self._value_label("deviceCenterActiveOutput")
+        self.summary_connection_label = self._value_label("deviceCenterSummaryConnectionStatus")
+        self.output_summary_form.addRow(self._t("Ausgewählter Ausgang"), self.selected_output_label)
+        self.output_summary_form.addRow(self._t("Aktiver Ausgang"), self.active_output_label)
+        self.output_summary_form.addRow(self._t("Verbindung"), self.summary_connection_label)
+        outer.addWidget(self.output_summary_section)
+
+        self.software_section = QGroupBox(self._t("OwnDash-Funktionen"), self)
+        self.software_section.setObjectName("deviceCenterSoftwareSection")
+        self.software_form = QFormLayout(self.software_section)
+        self.software_dimming_label = self._value_label("deviceCenterSoftwareDimming")
+        self.software_form.addRow(self._t("Software-Dimmung"), self.software_dimming_label)
+        outer.addWidget(self.software_section)
 
         self.device_section = QGroupBox(self._t("Gerät"), self)
         self.device_section.setObjectName("deviceCenterDeviceSection")
@@ -149,7 +169,7 @@ class DeviceCenterWidget(QWidget):
         self.usb_inventory_form.addRow(self._t("Interfaces & Endpoints"), self.usb_inventory_details_label)
         outer.addWidget(self.usb_inventory_section)
 
-        self.capabilities_section = QGroupBox(self._t("Funktionen"), self)
+        self.capabilities_section = QGroupBox(self._t("Hardware-Funktionen"), self)
         self.capabilities_section.setObjectName("deviceCenterCapabilitiesSection")
         self.capabilities_form = QFormLayout(self.capabilities_section)
         outer.addWidget(self.capabilities_section)
@@ -190,9 +210,17 @@ class DeviceCenterWidget(QWidget):
 
     def set_snapshot(self, snapshot: DeviceDiagnosticSnapshot) -> None:
         self._snapshot = snapshot
-        self.connection_status_label.setText(
-            self._t("Verbunden") if snapshot.connected else self._t("Nicht verbunden")
+        connected_text = self._t("Verbunden") if snapshot.connected else self._t("Nicht verbunden")
+        selected_output = snapshot.backend_name or snapshot.backend_key or "—"
+        active_output = selected_output if snapshot.connected else self._t("Kein aktiver Ausgang")
+        self.selected_output_label.setText(selected_output)
+        self.active_output_label.setText(active_output)
+        self.summary_connection_label.setText(connected_text)
+        self.software_dimming_label.setText(
+            f"{self._software_dimming_percent} % · {self._t('OwnDash-Softwarefunktion')}"
         )
+
+        self.connection_status_label.setText(connected_text)
         self.backend_label.setText(
             f"{snapshot.backend_name} ({snapshot.backend_key})"
             if snapshot.backend_name
