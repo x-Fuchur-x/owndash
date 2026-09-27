@@ -1,4 +1,4 @@
-name: Internal info layout patch
+name: Internal narrow source patch
 
 on:
   push:
@@ -10,17 +10,17 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'chore: run info layout patch'
+    if: github.event.head_commit.message == 'chore: run background removal patch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Apply narrow info-layout patch
+      - name: Apply reviewed narrow source patch
         run: python tools/patch_info_layout.py
-      - name: Commit patched main window
+      - name: Commit patched sources
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/owndash/gui/main_window.py
+          git add src/owndash/gui/main_window.py src/owndash/gui/canvas.py
           git diff --cached --check
-          git commit -m "feat: align system diagnostics info columns"
+          git commit -m "fix: allow removing background images"
           git push
