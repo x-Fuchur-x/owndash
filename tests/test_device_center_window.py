@@ -56,23 +56,23 @@ def test_device_center_action_is_always_enabled_while_disconnected(device_window
     window = device_window
     assert window.display_connected is False
     assert window.device_center_action.isEnabled()
-    assert window.device_center_action.text() == "Display & Gerät …"
+    assert window.device_center_action.text() == "Geräteinformationen …"
 
 
 def test_device_center_action_retranslates_when_language_changes(device_window):
     window = device_window
-    assert window.device_center_action.text() == "Display & Gerät …"
+    assert window.device_center_action.text() == "Geräteinformationen …"
 
     window.language = "en"
     window._retranslate_ui()
-    assert window.device_center_action.text() == "Display & Device …"
+    assert window.device_center_action.text() == "Device Information …"
 
     window.language = "de"
     window._retranslate_ui()
-    assert window.device_center_action.text() == "Display & Gerät …"
+    assert window.device_center_action.text() == "Geräteinformationen …"
 
 
-def test_device_center_dialog_uses_scrollable_content(device_window, monkeypatch):
+def test_device_center_dialog_uses_professional_title_and_scrollable_content(device_window, monkeypatch):
     monkeypatch.setattr(QDialog, "exec", lambda self: 0)
 
     device_window._open_device_center()
@@ -80,6 +80,7 @@ def test_device_center_dialog_uses_scrollable_content(device_window, monkeypatch
     dialogs = device_window.findChildren(QDialog)
     assert dialogs
     dialog = dialogs[-1]
+    assert dialog.windowTitle() == "Geräteinformationen"
     scroll = dialog.findChild(QScrollArea, "deviceCenterScrollArea")
     assert scroll is not None
     assert scroll.widgetResizable() is True
