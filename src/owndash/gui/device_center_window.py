@@ -119,6 +119,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
         for menu_action in self.menuBar().actions():
             menu = menu_action.menu()
             if menu is not None and menu_action.text().replace("&", "") == "Display":
+                menu.insertSeparator(self.device_center_action)
                 menu.insertAction(self.keep_running_action, self.software_dimming_action)
                 break
 
