@@ -158,6 +158,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
             dialog,
         )
         hint.setWordWrap(True)
+        hint.setMinimumHeight(hint.fontMetrics().lineSpacing() * 2 + 8)
         layout.addWidget(hint)
 
         row = QHBoxLayout()
