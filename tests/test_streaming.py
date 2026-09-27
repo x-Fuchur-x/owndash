@@ -35,3 +35,33 @@ def test_streamer_connects_sends_and_closes():
     streamer.stop()
     assert backend.frames == [b"frame"]
     assert backend.closed
+
+
+def test_streamer_applies_frame_transform_before_backend_send():
+    backend = FakeBackend()
+    connected = []
+    transformed = []
+
+    def transform(payload: bytes) -> bytes:
+        transformed.append(payload)
+        return b"dimmed:" + payload
+
+    streamer = DisplayStreamer(
+        backend,
+        on_connected=connected.append,
+        frame_transform=transform,
+    )
+    streamer.start()
+    deadline = time.monotonic() + 1.0
+    while not connected and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert connected
+
+    streamer.submit(b"frame")
+    deadline = time.monotonic() + 1.0
+    while not backend.frames and time.monotonic() < deadline:
+        time.sleep(0.01)
+    streamer.stop()
+
+    assert transformed == [b"frame"]
+    assert backend.frames == [b"dimmed:frame"]
