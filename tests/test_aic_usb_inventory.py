@@ -62,10 +62,56 @@ def test_inventory_collects_interfaces_and_endpoints_without_opening_usb(tmp_pat
     assert found.subclass_code == "00"
     assert found.protocol_code == "00"
     assert found.driver is None
-    assert [(ep.address, ep.attributes, ep.max_packet_size) for ep in found.endpoints] == [
-        ("01", "02", "0200"),
-        ("81", "02", "0200"),
+    assert [
+        (ep.address, ep.attributes, ep.max_packet_size, ep.direction, ep.transfer_type)
+        for ep in found.endpoints
+    ] == [
+        ("01", "02", "0200", "OUT", "Bulk"),
+        ("81", "02", "0200", "IN", "Bulk"),
     ]
+
+
+def test_endpoint_semantics_decode_interrupt_and_isochronous_types(tmp_path):
+    device = tmp_path / "3-1"
+    device.mkdir()
+    _write(device / "idVendor", "33c3\n")
+    _write(device / "idProduct", "0e02\n")
+
+    interface = tmp_path / "3-1:1.0"
+    interface.mkdir()
+    for address, attributes in (("83", "03"), ("04", "01")):
+        endpoint = interface / f"ep_{address}"
+        endpoint.mkdir()
+        _write(endpoint / "bEndpointAddress", f"{address}\n")
+        _write(endpoint / "bmAttributes", f"{attributes}\n")
+
+    snapshot = probe_artinchip_usb_inventory(tmp_path)
+    endpoints = snapshot.interfaces[0].endpoints
+
+    assert [(ep.direction, ep.transfer_type) for ep in endpoints] == [
+        ("IN", "Interrupt"),
+        ("OUT", "Isochronous"),
+    ]
+
+
+def test_invalid_endpoint_descriptor_values_degrade_to_unknown(tmp_path):
+    device = tmp_path / "4-1"
+    device.mkdir()
+    _write(device / "idVendor", "33c3\n")
+    _write(device / "idProduct", "0e02\n")
+
+    interface = tmp_path / "4-1:1.0"
+    interface.mkdir()
+    endpoint = interface / "ep_bad"
+    endpoint.mkdir()
+    _write(endpoint / "bEndpointAddress", "zz\n")
+    _write(endpoint / "bmAttributes", "xx\n")
+
+    snapshot = probe_artinchip_usb_inventory(tmp_path)
+    found = snapshot.interfaces[0].endpoints[0]
+
+    assert found.direction is None
+    assert found.transfer_type is None
 
 
 def test_inventory_prefers_exact_33c3_0e02_match(tmp_path):
