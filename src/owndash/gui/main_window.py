@@ -64,6 +64,7 @@ from owndash.themes import DEFAULT_THEME_NAME, ThemeManager
 from owndash.widgets.registry import DEFAULT_WIDGETS, widget_type
 
 from .canvas import DashboardCanvas, WidgetItem
+from .info_layout import configure_info_grid, make_info_label
 
 
 _BUILTIN_WIDGET_TITLE_SOURCES: dict[str, tuple[str, ...]] = {
@@ -753,6 +754,8 @@ class MainWindow(QMainWindow):
 
         def value_label(text: str) -> QLabel:
             label = QLabel(text, dialog)
+            label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            label.setWordWrap(True)
             label.setTextInteractionFlags(Qt.TextSelectableByMouse)
             return label
 
@@ -773,8 +776,7 @@ class MainWindow(QMainWindow):
             return label
 
         def add_row(grid: QGridLayout, row: int, title: str, value: str | None = None, available: bool | None = None) -> None:
-            name = QLabel(title, dialog)
-            name.setMinimumWidth(145)
+            name = make_info_label(title, dialog)
             grid.addWidget(name, row, 0)
             if value is not None:
                 grid.addWidget(value_label(value), row, 1)
@@ -790,6 +792,7 @@ class MainWindow(QMainWindow):
         system_grid.setHorizontalSpacing(22)
         system_grid.setVerticalSpacing(9)
         system_grid.setColumnStretch(1, 1)
+        configure_info_grid(system_grid)
         add_row(system_grid, 0, self._t("Distribution"), str(info["system"]["distribution"]))
         add_row(system_grid, 1, self._t("Kernel"), str(info["system"]["kernel"]))
         add_row(system_grid, 2, self._t("Desktop"), str(info["system"]["desktop"]))
@@ -806,6 +809,7 @@ class MainWindow(QMainWindow):
         cpu_grid.setHorizontalSpacing(18)
         cpu_grid.setVerticalSpacing(9)
         cpu_grid.setColumnStretch(1, 1)
+        configure_info_grid(cpu_grid)
         cpu_name = value_label(str(info["cpu"]["name"]))
         cpu_name.setWordWrap(True)
         cpu_grid.addWidget(cpu_name, 0, 0, 1, 3)
@@ -821,6 +825,7 @@ class MainWindow(QMainWindow):
         gpu_grid.setHorizontalSpacing(18)
         gpu_grid.setVerticalSpacing(9)
         gpu_grid.setColumnStretch(1, 1)
+        configure_info_grid(gpu_grid)
         gpu_name = value_label(str(info["gpu"]["name"]))
         gpu_name.setWordWrap(True)
         gpu_grid.addWidget(gpu_name, 0, 0, 1, 3)
@@ -839,6 +844,7 @@ class MainWindow(QMainWindow):
         services_grid.setHorizontalSpacing(22)
         services_grid.setVerticalSpacing(9)
         services_grid.setColumnStretch(1, 1)
+        configure_info_grid(services_grid)
         add_row(services_grid, 0, self._t("Arbeitsspeicher"), available=bool(info["memory"]))
         add_row(services_grid, 1, self._t("Speicher"), available=bool(info["storage"]))
         add_row(services_grid, 2, self._t("Netzwerk"), available=bool(info["network"]))
@@ -1473,6 +1479,14 @@ class MainWindow(QMainWindow):
         self.bg_image.setReadOnly(True)
         image_button = QPushButton("Bild wählen …")
         image_button.clicked.connect(self._choose_background_image)
+        image_actions = QWidget()
+        image_actions_layout = QHBoxLayout(image_actions)
+        image_actions_layout.setContentsMargins(0, 0, 0, 0)
+        image_actions_layout.setSpacing(6)
+        image_actions_layout.addWidget(image_button, 1)
+        self.remove_background_button = QPushButton("Bild entfernen")
+        self.remove_background_button.clicked.connect(self._remove_background_image)
+        image_actions_layout.addWidget(self.remove_background_button, 1)
         self.bg_edit_check = QCheckBox("Bild direkt auf dem Display bearbeiten")
         self.bg_edit_check.toggled.connect(self.canvas.set_background_edit_enabled)
         self.bg_opacity_spin = FocusSafeSpinBox()
@@ -1518,7 +1532,7 @@ class MainWindow(QMainWindow):
         bg_form.addRow("Farbe 1", self.bg_color1)
         bg_form.addRow("Farbe 2", self.bg_color2)
         bg_form.addRow("Bild", self.bg_image)
-        bg_form.addRow(image_button)
+        bg_form.addRow(image_actions)
         bg_form.addRow("Deckkraft", self.bg_opacity_spin)
         bg_form.addRow("Position X", self.bg_x_spin)
         bg_form.addRow("Position Y", self.bg_y_spin)
@@ -3265,6 +3279,17 @@ class MainWindow(QMainWindow):
         self._commit_history(before, "Hintergrundbild setzen")
         self.statusBar().showMessage("Hintergrundbild aktiv · Ziehen zum Verschieben, Griff unten rechts zum Skalieren", 5000)
 
+    def _remove_background_image(self) -> None:
+        before = self._profile_from_canvas().to_json()
+        if not self.canvas.remove_background_image():
+            return
+        self.bg_edit_check.blockSignals(True)
+        self.bg_edit_check.setChecked(False)
+        self.bg_edit_check.blockSignals(False)
+        self._sync_background_controls(self.canvas.current_background_config())
+        self._commit_history(before, "Hintergrundbild entfernen")
+        self.statusBar().showMessage(self._t("Hintergrundbild entfernt"), 2500)
+
     def _sync_background_controls(self, config: BackgroundConfig) -> None:
         controls = (
             self.bg_mode_combo, self.bg_color1, self.bg_color2, self.bg_image, self.bg_opacity_spin,
@@ -3293,6 +3318,8 @@ class MainWindow(QMainWindow):
         else:
             self.bg_scale_spin.setValue(100)
         image_enabled = config.mode == "image" and bool(config.image_path)
+        if hasattr(self, "remove_background_button"):
+            self.remove_background_button.setEnabled(bool(config.image_path))
         for transform_control in (self.bg_x_spin, self.bg_y_spin, self.bg_scale_spin):
             transform_control.setEnabled(image_enabled)
         self.bg_edit_check.setEnabled(image_enabled)
@@ -3319,6 +3346,9 @@ class MainWindow(QMainWindow):
         self._sync_properties(self._selected_widget())
 
     def _delete_selected(self) -> None:
+        if self.canvas.background_image_is_selected():
+            self._remove_background_image()
+            return
         selected = self.canvas.selected_widgets()
         if not selected:
             return

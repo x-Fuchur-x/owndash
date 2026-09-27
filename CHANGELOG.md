@@ -10,6 +10,10 @@
 - Device Center refresh is read-only and covered by regressions proving it does not connect/reconnect hardware, send frames, issue brightness/Expansion writes, or stop the active display timer.
 - Added **Software dimming** from 10–100% for the rendered output. It changes only the generated image and does not send brightness commands to display hardware.
 - Software dimming is persisted in normal OwnDash preferences, previews live while the control is open and restores the previous value when cancelled.
+- Display management now distinguishes the **selected output** from the actually **active output** and shows connection state explicitly, including a clear **No active output** state when the configured backend is not running.
+- Device Center now separates **OwnDash features** such as software dimming from **Hardware capabilities**, while the Display menu groups Device Information and Software dimming as one dedicated management area.
+- Read-only information dialogs now share a consistent two-column key/value layout so labels and current values align vertically across Device Center and system/sensor diagnostics.
+- Background images can now be removed explicitly with **Remove image** or with the **Delete** key while the editable background image is selected; the action participates in normal undo/redo history.
 - Hardware brightness, Expansion Screen Mode and startup-media operations remain intentionally disabled for the current ArtInChip transport until they are verified safely on real hardware.
 - Added event-driven system-state screens for idle, lock, suspend, shutdown and restart, including static output, timer pausing and bounded direct-USB resume recovery.
 - System-state behavior is functionally implemented and tested; the final visual layout and artwork remain subject to further real-hardware polish before release.
@@ -87,7 +91,7 @@ This is the first public beta of OwnDash. It combines the completed internal dev
 - Added dynamic dashboard canvas sizes.
 
 ## 0.12.5 — Single Instance
-- A second OwnDash launch activates the existing process instead of starting another one.
+- A second OwnDash launch activates the existing process instead of starting a new one.
 
 ## 0.12.x — Localization & UI Polish
 - German/English localization, System/Light/Dark appearance and extensive UI consistency work.

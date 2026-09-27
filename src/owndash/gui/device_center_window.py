@@ -37,6 +37,14 @@ _DEVICE_CENTER_EN: dict[str, str] = {
     "Software-Dimmung": "Software dimming",
     "Die Ausgabe wird nur im Bild abgedunkelt. Die Hardware-Helligkeit des Displays wird nicht verändert.":
         "Only the image output is dimmed. The display hardware brightness is not changed.",
+    "Ausgabe": "Output",
+    "Ausgewählter Ausgang": "Selected output",
+    "Aktiver Ausgang": "Active output",
+    "Verbindung": "Connection",
+    "Kein aktiver Ausgang": "No active output",
+    "OwnDash-Funktionen": "OwnDash features",
+    "OwnDash-Softwarefunktion": "OwnDash software feature",
+    "Hardware-Funktionen": "Hardware capabilities",
     "Gerät": "Device",
     "USB & Zugriff": "USB & Access",
     "Funktionen": "Capabilities",
@@ -111,7 +119,9 @@ class DeviceCenterWindow(SafeShutdownWindow):
         for menu_action in self.menuBar().actions():
             menu = menu_action.menu()
             if menu is not None and menu_action.text().replace("&", "") == "Display":
+                menu.insertSeparator(self.device_center_action)
                 menu.insertAction(self.keep_running_action, self.software_dimming_action)
+                menu.insertSeparator(self.keep_running_action)
                 break
 
     def _retranslate_ui(self) -> None:
@@ -314,6 +324,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
             refresh_snapshot=self._device_diagnostic_snapshot,
             report_text=self._device_diagnostic_report,
             translate=self._device_t,
+            software_dimming_percent=self.preferences.software_dimming_percent,
         )
 
         controls.refresh_button.hide()

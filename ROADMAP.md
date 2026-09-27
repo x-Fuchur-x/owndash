@@ -40,7 +40,7 @@ The system-state implementation and its fallback/resource behavior are documente
 
 Make connected displays easier to understand and control without exposing unsupported hardware functions.
 
-The first 0.15 slice is implemented on the current feature work:
+The current 0.15 slices implement:
 
 - Always-available **Display & Device** Device Center, including when no display is connected
 - Passive ArtInChip / VSDISPLAY presence, USB-access, device-node and OwnDash-udev diagnostics
@@ -49,18 +49,21 @@ The first 0.15 slice is implemented on the current feature work:
 - Sanitized, copyable diagnostic reports intended for GitHub issues and support
 - Read-only refresh behavior protected by regressions so diagnostics do not connect, reconnect, send frames or issue hardware-control writes
 - Universal **Software dimming** from 10–100% that darkens the rendered image without pretending to control display backlight hardware
+- Consistent display-management summary across direct USB and standard-monitor output, separating the **selected output**, actually **active output**, and current connection state
+- Clear separation between **OwnDash software features** and **Hardware capabilities**, including a visible saved software-dimming value even when no output is active
+- A dedicated Display-menu management group for **Device Information** and **Software dimming**
+- A shared read-only key/value layout standard so Device Center and system/sensor information dialogs align labels and current values in consistent vertical columns
 - AppImage CI coverage for `feat/**` branches so feature builds can be tested against the Debian 12 / GLIBC compatibility baseline before integration
 
 Remaining 0.15 work:
 
-- More consistent display-management UX across direct USB and standard-monitor output
 - Further device-detection improvements based on real beta hardware feedback
 - Hardware brightness control only where the selected backend and real hardware expose a verified mechanism
 - Expansion Screen Mode only after the connected device and transport have been verified safely
 - Persistent startup-image support only after a separate real-hardware verification phase
 - Update-notification polish based on beta feedback, while keeping downloads and installation user-controlled
 
-The current `33C3:0E02` ArtInChip path deliberately keeps hardware brightness, Expansion Screen Mode and startup-media writes disabled until real-device evidence proves a safe transport. Software dimming is intentionally separate: it modifies only OwnDash's rendered image and sends no new hardware-control command. The Device Center reports hardware capability states explicitly instead of implying support that has not been proven.
+The current `33C3:0E02` ArtInChip path deliberately keeps hardware brightness, Expansion Screen Mode and startup-media writes disabled until real-device evidence proves a safe transport. Software dimming is intentionally separate: it modifies only OwnDash's rendered image and sends no new hardware-control command. The Device Center reports hardware capability states explicitly instead of implying support that has not been proven. Display-management behavior is documented in [`docs/device-center.md`](docs/device-center.md).
 
 ## Planned — 0.16 Dashboard Studio
 

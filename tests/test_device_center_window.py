@@ -72,6 +72,21 @@ def test_device_center_action_retranslates_when_language_changes(device_window):
     assert window.device_center_action.text() == "Geräteinformationen …"
 
 
+def test_display_menu_groups_device_management_actions(device_window):
+    display_menu = next(
+        action.menu()
+        for action in device_window.menuBar().actions()
+        if action.menu() is not None and action.text().replace("&", "") == "Display"
+    )
+    actions = display_menu.actions()
+    device_index = actions.index(device_window.device_center_action)
+    dimming_index = actions.index(device_window.software_dimming_action)
+
+    assert dimming_index == device_index + 1
+    assert device_index > 0 and actions[device_index - 1].isSeparator()
+    assert dimming_index + 1 < len(actions) and actions[dimming_index + 1].isSeparator()
+
+
 def test_device_center_dialog_uses_professional_title_and_scrollable_content(device_window, monkeypatch):
     monkeypatch.setattr(QDialog, "exec", lambda self: 0)
 
@@ -178,6 +193,58 @@ def test_snapshot_refresh_does_not_touch_active_stream_or_timer(device_window):
     assert first.backend_key == second.backend_key == "aic_usb"
     assert window.display_timer.isActive()
     assert forbidden == []
+
+
+def test_device_center_summary_separates_selected_and_active_output(device_window):
+    from PySide6.QtWidgets import QLabel
+    from owndash.gui.display_controls import DeviceCenterWidget
+
+    window = device_window
+    window.display_backend_key = "aic_usb"
+    window.display_connected = False
+    window.preferences.software_dimming_percent = 65
+    snapshot = window._device_diagnostic_snapshot()
+
+    controls = DeviceCenterWidget(
+        snapshot,
+        refresh_snapshot=window._device_diagnostic_snapshot,
+        report_text=window._device_diagnostic_report,
+        translate=window._device_t,
+        software_dimming_percent=window.preferences.software_dimming_percent,
+    )
+
+    selected = controls.findChild(QLabel, "deviceCenterSelectedOutput")
+    active = controls.findChild(QLabel, "deviceCenterActiveOutput")
+    dimming = controls.findChild(QLabel, "deviceCenterSoftwareDimming")
+    assert selected is not None
+    assert active is not None
+    assert dimming is not None
+    assert selected.text() == "ArtInChip / VSDISPLAY"
+    assert active.text() == "Kein aktiver Ausgang"
+    assert dimming.text() == "65 %"
+
+
+def test_device_center_summary_uses_backend_name_when_output_is_active(device_window):
+    from PySide6.QtWidgets import QLabel
+    from owndash.gui.display_controls import DeviceCenterWidget
+
+    window = device_window
+    window.display_backend_key = "screen"
+    window.display_connected = True
+    window._connected_display_info = DisplayInfo("DP-1", 2560, 1440, 60)
+    snapshot = window._device_diagnostic_snapshot()
+
+    controls = DeviceCenterWidget(
+        snapshot,
+        refresh_snapshot=window._device_diagnostic_snapshot,
+        report_text=window._device_diagnostic_report,
+        translate=window._device_t,
+        software_dimming_percent=100,
+    )
+
+    active = controls.findChild(QLabel, "deviceCenterActiveOutput")
+    assert active is not None
+    assert active.text() == "Standard-Monitor"
 
 
 def test_main_entry_uses_device_center_window():

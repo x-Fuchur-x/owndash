@@ -86,27 +86,30 @@ def make_snapshot(*, connected=False, device_name=None, last_known=True, usb_inv
     )
 
 
-def build_widget(app, snapshot=None, refresh_snapshot=None, report_text=None):
+def build_widget(app, snapshot=None, refresh_snapshot=None, report_text=None, software_dimming_percent=100):
     widget_class = getattr(display_controls, "DeviceCenterWidget", None)
     assert widget_class is not None, "DeviceCenterWidget must replace hardware controls"
     widget = widget_class(
         snapshot or make_snapshot(),
         refresh_snapshot=refresh_snapshot or (lambda: snapshot or make_snapshot()),
         report_text=report_text or (lambda _snapshot: "diagnostic report"),
+        software_dimming_percent=software_dimming_percent,
     )
     widget.show()
     app.processEvents()
     return widget
 
 
-def test_device_center_renders_five_read_only_sections(app):
+def test_device_center_renders_read_only_display_sections(app):
     widget = build_widget(app)
     try:
         expected = {
+            "deviceCenterOutputSummarySection": "Ausgabe",
+            "deviceCenterSoftwareSection": "OwnDash-Funktionen",
             "deviceCenterDeviceSection": "Gerät",
-            "deviceCenterUsbSection": "USB & Zugriff",
+            "deviceCenterUsbSection": "USB-Zugriff",
             "deviceCenterUsbInventorySection": "USB-Inventar",
-            "deviceCenterCapabilitiesSection": "Funktionen",
+            "deviceCenterCapabilitiesSection": "Hardware-Funktionen",
             "deviceCenterActivitySection": "Letzte Aktivität",
         }
         for object_name, title in expected.items():
@@ -115,6 +118,16 @@ def test_device_center_renders_five_read_only_sections(app):
             assert group.title() == title
         assert widget.findChildren(QSlider) == []
         assert widget.findChildren(QCheckBox) == []
+    finally:
+        widget.close()
+
+
+def test_software_dimming_summary_is_not_redundant(app):
+    widget = build_widget(app, software_dimming_percent=65)
+    try:
+        label = widget.findChild(QLabel, "deviceCenterSoftwareDimming")
+        assert label is not None
+        assert label.text() == "65 %"
     finally:
         widget.close()
 
