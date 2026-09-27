@@ -15,8 +15,11 @@
 - Read-only information dialogs now share a consistent two-column key/value layout so labels and current values align vertically across Device Center and system/sensor diagnostics.
 - Background images can now be removed explicitly with **Remove image** or with the **Delete** key while the editable background image is selected; the action participates in normal undo/redo history.
 - Hardware brightness, Expansion Screen Mode and startup-media operations remain intentionally disabled for the current ArtInChip transport until they are verified safely on real hardware.
-- Added event-driven system-state screens for idle, lock, suspend, shutdown and restart, including static output, timer pausing and bounded direct-USB resume recovery.
-- System-state behavior is functionally implemented and tested; the final visual layout and artwork remain subject to further real-hardware polish before release.
+- Added event-driven system-state screens for idle, lock, suspend, shutdown and restart, including timer pausing/restoration and bounded direct-USB resume recovery.
+- Rebuilt the system-state visuals as one unified OwnDash HUD renderer with the real packaged OwnDash logo, shared portrait/landscape geometry, state-specific rings/symbols and a matching disconnected/closed screen.
+- Removed the retired embedded portrait-master artwork, loader and data chunks so obsolete artwork can no longer reappear through a hidden fallback path.
+- Persistent idle and lock screens use a dedicated low-rate ring animation while normal dashboard/sensor timers remain paused; standby, shutdown and restart frames remain static for lifecycle safety.
+- The new HUD targets the 480×1920 VSDISPLAY as its primary portrait reference and remains subject to final physical pixel-level review before release integration.
 - AppImage CI now also builds `feat/**` branches so feature work can be validated with the same Debian 12 / GLIBC baseline before integration.
 
 ## 0.14.0 Beta 4
