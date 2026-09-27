@@ -100,6 +100,15 @@ For `aic_usb`, show the passive probe result:
   - `missing`
   - `unknown`
 
+The udev states have fixed phase-1 semantics:
+
+- `legacy` when OwnDash's obsolete `99-owndash-usb.rules` is installed;
+- `ok` when the current `70-owndash-usb.rules` is installed and no legacy rule is present;
+- `missing` when the AIC USB backend is selected but neither OwnDash rule is installed;
+- `unknown` when the rule directories cannot be inspected reliably or the selected backend is not the AIC USB path.
+
+Actual device accessibility remains a separate field. An installed `70-*` rule does not by itself prove that the current device node is accessible.
+
 The Device Center must not open PyUSB, claim an interface, authenticate, reconnect, or send a frame merely to refresh this section.
 
 For non-AIC backends, this section shows only relevant backend-level information and does not fabricate USB fields.
@@ -109,8 +118,14 @@ For non-AIC backends, this section shows only relevant backend-level information
 Capabilities are not represented as booleans in the UI. Each row uses one of three semantic states:
 
 - **available** — verified and currently exposed by the active backend;
-- **unsupported** — known not to exist for the selected backend/device path;
+- **unsupported** — known not to exist for the selected backend/device path or deliberately outside OwnDash's supported feature set;
 - **unverified** — OwnDash intentionally does not expose the function because support has not been proven safely on this hardware/transport.
+
+Mapping policy is explicit rather than inferred from a false boolean alone:
+
+- a backend capability set to `True` maps to `available`;
+- a capability set to `False` maps to `unsupported` by default;
+- backend/device-specific diagnostic policy may override that false value to `unverified` where support is intentionally withheld pending hardware evidence.
 
 For the current `33C3:0E02` path in phase 1:
 
@@ -210,7 +225,7 @@ class DeviceDiagnosticSnapshot:
     last_known_info: DisplayInfo | None
 ```
 
-The exact internal representation of `capabilities` may use tuples or another immutable mapping if that makes testing/typing cleaner; UI semantics are fixed by this spec.
+The implementation should use an immutable capability collection inside the frozen snapshot, such as a tuple of `(key, status)` pairs or a read-only mapping. The `dict` above describes the logical shape only.
 
 ### SafeShutdownWindow integration
 
@@ -329,6 +344,7 @@ Add tests for:
 - detected but inaccessible device;
 - detected and accessible device;
 - legacy udev rule;
+- current udev rule installed but current node inaccessible;
 - active connection;
 - disconnect retaining last-known data;
 - reconnect replacing last-known information;
