@@ -59,6 +59,19 @@ def test_device_center_action_is_always_enabled_while_disconnected(device_window
     assert window.device_center_action.text() == "Display & Gerät …"
 
 
+def test_device_center_action_retranslates_when_language_changes(device_window):
+    window = device_window
+    assert window.device_center_action.text() == "Display & Gerät …"
+
+    window.language = "en"
+    window._retranslate_ui()
+    assert window.device_center_action.text() == "Display & Device …"
+
+    window.language = "de"
+    window._retranslate_ui()
+    assert window.device_center_action.text() == "Display & Gerät …"
+
+
 def test_device_diagnostics_remember_connection_disconnect_and_error(device_window, monkeypatch):
     window = device_window
     info = DisplayInfo("USB Bar Display", 1920, 480, 30)
