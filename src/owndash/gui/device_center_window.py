@@ -19,8 +19,8 @@ from .display_controls import DeviceCenterWidget
 
 
 _DEVICE_CENTER_EN: dict[str, str] = {
-    "Display & Gerät …": "Display & Device …",
-    "Display & Gerät": "Display & Device",
+    "Geräteinformationen …": "Device Information …",
+    "Geräteinformationen": "Device Information",
     "Gerät": "Device",
     "USB & Zugriff": "USB & Access",
     "Funktionen": "Capabilities",
@@ -93,7 +93,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
         # keep it available even when no hardware is connected.
         super()._build_toolbar()
         self.device_center_action = self.display_controls_action
-        self.device_center_action.setText(self._device_t("Display & Gerät …"))
+        self.device_center_action.setText(self._device_t("Geräteinformationen …"))
         self.device_center_action.setEnabled(True)
 
     def _retranslate_ui(self) -> None:
@@ -103,7 +103,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
         super()._retranslate_ui()
         action = getattr(self, "device_center_action", None)
         if action is not None:
-            action.setText(self._device_t("Display & Gerät …"))
+            action.setText(self._device_t("Geräteinformationen …"))
 
     def __init__(self) -> None:
         super().__init__()
@@ -212,7 +212,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
 
     def _open_device_center(self) -> None:
         dialog = QDialog(self)
-        dialog.setWindowTitle(self._device_t("Display & Gerät"))
+        dialog.setWindowTitle(self._device_t("Geräteinformationen"))
         dialog.setModal(True)
         dialog.setMinimumSize(620, 560)
         dialog.resize(680, 640)
