@@ -140,7 +140,7 @@ class DeviceCenterWidget(QWidget):
         self.device_form.addRow(self._t("Rotation"), self.rotation_label)
         outer.addWidget(self.device_section)
 
-        self.usb_section = QGroupBox(self._t("USB & Zugriff"), self)
+        self.usb_section = QGroupBox(self._t("USB-Zugriff"), self)
         self.usb_section.setObjectName("deviceCenterUsbSection")
         self.usb_form = QFormLayout(self.usb_section)
         self.vid_pid_label = self._value_label("deviceCenterUsbId")
@@ -216,9 +216,7 @@ class DeviceCenterWidget(QWidget):
         self.selected_output_label.setText(selected_output)
         self.active_output_label.setText(active_output)
         self.summary_connection_label.setText(connected_text)
-        self.software_dimming_label.setText(
-            f"{self._software_dimming_percent} % · {self._t('OwnDash-Softwarefunktion')}"
-        )
+        self.software_dimming_label.setText(f"{self._software_dimming_percent} %")
 
         self.connection_status_label.setText(connected_text)
         self.backend_label.setText(
