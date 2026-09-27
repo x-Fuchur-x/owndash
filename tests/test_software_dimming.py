@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from importlib import import_module
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 
@@ -52,3 +53,10 @@ def test_dim_jpeg_clamps_to_safe_ui_range():
 
     assert abs(below_minimum - at_minimum) <= 3
     assert above_maximum is original
+
+
+def test_software_dimming_hint_reserves_two_text_lines():
+    source = Path("src/owndash/gui/device_center_window.py").read_text(encoding="utf-8")
+
+    assert "hint.setWordWrap(True)" in source
+    assert "hint.setMinimumHeight(hint.fontMetrics().lineSpacing() * 2 + 8)" in source
