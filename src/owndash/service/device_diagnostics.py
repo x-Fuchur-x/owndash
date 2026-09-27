@@ -12,6 +12,10 @@ from owndash.core.display import (
     DisplayNotFoundError,
     DisplayProtocolError,
 )
+from owndash.hardware.aic_usb_inventory import (
+    ArtInChipUsbInventory,
+    probe_artinchip_usb_inventory,
+)
 from owndash.hardware.usb_setup import (
     UsbAccessStatus,
     probe_artinchip_usb,
@@ -62,6 +66,7 @@ class DeviceDiagnosticSnapshot:
     last_error_category: DeviceErrorCategory | None
     last_error_message: str | None
     last_known_info: DisplayInfo | None
+    usb_inventory: ArtInChipUsbInventory | None = None
 
 
 _CAPABILITY_FIELDS = (
@@ -96,10 +101,12 @@ class DeviceDiagnosticsService:
         *,
         usb_probe: Callable[[], UsbAccessStatus] = probe_artinchip_usb,
         udev_probe: Callable[[], str] = probe_owndash_udev_state,
+        inventory_probe: Callable[[], ArtInChipUsbInventory] = probe_artinchip_usb_inventory,
         clock: Callable[[], datetime] = datetime.now,
     ) -> None:
         self._usb_probe = usb_probe
         self._udev_probe = udev_probe
+        self._inventory_probe = inventory_probe
         self._clock = clock
         self._last_known_info: DisplayInfo | None = None
         self._last_connected_at: datetime | None = None
@@ -133,6 +140,7 @@ class DeviceDiagnosticsService:
         accessible: bool | None = None
         device_node: str | None = None
         usb_vid_pid: str | None = None
+        usb_inventory: ArtInChipUsbInventory | None = None
         udev_state = "unknown"
 
         if backend_key == "aic_usb":
@@ -151,6 +159,10 @@ class DeviceDiagnosticsService:
                     udev_state = candidate
             except Exception:
                 udev_state = "unknown"
+            try:
+                usb_inventory = self._inventory_probe()
+            except Exception:
+                usb_inventory = ArtInChipUsbInventory(status="unknown")
 
         live_info = current_info if connected and current_info is not None else None
         return DeviceDiagnosticSnapshot(
@@ -174,6 +186,7 @@ class DeviceDiagnosticsService:
             last_error_category=self._last_error_category,
             last_error_message=self._last_error_message,
             last_known_info=self._last_known_info,
+            usb_inventory=usb_inventory,
         )
 
     def _capability_diagnostics(
@@ -291,6 +304,34 @@ def format_diagnostic_report(
                 f"udev: {snapshot.udev_state}",
             ]
         )
+
+    if snapshot.usb_inventory is not None:
+        inventory = snapshot.usb_inventory
+        lines.extend(
+            [
+                "",
+                "USB inventory:",
+                f"Inventory state: {inventory.status}",
+                f"Sysfs device: {inventory.sysfs_name or '—'}",
+                f"Device class: {inventory.device_class or '—'}",
+            ]
+        )
+        for interface in inventory.interfaces:
+            lines.append(
+                f"Interface {interface.name}: "
+                f"number={interface.number or '—'} "
+                f"alt={interface.alternate_setting or '—'} "
+                f"class={interface.class_code or '—'} "
+                f"subclass={interface.subclass_code or '—'} "
+                f"protocol={interface.protocol_code or '—'} "
+                f"driver={interface.driver or '—'}"
+            )
+            for endpoint in interface.endpoints:
+                lines.append(
+                    f"Endpoint {endpoint.address or '—'}: "
+                    f"attributes={endpoint.attributes or '—'} "
+                    f"max_packet={endpoint.max_packet_size or '—'}"
+                )
 
     lines.extend(["", "Capabilities:"])
     lines.extend(f"{item.key}: {item.status.value}" for item in snapshot.capabilities)
