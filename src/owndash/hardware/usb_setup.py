@@ -37,6 +37,22 @@ def legacy_udev_rule_installed() -> bool:
     return (UDEV_RULE_DIR / LEGACY_RULE_NAME).is_file()
 
 
+def probe_owndash_udev_state() -> str:
+    """Return OwnDash's udev-rule state without mutating or opening hardware."""
+    try:
+        if not hasattr(UDEV_RULE_DIR, "iterdir"):
+            return "unknown"
+        entries = {entry.name for entry in UDEV_RULE_DIR.iterdir()}
+    except OSError:
+        return "unknown"
+
+    if LEGACY_RULE_NAME in entries:
+        return "legacy"
+    if RULE_NAME in entries:
+        return "ok"
+    return "missing"
+
+
 def probe_artinchip_usb() -> UsbAccessStatus:
     """Detect the supported USB controller without requiring PyUSB access.
 
