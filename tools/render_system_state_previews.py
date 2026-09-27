@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QGuiApplication, QIcon
 
 from owndash.core.system_state import SystemState
 from owndash.gui.system_state_frame import (
@@ -24,6 +25,7 @@ STRINGS = {
 
 
 def main() -> int:
+    app = QGuiApplication.instance() or QGuiApplication(sys.argv[:1])
     out = Path("preview/system-state")
     out.mkdir(parents=True, exist_ok=True)
     icon = QIcon()
@@ -60,6 +62,9 @@ def main() -> int:
     )
     if not disconnected.save(str(out / "disconnected.png"), "PNG"):
         raise RuntimeError("failed to save disconnected preview")
+
+    # Keep the Qt application alive until all pixmaps/images have been saved.
+    _ = app
     return 0
 
 
