@@ -9,6 +9,7 @@ from .display import DisplayBackend, DisplayInfo
 StatusCallback = Callable[[str], None]
 ConnectedCallback = Callable[[DisplayInfo], None]
 ErrorCallback = Callable[[Exception], None]
+FrameTransform = Callable[[bytes], bytes]
 
 
 class DisplayStreamer:
@@ -25,11 +26,13 @@ class DisplayStreamer:
         on_status: StatusCallback | None = None,
         on_connected: ConnectedCallback | None = None,
         on_error: ErrorCallback | None = None,
+        frame_transform: FrameTransform | None = None,
     ):
         self.backend = backend
         self.on_status = on_status or (lambda _message: None)
         self.on_connected = on_connected or (lambda _info: None)
         self.on_error = on_error or (lambda _error: None)
+        self.frame_transform = frame_transform or (lambda payload: payload)
         self._frames: Queue[tuple[bytes, Event | None]] = Queue(maxsize=1)
         self._stop = Event()
         self._thread: Thread | None = None
@@ -106,7 +109,8 @@ class DisplayStreamer:
                     frame, sent = self._frames.get(timeout=0.2)
                 except Empty:
                     continue
-                self.backend.send_jpeg(frame)
+                transformed = self.frame_transform(frame)
+                self.backend.send_jpeg(transformed)
                 if sent is not None:
                     sent.set()
         except Exception as exc:

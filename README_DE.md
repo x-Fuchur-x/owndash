@@ -43,6 +43,8 @@ OwnDash richtet sich an alle, die ein eigenes Systemdisplay möchten, ohne dass 
 - **Mehrere Dashboard-Seiten** — verschiedene Layouts organisieren und automatisch wechseln.
 - **Sensorabhängiges Verhalten** — Animationen, Regeln und Warnzustände können auf Live-Werte reagieren.
 - **Zwei Ausgabewege** — normale Linux-Monitore und kompatible direkte USB-Displays.
+- **Display-Diagnose und sichere Steuerung** — ausgewähltes Gerät prüfen und Software-Dimmung nutzen, ohne nicht unterstützte Hardware-Funktionen vorzutäuschen.
+- **Systemstatus-Anzeigen** — statische Statusausgabe für Leerlauf, Sperre, Standby/Suspend, Herunterfahren und Neustart mit ressourcenschonender Timer-Pause.
 - **Einsteigerfreundliche Einrichtung** — Ersteinrichtungs-Assistent, Kompatibilitätsprüfung, Diagnosen und grafische USB-Rechte-Einrichtung.
 - **Optionale Update-Hinweise** — OwnDash kann nach neueren Releases suchen, ohne etwas automatisch herunterzuladen oder zu installieren.
 - **Linux-nativer Ansatz** — basiert auf verbreiteten Linux-Schnittstellen statt auf einer einzelnen Distribution.
@@ -84,11 +86,21 @@ Mixed-DPI-Ausgabe wurde mit simulierten Qt-Bildschirmen getestet; compositor-spe
 
 Kompatible ArtInChip-basierte Sensordisplays können direkt über USB angesteuert werden, ohne als normaler Monitor im System erscheinen zu müssen. Das offizielle AppImage bringt die benötigte `libusb-1.0.so.0`-Laufzeitbibliothek mit.
 
-OwnDash enthält eine fähigkeitsbasierte Oberfläche als Grundlage für optionale Display-Steuerungen. Beim Backend `33C3:0E02` bleiben Hardware-Helligkeit, Geräteversionsabfragen, Panel-Abfragen und Expansion Screen Mode deaktiviert, weil dafür noch kein kompatibler Steuertransport verifiziert wurde. Nicht unterstützte Funktionen bleiben ausgeblendet. Für dieses Gerät sind weder ein Helligkeitsbereich noch ein definiertes Hardware-Power-off-Verhalten bestätigt.
+OwnDash bietet eine jederzeit verfügbare Ansicht **Geräteinformationen** mit passiven Informationen zu Gerät, USB-Zugriff und Funktionsstatus. Das Aktualisieren dieser Diagnosen ist nur lesend und verbindet oder reconnectet keine Hardware und sendet keine Steuerbefehle.
+
+Die **Software-Dimmung** ist unter **Display → Software-Dimmung …** verfügbar. Der Regler arbeitet von 10–100 %, zeigt Änderungen live an, speichert den gewählten Wert beim Übernehmen und stellt beim Abbrechen den vorherigen Wert wieder her. Diese Funktion dunkelt ausschließlich das von OwnDash erzeugte Bild ab; sie verändert **nicht** die Hintergrundbeleuchtung des Displays und sendet keinen Hardware-Helligkeitsbefehl.
+
+Beim Backend `33C3:0E02` bleiben Hardware-Helligkeit, Geräteversionsabfragen, Panel-Abfragen und Expansion Screen Mode deaktiviert, weil dafür noch kein kompatibler Steuertransport verifiziert wurde. Hardware-Helligkeit bleibt daher ausdrücklich von der Software-Dimmung getrennt. Für dieses Gerät sind weder ein Hardware-Helligkeitsbereich noch ein definiertes Hardware-Power-off-Verhalten bestätigt.
 
 Das Hochladen eines persistenten Startbilds oder Startvideos wird bewusst noch nicht angeboten; dafür ist eine separate Verifikation mit echter Hardware vorgesehen.
 
 Andere proprietäre USB-only-Displays benötigen ein eigenes Backend und Protokollunterstützung. Eine breitere Hardware-Unterstützung ist Teil der langfristigen Projektrichtung — siehe [Roadmap](ROADMAP.md).
+
+### Systemstatus-Anzeigen
+
+OwnDash bietet bereits ereignisgesteuerte Statusanzeigen für **Leerlauf, Sperre, Standby/Suspend, Herunterfahren und Neustart**. Solange ein solcher statischer Statusbildschirm sichtbar ist, werden unnötige Live-Sensoraktualisierung, Dashboard-Rendering und automatischer Seitenwechsel pausiert und nach Rückkehr in den aktiven Zustand wiederhergestellt. Für direkte USB-Ausgabe gibt es nach Suspend zusätzlich eine begrenzte einmalige Wiederverbindung statt einer Endlosschleife.
+
+Die zugrunde liegende Zustandslogik ist funktional umgesetzt und getestet. Das visuelle Layout, Abstände, Grafiken und Formulierungen werden auf echter Hardware noch weiter verfeinert und gelten noch nicht als final. Technische Details und aktuelle Grenzen sind unter [System state screens](docs/system-state-screens.md) dokumentiert.
 
 ## Download & Schnellstart
 
@@ -155,6 +167,7 @@ Die zentralen Abhängigkeiten sind in `pyproject.toml` definiert und umfassen Py
 
 - **[Roadmap](ROADMAP.md)** — geplante Entwicklung Richtung 1.0 und weitere Display-Unterstützung
 - **[Changelog](CHANGELOG.md)** — veröffentlichte Funktionen und Versionshistorie
+- **[Systemstatus-Anzeigen](docs/system-state-screens.md)** — Zustandslogik, Ressourcenverhalten und Suspend/Resume-Details
 - **[Contributing](CONTRIBUTING.md)** — Hinweise zum Mitmachen
 - **[Issues](https://github.com/x-Fuchur-x/owndash/issues)** — Fehler und Funktionswünsche
 - **[Releases](https://github.com/x-Fuchur-x/owndash/releases)** — AppImages und Release Notes

@@ -2,6 +2,12 @@
 
 OwnDash can replace the normal dashboard with a lightweight static status frame when the Linux session changes state. The feature is designed for small internal PC displays and direct USB sensor panels where leaving a busy animated dashboard running during lock, idle or standby is unnecessary.
 
+## Implementation status
+
+The system-state behavior is already functionally implemented for idle, lock, suspend/standby, shutdown and restart. State detection, priority handling, static-frame output, timer pausing/restoration and the bounded direct-USB resume recovery path are covered by automated tests and have been exercised on the project's Bazzite/KDE + VSDISPLAY development setup.
+
+The visual presentation is not considered final yet. Layout, spacing, artwork and wording may still be refined after additional physical-display checks, especially across portrait/landscape orientations and shutdown/standby timing. Visual polish is therefore remaining release work; the underlying lifecycle feature itself is not merely a future placeholder.
+
 ## States and priority
 
 OwnDash normalizes Linux lifecycle events into these states:
@@ -99,4 +105,4 @@ Settings are stored in the normal OwnDash preferences file. Existing Beta 4 pref
 
 Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, static frame rendering, preference migration, exact D-Bus signal signatures, initial and live `LockedHint` lock-state detection, timer pause/restore behavior, localized lifecycle status messages and direct-USB resume recovery.
 
-Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. Release acceptance therefore includes a physical Bazzite/KDE + VSDISPLAY test in addition to automated CI and AppImage checks.
+Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. Release acceptance therefore includes physical Bazzite/KDE + VSDISPLAY checks in addition to automated CI and AppImage checks. Those physical checks are also used to finish the still-provisional visual layout and artwork.

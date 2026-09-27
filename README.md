@@ -43,6 +43,8 @@ OwnDash is built for people who want a dedicated system display without turning 
 - **Multiple dashboard pages** — organize different layouts and cycle between them.
 - **Sensor-driven behavior** — animations, rules and alert states can react to live values.
 - **Two output paths** — standard Linux monitors and compatible direct USB displays.
+- **Display diagnostics and safe controls** — inspect the selected device and use software dimming without pretending unsupported hardware functions exist.
+- **System-state screens** — static status output for idle, lock, standby/suspend, shutdown and restart, with resource-saving timer pauses.
 - **Beginner-friendly setup** — first-run compatibility checks, diagnostics and graphical USB-permission setup.
 - **Optional update notifications** — OwnDash can check for newer releases without downloading or installing anything automatically.
 - **Linux-native approach** — built around common Linux interfaces instead of one specific distribution.
@@ -84,11 +86,21 @@ Mixed-DPI output is tested with simulated Qt screens; compositor-specific fullsc
 
 Compatible ArtInChip-based sensor displays can be driven directly over USB without appearing as a normal monitor. The official AppImage bundles the required `libusb-1.0.so.0` runtime.
 
-OwnDash includes capability-driven UI groundwork for optional display controls. For the `33C3:0E02` backend, hardware brightness, device-version queries, panel queries and Expansion Screen Mode remain disabled because a compatible control transport has not been verified. Unsupported controls stay hidden. No brightness range or power-off behavior is established for this device.
+OwnDash includes an always-available **Device Information** view with passive device, USB-access and capability diagnostics. Refreshing diagnostics is read-only and does not connect, reconnect or send hardware-control commands.
+
+**Software dimming** is available from **Display → Software dimming …**. The slider covers 10–100%, previews changes live, saves the selected value when applied and restores the previous value when cancelled. This feature darkens only the image produced by OwnDash; it does **not** change the display backlight or send a hardware-brightness command.
+
+For the `33C3:0E02` backend, hardware brightness, device-version queries, panel queries and Expansion Screen Mode remain disabled because a compatible control transport has not been verified. Hardware brightness therefore remains separate from software dimming. No hardware brightness range or power-off behavior is established for this device.
 
 Startup-image/video upload is intentionally not advertised yet; it is planned as a separate hardware-verified phase.
 
 Other proprietary USB-only display families need their own backend and protocol support. Broader hardware support is part of the long-term project direction — see the [roadmap](ROADMAP.md).
+
+### System-state screens
+
+OwnDash already provides event-driven status screens for **idle, lock, standby/suspend, shutdown and restart**. When such a static state screen is visible, unnecessary live sensor refresh, dashboard rendering and automatic page cycling are paused and restored when the system returns to the active state. Direct USB output also has bounded one-shot recovery after suspend instead of an endless reconnect loop.
+
+The lifecycle behavior is functionally implemented and tested. The visual layout, spacing, artwork and wording are still being refined on real hardware before they are considered final. Technical behavior and current limitations are documented in [System state screens](docs/system-state-screens.md).
 
 ## Easy first start
 
@@ -155,6 +167,7 @@ Core dependencies are declared in `pyproject.toml` and include PySide6, Pillow, 
 
 - **[Roadmap](ROADMAP.md)** — planned direction toward 1.0 and broader device support
 - **[Changelog](CHANGELOG.md)** — released features and version history
+- **[System state screens](docs/system-state-screens.md)** — lifecycle behavior, resource handling and suspend/resume details
 - **[Contributing](CONTRIBUTING.md)** — how to contribute
 - **[Issues](https://github.com/x-Fuchur-x/owndash/issues)** — bugs and feature requests
 - **[Releases](https://github.com/x-Fuchur-x/owndash/releases)** — AppImages and release notes

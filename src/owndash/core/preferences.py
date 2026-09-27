@@ -22,6 +22,7 @@ class AppPreferences:
     idle_mode: bool = True
     idle_timeout_minutes: int = 30
     lock_screen_state: bool = True
+    software_dimming_percent: int = 100  # OwnDash image dimming, independent of hardware brightness
 
     @classmethod
     def from_raw(cls, raw: object) -> "AppPreferences":
@@ -49,6 +50,13 @@ class AppPreferences:
         # still useful for long-running desktop sessions.
         idle_timeout_minutes = max(1, min(240, idle_timeout_minutes))
 
+        dimming_raw = raw.get("software_dimming_percent", 100)
+        try:
+            software_dimming_percent = int(dimming_raw)
+        except (TypeError, ValueError, OverflowError):
+            software_dimming_percent = 100
+        software_dimming_percent = max(10, min(100, software_dimming_percent))
+
         last_profile_path_raw = raw.get("last_profile_path", "")
         last_profile_path = str(last_profile_path_raw).strip() if last_profile_path_raw else ""
 
@@ -66,6 +74,7 @@ class AppPreferences:
             idle_mode=bool(raw.get("idle_mode", True)),
             idle_timeout_minutes=idle_timeout_minutes,
             lock_screen_state=bool(raw.get("lock_screen_state", True)),
+            software_dimming_percent=software_dimming_percent,
         )
 
 
