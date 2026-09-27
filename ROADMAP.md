@@ -52,6 +52,7 @@ The current 0.15 slices implement:
 - Consistent display-management summary across direct USB and standard-monitor output, separating the **selected output**, actually **active output**, and current connection state
 - Clear separation between **OwnDash software features** and **Hardware capabilities**, including a visible saved software-dimming value even when no output is active
 - A dedicated Display-menu management group for **Device Information** and **Software dimming**
+- A shared read-only key/value layout standard so Device Center and system/sensor information dialogs align labels and current values in consistent vertical columns
 - AppImage CI coverage for `feat/**` branches so feature builds can be tested against the Debian 12 / GLIBC compatibility baseline before integration
 
 Remaining 0.15 work:
