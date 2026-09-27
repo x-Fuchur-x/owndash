@@ -24,9 +24,9 @@ Released features and full historical details remain documented in [`CHANGELOG.m
 The current priority is making the public beta increasingly predictable across real Linux systems and supported display paths.
 
 - Beta bug fixes and regression prevention
-- Event-driven system-state screens for idle, lock, suspend, shutdown and restart, with physical Bazzite/KDE + VSDISPLAY validation before release
-- Static system-state output that pauses unnecessary sensor refresh, display rendering and dashboard cycling while a state screen is visible
-- Direct-USB suspend/resume recovery with a bounded one-shot reconnect instead of background polling
+- Event-driven system-state screens for idle, lock, suspend, shutdown and restart are functionally implemented; final visual layout/artwork polish and physical Bazzite/KDE + VSDISPLAY validation remain before release
+- Static system-state output already pauses unnecessary sensor refresh, display rendering and dashboard cycling while a state screen is visible
+- Direct-USB suspend/resume recovery already uses a bounded one-shot reconnect instead of background polling
 - Continued real-device validation, especially output switching and shutdown/end-state behavior
 - Linux distribution, desktop, sensor, and display compatibility improvements
 - AppImage packaging and release reliability
@@ -39,7 +39,7 @@ The system-state implementation and its fallback/resource behavior are documente
 
 Make connected displays easier to understand and control without exposing unsupported hardware functions.
 
-The first 0.15 slice is now implemented on the Device Center feature branch:
+The first 0.15 slice is implemented on the current feature work:
 
 - Always-available **Display & Device** Device Center, including when no display is connected
 - Passive ArtInChip / VSDISPLAY presence, USB-access, device-node and OwnDash-udev diagnostics
@@ -47,17 +47,19 @@ The first 0.15 slice is now implemented on the Device Center feature branch:
 - Explicit capability states that distinguish **available**, **unsupported**, and **not yet verified**
 - Sanitized, copyable diagnostic reports intended for GitHub issues and support
 - Read-only refresh behavior protected by regressions so diagnostics do not connect, reconnect, send frames or issue hardware-control writes
+- Universal **Software dimming** from 10–100% that darkens the rendered image without pretending to control display backlight hardware
+- AppImage CI coverage for `feat/**` branches so feature builds can be tested against the Debian 12 / GLIBC compatibility baseline before integration
 
 Remaining 0.15 work:
 
+- More consistent display-management UX across direct USB and standard-monitor output
+- Further device-detection improvements based on real beta hardware feedback
 - Hardware brightness control only where the selected backend and real hardware expose a verified mechanism
 - Expansion Screen Mode only after the connected device and transport have been verified safely
-- Further device-detection improvements based on real beta hardware feedback
-- More consistent display-management UX across direct USB and standard-monitor output
 - Persistent startup-image support only after a separate real-hardware verification phase
 - Update-notification polish based on beta feedback, while keeping downloads and installation user-controlled
 
-The current `33C3:0E02` ArtInChip path deliberately keeps hardware brightness, Expansion Screen Mode and startup-media writes disabled until real-device evidence proves a safe transport. The Device Center reports that distinction as **not yet verified** rather than pretending those functions are unsupported.
+The current `33C3:0E02` ArtInChip path deliberately keeps hardware brightness, Expansion Screen Mode and startup-media writes disabled until real-device evidence proves a safe transport. Software dimming is intentionally separate: it modifies only OwnDash's rendered image and sends no new hardware-control command. The Device Center reports hardware capability states explicitly instead of implying support that has not been proven.
 
 ## Planned — 0.16 Dashboard Studio
 
