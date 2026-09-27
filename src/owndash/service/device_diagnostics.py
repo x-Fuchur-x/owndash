@@ -329,6 +329,8 @@ def format_diagnostic_report(
             for endpoint in interface.endpoints:
                 lines.append(
                     f"Endpoint {endpoint.address or '—'}: "
+                    f"direction={endpoint.direction or '—'} "
+                    f"type={endpoint.transfer_type or '—'} "
                     f"attributes={endpoint.attributes or '—'} "
                     f"max_packet={endpoint.max_packet_size or '—'}"
                 )
