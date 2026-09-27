@@ -28,8 +28,8 @@ def _inventory():
                 protocol_code="00",
                 driver=None,
                 endpoints=(
-                    UsbEndpointInventory("01", "02", "0200"),
-                    UsbEndpointInventory("81", "02", "0200"),
+                    UsbEndpointInventory("01", "02", "0200", "OUT", "Bulk"),
+                    UsbEndpointInventory("81", "02", "0200", "IN", "Bulk"),
                 ),
             ),
         ),
@@ -63,8 +63,8 @@ def test_aic_snapshot_carries_passive_usb_inventory_into_report():
         "Sysfs device: 1-2",
         "Device class: 00",
         "Interface 1-2:1.0: number=00 alt=00 class=ff subclass=00 protocol=00 driver=—",
-        "Endpoint 01: attributes=02 max_packet=0200",
-        "Endpoint 81: attributes=02 max_packet=0200",
+        "Endpoint 01: direction=OUT type=Bulk attributes=02 max_packet=0200",
+        "Endpoint 81: direction=IN type=Bulk attributes=02 max_packet=0200",
     ):
         assert expected in report
 
