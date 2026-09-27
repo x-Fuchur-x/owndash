@@ -221,7 +221,7 @@ def test_device_center_summary_separates_selected_and_active_output(device_windo
     assert dimming is not None
     assert selected.text() == "ArtInChip / VSDISPLAY"
     assert active.text() == "Kein aktiver Ausgang"
-    assert dimming.text() == "65 % · OwnDash-Softwarefunktion"
+    assert dimming.text() == "65 %"
 
 
 def test_device_center_summary_uses_backend_name_when_output_is_active(device_window):
