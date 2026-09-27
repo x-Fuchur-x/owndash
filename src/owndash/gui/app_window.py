@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from threading import Thread
 import webbrowser
 
@@ -12,8 +13,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGroupBox,
     QLabel,
     QMessageBox,
+    QSizePolicy,
     QSystemTrayIcon,
     QVBoxLayout,
 )
@@ -24,8 +27,15 @@ from owndash.appearance import apply_appearance
 from owndash.core.preferences import save_preferences
 from owndash.core.system_state import SystemState
 from owndash.core.updates import ReleaseInfo, fetch_available_update
+from owndash.hardware.usb_setup import (
+    install_udev_rule,
+    legacy_udev_rule_installed,
+    probe_artinchip_usb,
+)
 from owndash.i18n import resolved_language
+from owndash.service.autostart import set_autostart_enabled
 from owndash.service.idle_state import IdleStateMonitor
+from owndash.service.startup import should_auto_start_display
 from owndash.service.system_state_linux import LinuxSystemStateAdapter
 from owndash.service.system_state_runtime import SystemStateRuntime
 
@@ -44,6 +54,9 @@ class UpdateBridge(QObject):
 class SafeShutdownWindow(MainWindow):
     """OwnDash lifecycle extensions for shutdown, updates and system states."""
 
+    _RESUME_RECONNECT_DELAYS_MS = (600, 800, 1000, 1200, 1400)
+    _SYSTEM_STATE_ANIMATION_INTERVAL_MS = 750
+
     def _build_toolbar(self) -> None:
         super()._build_toolbar()
         self.display_controls_action = QAction(self._t("Display-Steuerung …"), self)
@@ -59,16 +72,25 @@ class SafeShutdownWindow(MainWindow):
         super().__init__()
         self._connected_display_info = None
 
-        # System-state screens are deliberately event-driven. While one is
-        # visible, OwnDash stops its periodic sensor/display/page timers and
-        # sends one static frame only. This keeps lock/idle/suspend overhead as
-        # close to zero as the Qt event loop permits.
+        # System-state screens are event-driven. Normal sensor/display/page
+        # timers stop while a state screen is visible. Only IDLE/LOCKED get a
+        # deliberately slow HUD timer; terminal/suspend states remain a single
+        # static frame that is safe to freeze while the PC sleeps.
         self._system_state_paused = False
         self._system_state_live_was_active = False
         self._system_state_display_was_active = False
         self._system_state_page_cycle_was_active = False
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
+        self._resume_reconnect_attempt = 0
+        self._system_state_animation_phase = 0.0
+        self._system_state_animation_timer = QTimer(self)
+        self._system_state_animation_timer.setInterval(
+            self._SYSTEM_STATE_ANIMATION_INTERVAL_MS
+        )
+        self._system_state_animation_timer.timeout.connect(
+            self._advance_system_state_animation
+        )
         self._system_state_runtime = SystemStateRuntime(
             self._show_system_state,
             self._restore_dashboard_after_system_state,
@@ -88,6 +110,7 @@ class SafeShutdownWindow(MainWindow):
             lambda idle: self._handle_system_state_condition(SystemState.IDLE, idle)
         )
         self._apply_system_state_preferences()
+        QTimer.singleShot(1200, self._auto_start_display_if_enabled)
 
         app = QApplication.instance()
         if app is not None:
@@ -104,6 +127,7 @@ class SafeShutdownWindow(MainWindow):
         self._connected_display_info = info
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
+        self._resume_reconnect_attempt = 0
         streamer = self.display_streamer
         caps = streamer.backend.get_capabilities() if streamer is not None else None
         if hasattr(self, "display_controls_action"):
@@ -118,6 +142,7 @@ class SafeShutdownWindow(MainWindow):
             self._system_state_display_was_active = True
             self.display_timer.stop()
             self._send_system_state_frame(runtime.visible_state)
+            self._configure_system_state_animation(runtime.visible_state)
 
     def _push_display_frame(self) -> None:
         runtime = getattr(self, "_system_state_runtime", None)
@@ -130,9 +155,42 @@ class SafeShutdownWindow(MainWindow):
             self.display_timer.stop()
             self._show_shutdown_frame(reason="switch")
 
+    def _start_display_stream(self) -> None:
+        """Start output only after migrating the obsolete late uaccess rule.
+
+        The old 99-* rule can appear to work until suspend causes the USB device
+        to enumerate again. Requiring the existing one-click setup before a USB
+        stream starts prevents that known-bad configuration from surviving into
+        the next resume cycle.
+        """
+        if self.display_backend_key == "aic_usb" and legacy_udev_rule_installed():
+            answer = QMessageBox.question(
+                self,
+                self._t("USB-Zugriff"),
+                self._t("Das USB-Display wurde erkannt, OwnDash benötigt aber noch Zugriffsrechte."),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                self.display_action.blockSignals(True)
+                self.display_action.setChecked(False)
+                self.display_action.blockSignals(False)
+                return
+            ok, message = install_udev_rule()
+            if not ok:
+                QMessageBox.warning(self, self._t("USB-Zugriff"), self._t(message))
+                self.display_action.blockSignals(True)
+                self.display_action.setChecked(False)
+                self.display_action.blockSignals(False)
+                return
+            self.statusBar().showMessage(self._t(message), 4000)
+        super()._start_display_stream()
+
     def _stop_display_stream(self) -> None:
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
+        self._resume_reconnect_attempt = 0
+        self._system_state_animation_timer.stop()
         self._connected_display_info = None
         if hasattr(self, "display_controls_action"):
             self.display_controls_action.setEnabled(False)
@@ -146,15 +204,21 @@ class SafeShutdownWindow(MainWindow):
             and (
                 current_state is SystemState.SUSPENDING
                 or self._resume_recovery_armed
+                or self._resume_reconnect_pending
             )
         )
         if recoverable_resume_error:
-            if current_state is SystemState.SUSPENDING:
-                self._resume_reconnect_pending = True
-            self._resume_recovery_armed = False
+            was_pending = self._resume_reconnect_pending
+            self._resume_reconnect_pending = True
+            self._resume_recovery_armed = True
+            if not was_pending:
+                self._resume_reconnect_attempt = 0
             self._quiet_reset_display_after_error()
             if current_state is not SystemState.SUSPENDING:
-                self._schedule_usb_resume_reconnect()
+                self.statusBar().showMessage(
+                    self._t("Display wird nach Standby neu verbunden …"), 3000
+                )
+                self._queue_usb_resume_reconnect()
             return
 
         self._connected_display_info = None
@@ -188,19 +252,71 @@ class SafeShutdownWindow(MainWindow):
             self.tray_display_action.setText(self._t("Display ist gestoppt"))
 
     def _schedule_usb_resume_reconnect(self) -> None:
+        """Start a short, bounded post-resume recovery window.
+
+        USB displays often enumerate in stages after system resume: absent,
+        present without the logind ACL, then accessible. Probing these states
+        before opening PyUSB prevents transient conditions from surfacing as
+        user-facing errors. This timer chain exists only after resume and stops
+        immediately on success or after roughly five seconds.
+        """
         if self.display_backend_key != "aic_usb":
             self._resume_reconnect_pending = False
             self._resume_recovery_armed = False
+            self._resume_reconnect_attempt = 0
             return
-        self._resume_reconnect_pending = False
-        self._resume_recovery_armed = False
+        self._resume_reconnect_pending = True
+        self._resume_recovery_armed = True
+        self._resume_reconnect_attempt = 0
         self.statusBar().showMessage(
             self._t("Display wird nach Standby neu verbunden …"), 3000
         )
-        QTimer.singleShot(200, self._start_display_stream)
+        self._queue_usb_resume_reconnect()
+
+    def _queue_usb_resume_reconnect(self) -> None:
+        if not self._resume_reconnect_pending or self.display_backend_key != "aic_usb":
+            return
+        if self._resume_reconnect_attempt >= len(self._RESUME_RECONNECT_DELAYS_MS):
+            self._finish_usb_resume_recovery_failure()
+            return
+        delay = self._RESUME_RECONNECT_DELAYS_MS[self._resume_reconnect_attempt]
+        self._resume_reconnect_attempt += 1
+        QTimer.singleShot(int(delay), self._attempt_usb_resume_reconnect)
+
+    def _attempt_usb_resume_reconnect(self) -> None:
+        if not self._resume_reconnect_pending or self.display_backend_key != "aic_usb":
+            return
+        status = probe_artinchip_usb()
+        if status.connected and status.accessible:
+            # Keep the recovery flags armed until _display_connected arrives.
+            # If the backend still fails while opening the device, _display_error
+            # quietly advances to the next bounded retry instead of showing a
+            # transient dialog.
+            self._start_display_stream()
+            return
+        self._queue_usb_resume_reconnect()
+
+    def _finish_usb_resume_recovery_failure(self) -> None:
+        if not self._resume_reconnect_pending:
+            return
+        status = probe_artinchip_usb()
+        self._resume_reconnect_pending = False
+        self._resume_recovery_armed = False
+        self._resume_reconnect_attempt = 0
+        if status.connected:
+            message = self._t(
+                "Das USB-Display wurde erkannt, OwnDash benötigt aber noch Zugriffsrechte."
+            )
+        else:
+            message = self._t("Display nicht verbunden")
+        # Resume must stay unobtrusive. A failed bounded recovery leaves the
+        # display stopped and reports the state in the main window instead of
+        # throwing a modal dialog over the freshly unlocked desktop.
+        self.statusBar().showMessage(message, 8000)
 
     def _clear_resume_recovery_arm(self) -> None:
-        self._resume_recovery_armed = False
+        if not self._resume_reconnect_pending:
+            self._resume_recovery_armed = False
 
     def _open_display_controls(self) -> None:
         streamer = self.display_streamer
@@ -335,6 +451,30 @@ class SafeShutdownWindow(MainWindow):
         update_hint.setWordWrap(True)
         outer.addWidget(update_hint)
 
+        startup_box = QGroupBox(self._t("Systemstart"), dialog)
+        startup_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        startup_layout = QVBoxLayout(startup_box)
+        launch_at_login_check = QCheckBox(self._t("OwnDash mit dem System starten"), startup_box)
+        launch_at_login_check.setChecked(self.preferences.launch_at_login)
+        startup_layout.addWidget(launch_at_login_check)
+        display_on_launch_check = QCheckBox(self._t("USB-Display beim Start automatisch verbinden"), startup_box)
+        display_on_launch_check.setChecked(self.preferences.start_display_on_launch)
+        startup_layout.addWidget(display_on_launch_check)
+        restore_last_check = QCheckBox(
+            self._t("Letzte Vorlage / letztes Profil beim Start wiederherstellen"),
+            startup_box,
+        )
+        restore_last_check.setChecked(self.preferences.restore_last_profile)
+        startup_layout.addWidget(restore_last_check)
+        startup_hint = QLabel(
+            self._t("Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen."),
+            startup_box,
+        )
+        startup_hint.setWordWrap(True)
+        startup_hint.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
+        startup_layout.addWidget(startup_hint)
+        outer.addWidget(startup_box)
+
         system_state_settings = SystemStateSettingsWidget(
             self.preferences,
             dialog,
@@ -362,7 +502,21 @@ class SafeShutdownWindow(MainWindow):
 
         self.preferences.language = str(language_combo.currentData())
         self.preferences.appearance = str(appearance_combo.currentData())
+        requested_launch_at_login = launch_at_login_check.isChecked()
+        try:
+            set_autostart_enabled(requested_launch_at_login)
+        except OSError as exc:
+            QMessageBox.warning(
+                self,
+                self._t("Systemstart"),
+                f"{self._t('Autostart konnte nicht eingerichtet werden')}: {exc}",
+            )
+            return
+
         self.preferences.check_updates = update_check.isChecked()
+        self.preferences.launch_at_login = requested_launch_at_login
+        self.preferences.start_display_on_launch = display_on_launch_check.isChecked()
+        self.preferences.restore_last_profile = restore_last_check.isChecked()
         system_state_settings.apply_to(self.preferences)
         save_preferences(self.preferences)
 
@@ -376,6 +530,21 @@ class SafeShutdownWindow(MainWindow):
 
         if self.preferences.check_updates and not was_checking_updates:
             self._schedule_update_check()
+
+    def _auto_start_display_if_enabled(self) -> None:
+        streamer = self.display_streamer
+        streamer_running = bool(streamer is not None and streamer.running)
+        if not should_auto_start_display(
+            enabled=self.preferences.start_display_on_launch,
+            setup_completed=self.preferences.setup_completed,
+            backend_key=self.display_backend_key,
+            streamer_running=streamer_running,
+        ):
+            return
+        self.display_action.blockSignals(True)
+        self.display_action.setChecked(True)
+        self.display_action.blockSignals(False)
+        self._start_display_stream()
 
     def _apply_system_state_preferences(self) -> None:
         """Apply preferences without adding any periodic polling."""
@@ -393,6 +562,8 @@ class SafeShutdownWindow(MainWindow):
             self._idle_state_monitor.stop()
             self._resume_reconnect_pending = False
             self._resume_recovery_armed = False
+            self._resume_reconnect_attempt = 0
+            self._system_state_animation_timer.stop()
             if self._system_state_runtime.visible_state is not SystemState.ACTIVE:
                 self._restore_dashboard_after_system_state()
             # Dropping the old coordinator also drops any stale suspend/terminal
@@ -427,17 +598,27 @@ class SafeShutdownWindow(MainWindow):
         if is_suspend_start:
             self._resume_reconnect_pending = False
             self._resume_recovery_armed = False
+            self._resume_reconnect_attempt = 0
         elif is_resume and self.display_backend_key == "aic_usb":
             if self._system_state_display_was_active or self._resume_reconnect_pending:
                 self._resume_recovery_armed = True
-                QTimer.singleShot(3000, self._clear_resume_recovery_arm)
+                if not self._resume_reconnect_pending:
+                    # The display may survive suspend and only fail when its
+                    # first post-resume transfer occurs. Keep that transient
+                    # failure quiet for a bounded window, not indefinitely.
+                    QTimer.singleShot(12000, self._clear_resume_recovery_arm)
 
         self._system_state_runtime.handle_condition(state, bool(enabled))
 
         if is_resume and self._resume_reconnect_pending:
             self._schedule_usb_resume_reconnect()
 
-    def _render_system_state_payload(self, state: SystemState) -> bytes | None:
+    def _render_system_state_payload(
+        self,
+        state: SystemState,
+        *,
+        animation_phase: float = 0.0,
+    ) -> bytes | None:
         if state is SystemState.ACTIVE:
             return None
         with app_icon_path() as icon_path:
@@ -447,17 +628,38 @@ class SafeShutdownWindow(MainWindow):
             "system_locked": self._t("System gesperrt"),
             "standby": self._t("Standby"),
             "entering_standby": self._t("Standby wird vorbereitet"),
+            "system_transition": self._t("Systemwechsel"),
+            "ending_session": self._t("OwnDash beendet die aktuelle Sitzung."),
             "shutting_down": self._t("Herunterfahren"),
             "restarting": self._t("Neustart"),
         }
+        now = datetime.now()
+        clock_text = now.strftime("%H:%M") if state in {SystemState.IDLE, SystemState.LOCKED} else None
+        if self.language == "de":
+            date_text = now.strftime("%d.%m.%Y")
+        else:
+            date_text = now.strftime("%Y-%m-%d")
+
+        # System-state frames follow the exact same contract as normal dashboard
+        # frames: render in the logical canvas orientation and let the selected
+        # display backend apply the configured panel rotation. Keeping rotation
+        # in one layer avoids a second transform path that can turn 90/270-degree
+        # USB panels sideways.
+        logical_w = int(self.canvas.canvas_size.width)
+        logical_h = int(self.canvas.canvas_size.height)
+
         image = render_system_state_image(
-            int(self.canvas.canvas_size.width),
-            int(self.canvas.canvas_size.height),
+            logical_w,
+            logical_h,
             state,
             self.preferences.system_state_theme,
             icon,
             strings,
+            clock_text=clock_text,
+            date_text=date_text if state is SystemState.LOCKED else None,
+            animation_phase=animation_phase,
         )
+
         encoded = QByteArray()
         buffer = QBuffer(encoded)
         if not buffer.open(QBuffer.WriteOnly):
@@ -476,14 +678,51 @@ class SafeShutdownWindow(MainWindow):
         self.live_timer.stop()
         self.display_timer.stop()
         self.page_cycle_timer.stop()
+        self._system_state_animation_timer.stop()
+        self._system_state_animation_phase = 0.0
         self._send_system_state_frame(state)
+        self._configure_system_state_animation(state)
 
-    def _send_system_state_frame(self, state: SystemState) -> None:
+    def _configure_system_state_animation(self, state: SystemState) -> None:
+        if (
+            state in {SystemState.IDLE, SystemState.LOCKED}
+            and self.display_connected
+            and self.display_streamer is not None
+            and self.display_streamer.running
+        ):
+            if not self._system_state_animation_timer.isActive():
+                self._system_state_animation_timer.start()
+        else:
+            self._system_state_animation_timer.stop()
+
+    def _advance_system_state_animation(self) -> None:
+        state = self._system_state_runtime.visible_state
+        if state not in {SystemState.IDLE, SystemState.LOCKED}:
+            self._system_state_animation_timer.stop()
+            return
+        if not self.display_connected or self.display_streamer is None or not self.display_streamer.running:
+            self._system_state_animation_timer.stop()
+            return
+        self._system_state_animation_phase = (self._system_state_animation_phase + 0.125) % 1.0
+        self._send_system_state_frame(
+            state,
+            final=False,
+            animation_phase=self._system_state_animation_phase,
+        )
+
+    def _send_system_state_frame(
+        self,
+        state: SystemState,
+        *,
+        final: bool = True,
+        animation_phase: float | None = None,
+    ) -> None:
         streamer = self.display_streamer
         if not self.display_connected or streamer is None or not streamer.running:
             return
         try:
-            payload = self._render_system_state_payload(state)
+            phase = self._system_state_animation_phase if animation_phase is None else animation_phase
+            payload = self._render_system_state_payload(state, animation_phase=phase)
         except Exception as exc:
             self.statusBar().showMessage(
                 f"{self._t('Systemzustandsanzeige konnte nicht gerendert werden')}: {exc}",
@@ -494,10 +733,15 @@ class SafeShutdownWindow(MainWindow):
             return
         self._last_display_payload = payload
         try:
-            # Best effort only. OwnDash never takes a systemd sleep/shutdown
-            # inhibitor, and this wait is intentionally short so OS lifecycle
-            # operations are never meaningfully delayed by the display.
-            streamer.submit_final(payload, timeout=0.25)
+            if final:
+                # Best effort only. OwnDash never takes a systemd sleep/shutdown
+                # inhibitor, and this wait is intentionally short so OS lifecycle
+                # operations are never meaningfully delayed by the display.
+                streamer.submit_final(payload, timeout=0.25)
+            else:
+                # Slow lock/idle HUD frames use the streamer's normal coalescing
+                # queue and never block the UI thread waiting for USB transfer.
+                streamer.submit(payload)
         except Exception:
             # System transitions must not fail because display I/O vanished.
             return
@@ -506,6 +750,8 @@ class SafeShutdownWindow(MainWindow):
         if not self._system_state_paused:
             return
 
+        self._system_state_animation_timer.stop()
+        self._system_state_animation_phase = 0.0
         live_was_active = self._system_state_live_was_active
         display_was_active = self._system_state_display_was_active
         page_cycle_was_active = self._system_state_page_cycle_was_active
@@ -535,9 +781,12 @@ class SafeShutdownWindow(MainWindow):
     def _refresh_visible_system_state(self) -> None:
         state = self._system_state_runtime.visible_state
         if state is not SystemState.ACTIVE:
+            self._system_state_animation_phase = 0.0
             self._send_system_state_frame(state)
+            self._configure_system_state_animation(state)
 
     def _stop_system_state_services(self) -> None:
+        self._system_state_animation_timer.stop()
         adapter = getattr(self, "_system_state_adapter", None)
         if adapter is not None:
             adapter.stop()

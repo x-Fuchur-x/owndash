@@ -8,6 +8,7 @@ class SystemState(str, Enum):
     IDLE = "idle"
     LOCKED = "locked"
     SUSPENDING = "suspending"
+    TRANSITIONING = "transitioning"
     SHUTTING_DOWN = "shutting_down"
     RESTARTING = "restarting"
 
@@ -17,6 +18,7 @@ _STATE_PRIORITY: dict[SystemState, int] = {
     SystemState.IDLE: 10,
     SystemState.LOCKED: 20,
     SystemState.SUSPENDING: 30,
+    SystemState.TRANSITIONING: 40,
     SystemState.SHUTTING_DOWN: 40,
     SystemState.RESTARTING: 40,
 }
@@ -26,9 +28,9 @@ def resolve_visible_state(active_states: set[SystemState]) -> SystemState:
     """Return the highest-priority visible state.
 
     ACTIVE is the derived fallback when no temporary condition is active.
-    SHUTTING_DOWN and RESTARTING intentionally share the same priority;
-    callers must not assert both simultaneously because logind should surface
-    one terminal transition at a time.
+    TRANSITIONING, SHUTTING_DOWN and RESTARTING intentionally share the
+    same priority; callers must not assert more than one terminal condition at
+    once because logind should surface one terminal transition at a time.
     """
     if not active_states:
         return SystemState.ACTIVE

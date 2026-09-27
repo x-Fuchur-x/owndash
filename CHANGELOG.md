@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added an always-available **Display & Device** Device Center that remains useful even when no display is connected.
+- Added passive ArtInChip / VSDISPLAY diagnostics for `33C3:0E02`, USB access, device node and OwnDash udev-rule state.
+- Device diagnostics now retain the current session's last-known device information, connection/disconnect times and categorized display errors.
+- Device capabilities are reported as **available**, **unsupported**, or **not yet verified** instead of collapsing those states together.
+- Added a sanitized, copyable diagnostic report for support and GitHub issues without usernames, home-directory paths, environment dumps or system logs.
+- Device Center refresh is read-only and covered by regressions proving it does not connect/reconnect hardware, send frames, issue brightness/Expansion writes, or stop the active display timer.
+- Hardware brightness, Expansion Screen Mode and startup-media operations remain intentionally disabled for the current ArtInChip transport until they are verified safely on real hardware.
+
 ## 0.14.0 Beta 4
 
 - Widget fonts, spacing, borders and effects now scale proportionally with their geometry.

@@ -46,7 +46,7 @@ from PySide6.QtWidgets import (
 from owndash import APP_NAME, __version__
 from owndash.project_info import GITHUB_ISSUES_URL, GITHUB_URL
 from owndash.assets import app_icon_path
-from owndash.core.config import default_profile_path, load_profile, save_profile
+from owndash.core.config import default_profile_path, load_profile, save_profile, startup_snapshot_path
 from owndash.core.preferences import AppPreferences, load_preferences, save_preferences
 from owndash.appearance import apply_appearance
 from owndash.i18n import resolved_language, retranslate_tree, tr
@@ -64,6 +64,26 @@ from owndash.themes import DEFAULT_THEME_NAME, ThemeManager
 from owndash.widgets.registry import DEFAULT_WIDGETS, widget_type
 
 from .canvas import DashboardCanvas, WidgetItem
+
+
+_BUILTIN_WIDGET_TITLE_SOURCES: dict[str, tuple[str, ...]] = {
+    "cpu": ("CPU",),
+    "gpu": ("GPU",),
+    "memory": ("Arbeitsspeicher", "RAM"),
+    "storage": ("Speicher",),
+    "network": ("Netzwerk",),
+    "temperature": ("Temperatur",),
+    "power": ("Leistung",),
+    "clock": ("Uhr",),
+    "gauge_cpu": ("Tacho · CPU", "CPU"),
+    "gauge_gpu": ("Tacho · GPU", "GPU"),
+    "gauge_temp": ("Tacho · Temperatur", "Temperatur", "TEMP"),
+    "gauge_power": ("Tacho · Leistung", "Leistung"),
+    "chart": ("Diagramm", "CPU Verlauf", "GPU Verlauf"),
+    "sparkline": ("Sparkline", "Temperatur"),
+    "text": ("Text",),
+    "image": ("Bild",),
+}
 
 
 
@@ -135,8 +155,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.profile_path = default_profile_path()
         self.preferences: AppPreferences = load_preferences()
+        self.profile_path = self._preferred_startup_profile_path()
         self.language = resolved_language(self.preferences.language)
         self._system_palette = QPalette(QApplication.instance().palette())
         apply_appearance(self.preferences.appearance, self._system_palette)
@@ -195,6 +215,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self._t("Bereit · Live-Vorschau aktiv"))
 
         self._load_default_if_present()
+        self._retranslate_builtin_widget_titles()
         if not self.canvas.widget_items():
             self._apply_theme(DEFAULT_THEME_NAME, commit=False)
 
@@ -229,6 +250,37 @@ class MainWindow(QMainWindow):
     def _t(self, text: str) -> str:
         return tr(text, self.language)
 
+    def _localized_builtin_widget_title(self, kind: str, title: str) -> str:
+        """Translate OwnDash-provided widget titles without touching custom names."""
+        for source in _BUILTIN_WIDGET_TITLE_SOURCES.get(kind, ()):
+            if title in {source, tr(source, "de"), tr(source, "en")}:
+                return self._t(source)
+        return title
+
+    def _retranslate_builtin_widget_titles(self) -> None:
+        changed = False
+        if hasattr(self, "canvas"):
+            for item in self.canvas.widget_items():
+                translated = self._localized_builtin_widget_title(item.kind, item.label)
+                if translated != item.label:
+                    item.label = translated
+                    item.update()
+                    changed = True
+        for page in getattr(self, "dashboard_pages", []):
+            for widget in page.widgets:
+                translated = self._localized_builtin_widget_title(widget.kind, widget.title)
+                if translated != widget.title:
+                    widget.title = translated
+                    changed = True
+        if changed and hasattr(self, "canvas"):
+            self.canvas.viewport().update()
+            if hasattr(self, "title_edit"):
+                selected = self._selected_widget()
+                if selected is not None:
+                    self.title_edit.setText(selected.label)
+            if hasattr(self, "layers_list"):
+                self._refresh_layers()
+
     def _retranslate_ui(self) -> None:
         retranslate_tree(self, self.language)
         if hasattr(self, "widget_list"):
@@ -237,6 +289,7 @@ class MainWindow(QMainWindow):
                 definition = widget_type(str(item.data(Qt.UserRole)))
                 if definition is not None:
                     item.setText(self._t(definition.label))
+        self._retranslate_builtin_widget_titles()
         self.setWindowTitle("")
         if hasattr(self, "tray_icon"):
             self.tray_icon.setToolTip("OwnDash")
@@ -329,8 +382,13 @@ class MainWindow(QMainWindow):
         zoom_out.setToolTip("Vorschau verkleinern")
         zoom_out.triggered.connect(lambda: self._zoom_canvas(0.85))
         zoom_reset = QAction("100 %", self)
+        zoom_reset.setToolTip("Pixelgenaue 1:1-Ansicht")
         zoom_reset.triggered.connect(self._reset_zoom)
+        zoom_width = QAction("Breite", self)
+        zoom_width.setToolTip("Arbeitsfläche an die Editorbreite anpassen")
+        zoom_width.triggered.connect(self.canvas.fit_canvas_width)
         zoom_fit = QAction("Einpassen", self)
+        zoom_fit.setToolTip("Gesamtes Dashboard anzeigen")
         zoom_fit.triggered.connect(self.canvas.fit_canvas)
         zoom_in = QAction("+", self)
         zoom_in.setToolTip("Vorschau vergrößern")
@@ -361,6 +419,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(zoom_out)
         toolbar.addAction(zoom_reset)
+        toolbar.addAction(zoom_width)
         toolbar.addAction(zoom_fit)
         toolbar.addAction(zoom_in)
         toolbar.addSeparator()
@@ -387,6 +446,7 @@ class MainWindow(QMainWindow):
         view_menu = self.menuBar().addMenu("Ansicht")
         view_menu.addAction(zoom_out)
         view_menu.addAction(zoom_reset)
+        view_menu.addAction(zoom_width)
         view_menu.addAction(zoom_fit)
         view_menu.addAction(zoom_in)
         view_menu.addSeparator()
@@ -2745,6 +2805,11 @@ class MainWindow(QMainWindow):
             logical_w, logical_h = logical_size(width, height, profile.rotation)
             if (logical_w, logical_h) != (self.canvas.canvas_size.width, self.canvas.canvas_size.height):
                 self._resize_dashboard_canvas(logical_w, logical_h, scale_widgets=True)
+            # A tall case display is easiest to edit width-fitted: the
+            # dashboard uses the available editor width while vertical scrolling
+            # remains available. 100% stays a separate, strictly pixel-accurate
+            # 1:1 mode for users who explicitly choose it.
+            self.canvas.fit_canvas_width()
         self._update_display_cadence(force=True)
         fps = round(1000 / max(1, self.display_timer.interval()))
         self.statusBar().showMessage(f"Display verbunden · {width}×{height} · Smooth-Ausgabe bis {fps} FPS")
@@ -2890,6 +2955,7 @@ class MainWindow(QMainWindow):
         self._apply_dashboard_page(template_page, show_status=False)
         self._sync_pages_ui()
         self._commit_history(before, f"Vorlage laden: {name}")
+        self._snapshot_profile_for_startup()
         self.statusBar().showMessage(
             f"Vorlage '{name}' auf {template_page.name} geladen", 2500
         )
@@ -2958,6 +3024,7 @@ class MainWindow(QMainWindow):
     def _zoom_canvas(self, factor: float) -> None:
         current = self.canvas.transform().m11()
         self.canvas.auto_fit = False
+        self.canvas.auto_fit_width = False
         target = max(0.01, min(3.0, current * factor))
         self.canvas.resetTransform()
         self.canvas.scale(target, target)
@@ -2965,8 +3032,10 @@ class MainWindow(QMainWindow):
 
     def _reset_zoom(self) -> None:
         self.canvas.auto_fit = False
+        self.canvas.auto_fit_width = False
         self.canvas.resetTransform()
-        self.statusBar().showMessage("Vorschau: 100 %", 1500)
+        self.canvas.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.statusBar().showMessage("Vorschau: 100 % · 1:1", 1500)
 
     def _selected_widget(self) -> WidgetItem | None:
         return self.canvas.selected_widget()
@@ -3409,6 +3478,7 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.critical(self, self._t("Profil konnte nicht gespeichert werden"), str(exc))
             return
+        self._remember_startup_profile(self.profile_path)
         self.statusBar().showMessage(f"Gespeichert: {self.profile_path}", 3000)
 
     def _open(self) -> None:
@@ -3428,12 +3498,47 @@ class MainWindow(QMainWindow):
         before = self._profile_from_canvas().to_json()
         self.profile_path = Path(filename)
         self._apply_profile(profile)
+        self._remember_startup_profile(self.profile_path)
         self._commit_history(before, "Profil öffnen")
 
-    def _load_default_if_present(self) -> None:
-        if not self.profile_path.exists():
-            return
+    def _preferred_startup_profile_path(self) -> Path:
+        default_path = default_profile_path()
+        if not self.preferences.restore_last_profile:
+            return default_path
+        raw = self.preferences.last_profile_path.strip()
+        if not raw:
+            return default_path
+        candidate = Path(raw).expanduser()
+        return candidate if candidate.exists() else default_path
+
+    def _remember_startup_profile(self, path: Path) -> None:
+        self.preferences.last_profile_path = str(path)
+        save_preferences(self.preferences)
+
+    def _snapshot_profile_for_startup(self) -> None:
+        snapshot = startup_snapshot_path()
         try:
-            self._apply_profile(load_profile(self.profile_path))
-        except (OSError, ValueError, TypeError) as exc:
-            self.statusBar().showMessage(f"Standardprofil konnte nicht geladen werden: {exc}", 5000)
+            save_profile(self._profile_from_canvas(), snapshot)
+        except OSError:
+            return
+        self._remember_startup_profile(snapshot)
+
+    def _load_default_if_present(self) -> None:
+        default_path = default_profile_path()
+        candidates = [self.profile_path]
+        if self.profile_path != default_path:
+            candidates.append(default_path)
+
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            try:
+                profile = load_profile(candidate)
+            except (OSError, ValueError, TypeError):
+                if candidate != default_path and self.preferences.last_profile_path == str(candidate):
+                    self.preferences.last_profile_path = ""
+                    save_preferences(self.preferences)
+                continue
+            self.profile_path = candidate
+            self._apply_profile(profile)
+            return

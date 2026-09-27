@@ -13,6 +13,10 @@ class AppPreferences:
     appearance: str = "system"     # system | dark | light
     setup_completed: bool = False   # first-run compatibility assistant
     check_updates: bool = True      # background GitHub release check
+    launch_at_login: bool = False    # XDG desktop autostart
+    start_display_on_launch: bool = False  # reconnect USB display after app launch
+    restore_last_profile: bool = True  # restore last profile/template on launch
+    last_profile_path: str = ""  # internal startup restore target
     system_state_screens: bool = True
     system_state_theme: str = "owndash"  # owndash | bazzite-inspired
     idle_mode: bool = True
@@ -45,11 +49,18 @@ class AppPreferences:
         # still useful for long-running desktop sessions.
         idle_timeout_minutes = max(1, min(240, idle_timeout_minutes))
 
+        last_profile_path_raw = raw.get("last_profile_path", "")
+        last_profile_path = str(last_profile_path_raw).strip() if last_profile_path_raw else ""
+
         return cls(
             language=language,
             appearance=appearance,
             setup_completed=bool(raw.get("setup_completed", False)),
             check_updates=bool(raw.get("check_updates", True)),
+            launch_at_login=bool(raw.get("launch_at_login", False)),
+            start_display_on_launch=bool(raw.get("start_display_on_launch", False)),
+            restore_last_profile=bool(raw.get("restore_last_profile", True)),
+            last_profile_path=last_profile_path,
             system_state_screens=bool(raw.get("system_state_screens", True)),
             system_state_theme=theme,
             idle_mode=bool(raw.get("idle_mode", True)),

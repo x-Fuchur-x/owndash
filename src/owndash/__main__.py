@@ -14,10 +14,14 @@ def main() -> int:
         return 2
 
     from owndash.assets import app_icon_path
-    from owndash.gui.app_window import SafeShutdownWindow as MainWindow
+    from owndash.gui.device_center_window import DeviceCenterWindow as MainWindow
+    from owndash.service.autostart import set_autostart_enabled
+    from owndash.service.session_shutdown import bind_session_shutdown
+    from owndash.service.startup import resolve_startup_arguments
     from owndash.single_instance import SingleInstanceServer, notify_existing_instance
 
-    app = QApplication(sys.argv)
+    qt_argv, start_minimized = resolve_startup_arguments(sys.argv)
+    app = QApplication(qt_argv)
     # The editor window may be hidden while the live dashboard keeps running in
     # the system tray.  Explicit quit actions still terminate the process.
     app.setQuitOnLastWindowClosed(False)
@@ -42,6 +46,16 @@ def main() -> int:
         app.setWindowIcon(icon)
         window = MainWindow()
         window.setWindowIcon(icon)
+        bind_session_shutdown(app, window)
+
+        # Migrate an existing login entry from older OwnDash builds. This makes
+        # the next KDE login start minimized even when the user does not toggle
+        # the autostart preference again after updating OwnDash.
+        if window.preferences.launch_at_login:
+            try:
+                set_autostart_enabled(True)
+            except OSError:
+                pass
 
         def activate_primary_window() -> None:
             window.show()
@@ -51,8 +65,11 @@ def main() -> int:
 
         single_instance.activation_requested.connect(activate_primary_window)
 
-        window.show()
-        window.constrain_to_screen()
+        if start_minimized:
+            window.showMinimized()
+        else:
+            window.show()
+            window.constrain_to_screen()
 
         # Covers the tiny startup window between listen() and signal hookup.
         if single_instance.consume_pending_activation():

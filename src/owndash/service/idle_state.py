@@ -5,7 +5,7 @@ import os
 import time
 from typing import Callable, Protocol
 
-from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QTimer, Signal, Slot, SLOT
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class _LogindIdleSource(QObject):
     _MANAGER_IFACE = "org.freedesktop.login1.Manager"
     _SESSION_IFACE = "org.freedesktop.login1.Session"
     _PROPS_IFACE = "org.freedesktop.DBus.Properties"
+    _PROPERTIES_CHANGED_SLOT = SLOT("_on_properties_changed(QString,QVariantMap,QStringList)")
 
     def __init__(self) -> None:
         super().__init__()
@@ -88,7 +89,7 @@ class _LogindIdleSource(QObject):
                     self._PROPS_IFACE,
                     "PropertiesChanged",
                     self,
-                    "_on_properties_changed(QString,QVariantMap,QStringList)",
+                    self._PROPERTIES_CHANGED_SLOT,
                 )
             )
             if not self._connected:
@@ -109,7 +110,7 @@ class _LogindIdleSource(QObject):
                     self._PROPS_IFACE,
                     "PropertiesChanged",
                     self,
-                    "_on_properties_changed(QString,QVariantMap,QStringList)",
+                    self._PROPERTIES_CHANGED_SLOT,
                 )
             except Exception:
                 pass

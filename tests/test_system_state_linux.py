@@ -1,3 +1,5 @@
+from PySide6.QtCore import SLOT
+
 from owndash.core.system_state import SystemState
 from owndash.service import system_state_linux
 from owndash.service.system_state_linux import LinuxSystemStateAdapter, _LogindDbusSource
@@ -180,6 +182,20 @@ def test_systemd_jobnew_slot_has_exact_dbus_signature():
     assert source.metaObject().indexOfSlot(signature) >= 0
 
 
+def test_qdbus_connections_use_qt_slot_wrapper(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_ID", "test-session")
+    FakeDBusConnection.bus = FakeBus()
+    monkeypatch.setattr(system_state_linux, "QDBusConnection", FakeDBusConnection)
+    monkeypatch.setattr(system_state_linux, "QDBusInterface", FakeDBusInterface)
+
+    source = _LogindDbusSource()
+    assert source.start(lambda _kind, _enabled: None) is True
+
+    slots = [connection[-1] for connection in FakeDBusConnection.bus.connections]
+    assert SLOT("_on_prepare_for_sleep(bool)") in slots
+    assert "_on_prepare_for_sleep(bool)" not in slots
+
+
 def test_start_emits_current_locked_hint_without_polling(monkeypatch):
     monkeypatch.setenv("XDG_SESSION_ID", "test-session")
     FakeDBusConnection.bus = FakeBus()
@@ -222,3 +238,50 @@ def test_locked_hint_properties_slot_has_exact_dbus_signature():
     source = _LogindDbusSource()
     signature = "_on_session_properties_changed(QString,QVariantMap,QStringList)"
     assert source.metaObject().indexOfSlot(signature) >= 0
+
+
+def test_ambiguous_shutdown_stays_neutral_until_late_reboot_evidence(monkeypatch):
+    source = _LogindDbusSource()
+    events = []
+    source._callback = lambda kind, enabled: events.append((kind, enabled))
+    monkeypatch.setattr(source, "_scheduled_shutdown_kind", lambda: None)
+
+    source._on_prepare_for_shutdown(True)
+    assert events == [("terminal_pending", True)]
+
+    source._on_job_new(1, object(), "reboot.target")
+    assert events == [
+        ("terminal_pending", True),
+        ("terminal_pending", False),
+        ("restart", True),
+    ]
+
+
+def test_transitioning_state_exists_for_ambiguous_terminal_phase():
+    assert "transitioning" in {state.value for state in SystemState}
+
+
+def test_shutdown_metadata_slot_has_exact_dbus_signature():
+    source = _LogindDbusSource()
+    signature = "_on_prepare_for_shutdown_with_metadata(bool,QVariantMap)"
+    assert source.metaObject().indexOfSlot(signature) >= 0
+
+
+def test_shutdown_metadata_reboot_avoids_generic_transition():
+    source = _LogindDbusSource()
+    assert hasattr(source, "_on_prepare_for_shutdown_with_metadata")
+    events = []
+    source._callback = lambda kind, enabled: events.append((kind, enabled))
+    source._on_prepare_for_shutdown_with_metadata(True, {"type": FakeVariant("reboot")})
+    source._on_prepare_for_shutdown(True)
+    assert events == [("restart", True)]
+
+
+def test_shutdown_metadata_poweroff_maps_to_shutdown():
+    source = _LogindDbusSource()
+    assert hasattr(source, "_on_prepare_for_shutdown_with_metadata")
+    events = []
+    source._callback = lambda kind, enabled: events.append((kind, enabled))
+    source._on_prepare_for_shutdown_with_metadata(True, {"type": FakeVariant("power-off")})
+    source._on_prepare_for_shutdown(True)
+    assert events == [("shutdown", True)]

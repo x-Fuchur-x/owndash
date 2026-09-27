@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+import owndash.gui.app_window as app_window_module
 from owndash.core.preferences import AppPreferences
 from owndash.core.system_state import SystemState
 from owndash.gui.app_window import SafeShutdownWindow
@@ -153,7 +156,7 @@ def test_runtime_preferences_update_idle_and_lock_policy(state_window):
     assert window._system_state_runtime.lock_enabled is False
 
 
-def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window, monkeypatch):
+def test_usb_disconnect_during_suspend_waits_for_device_and_access_before_reconnect(state_window, monkeypatch):
     window = state_window
     streamer = RecordingStreamer()
     window.display_backend_key = "aic_usb"
@@ -164,17 +167,27 @@ def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window
 
     warnings = []
     reconnects = []
-    delayed = []
+    scheduled = []
+    statuses = iter(
+        [
+            SimpleNamespace(connected=False, accessible=False),
+            SimpleNamespace(connected=True, accessible=False),
+            SimpleNamespace(connected=True, accessible=True),
+        ]
+    )
     monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: warnings.append(args))
     monkeypatch.setattr(window, "_start_display_stream", lambda: reconnects.append(True))
-
-    def single_shot(delay, callback):
-        if int(delay) <= 500:
-            callback()
-        else:
-            delayed.append((int(delay), callback))
-
-    monkeypatch.setattr(QTimer, "singleShot", staticmethod(single_shot))
+    monkeypatch.setattr(
+        app_window_module,
+        "probe_artinchip_usb",
+        lambda: next(statuses),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        QTimer,
+        "singleShot",
+        staticmethod(lambda delay, callback: scheduled.append((int(delay), callback))),
+    )
 
     window._handle_system_state_condition(SystemState.SUSPENDING, True)
     window._display_error(RuntimeError("USB disappeared during suspend"))
@@ -187,9 +200,116 @@ def test_usb_disconnect_during_suspend_reconnects_once_after_resume(state_window
 
     window._handle_system_state_condition(SystemState.SUSPENDING, False)
 
+    assert reconnects == []
+    assert window._resume_reconnect_pending is True
+    assert scheduled
+
+    first_delay, first_attempt = scheduled.pop(0)
+    assert first_delay >= 500
+    first_attempt()
+    assert reconnects == []
+    assert warnings == []
+
+    _second_delay, second_attempt = scheduled.pop(0)
+    second_attempt()
+    assert reconnects == []
+    assert warnings == []
+
+    _third_delay, third_attempt = scheduled.pop(0)
+    third_attempt()
     assert reconnects == [True]
+    assert warnings == []
+
+
+def test_usb_resume_recovery_finishes_quietly_after_bounded_retries(state_window, monkeypatch):
+    window = state_window
+    window.language = "en"
+    window.display_backend_key = "aic_usb"
+    warnings = []
+    scheduled = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: warnings.append(args))
+    monkeypatch.setattr(
+        app_window_module,
+        "probe_artinchip_usb",
+        lambda: SimpleNamespace(connected=True, accessible=False),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        QTimer,
+        "singleShot",
+        staticmethod(lambda delay, callback: scheduled.append((int(delay), callback))),
+    )
+
+    window._schedule_usb_resume_reconnect()
+    safety = 0
+    while scheduled and safety < 20:
+        _delay, callback = scheduled.pop(0)
+        callback()
+        safety += 1
+
+    assert safety < 20
+    assert warnings == []
     assert window._resume_reconnect_pending is False
     assert window._resume_recovery_armed is False
+    assert "USB" in window.statusBar().currentMessage()
+
+
+def test_usb_start_migrates_legacy_rule_before_opening_stream(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    migrations = []
+    starts = []
+
+    monkeypatch.setattr(
+        app_window_module,
+        "legacy_udev_rule_installed",
+        lambda: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        app_window_module,
+        "install_udev_rule",
+        lambda: (migrations.append(True) or True, "USB access ready"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.Yes,
+    )
+    monkeypatch.setattr(
+        app_window_module.MainWindow,
+        "_start_display_stream",
+        lambda _self: starts.append(True),
+    )
+
+    window._start_display_stream()
+
+    assert migrations == [True]
+    assert starts == [True]
+
+
+def test_system_state_renderer_leaves_usb_rotation_to_backend(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    window._display_rotation = 270
+    logical_w = int(window.canvas.canvas_size.width)
+    logical_h = int(window.canvas.canvas_size.height)
+    calls = []
+
+    def fake_render(width, height, *_args, **_kwargs):
+        calls.append((int(width), int(height)))
+        image = QImage(int(width), int(height), QImage.Format_RGB32)
+        image.fill(0)
+        return image
+
+    monkeypatch.setattr(app_window_module, "render_system_state_image", fake_render)
+
+    payload = window._render_system_state_payload(SystemState.LOCKED)
+    transport = QImage.fromData(payload)
+
+    assert calls == [(logical_w, logical_h)]
+    assert (transport.width(), transport.height()) == (logical_w, logical_h)
 
 
 def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypatch):
@@ -203,13 +323,34 @@ def test_usb_resume_reconnect_status_uses_active_language(state_window, monkeypa
     assert window.statusBar().currentMessage() == "Reconnecting display after standby …"
 
 
+def test_lock_hud_animation_is_low_rate_and_uses_nonblocking_frames(state_window):
+    window = state_window
+    streamer = RecordingStreamer()
+    window.display_streamer = streamer
+    window.display_connected = True
+
+    window._handle_system_state_condition(SystemState.LOCKED, True)
+
+    assert window._system_state_animation_timer.isActive()
+    assert window._system_state_animation_timer.interval() >= 500
+    initial_final_frames = len(streamer.final_frames)
+
+    window._advance_system_state_animation()
+
+    assert len(streamer.final_frames) == initial_final_frames
+    assert len(streamer.frames) == 1
+
+    window._handle_system_state_condition(SystemState.SUSPENDING, True)
+    assert not window._system_state_animation_timer.isActive()
+
+
 def test_system_state_render_error_uses_active_language(state_window, monkeypatch):
     window = state_window
     window.language = "en"
     window.display_streamer = RecordingStreamer()
     window.display_connected = True
 
-    def fail_render(_state):
+    def fail_render(_state, **_kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(window, "_render_system_state_payload", fail_render)

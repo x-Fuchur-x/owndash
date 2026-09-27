@@ -13,7 +13,9 @@ from owndash.core.subprocess_env import system_subprocess_env
 
 USB_VENDOR_ID = "33c3"
 USB_PRODUCT_ID = "0e02"
-RULE_NAME = "99-owndash-usb.rules"
+RULE_NAME = "70-owndash-usb.rules"
+LEGACY_RULE_NAME = "99-owndash-usb.rules"
+UDEV_RULE_DIR = Path("/etc/udev/rules.d")
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,8 +32,36 @@ def _read(path: Path) -> str:
         return ""
 
 
+def legacy_udev_rule_installed() -> bool:
+    """Return whether the obsolete late 99-* uaccess rule is still installed."""
+    return (UDEV_RULE_DIR / LEGACY_RULE_NAME).is_file()
+
+
+def probe_owndash_udev_state() -> str:
+    """Return OwnDash's udev-rule state without mutating or opening hardware."""
+    try:
+        if not hasattr(UDEV_RULE_DIR, "iterdir"):
+            return "unknown"
+        entries = {entry.name for entry in UDEV_RULE_DIR.iterdir()}
+    except OSError:
+        return "unknown"
+
+    if LEGACY_RULE_NAME in entries:
+        return "legacy"
+    if RULE_NAME in entries:
+        return "ok"
+    return "missing"
+
+
 def probe_artinchip_usb() -> UsbAccessStatus:
-    """Detect the supported USB controller without requiring PyUSB access."""
+    """Detect the supported USB controller without requiring PyUSB access.
+
+    A legacy 99-* OwnDash uaccess rule is treated as not ready even when the
+    current device node happens to be accessible. That rule is too late in the
+    udev chain for reliable logind seat ACLs after USB re-enumeration, so the
+    setup assistant should proactively offer the one-click migration before a
+    suspend/resume cycle exposes the problem.
+    """
     sys_usb = Path("/sys/bus/usb/devices")
     if not sys_usb.is_dir():
         return UsbAccessStatus(False, False, None)
@@ -49,7 +79,11 @@ def probe_artinchip_usb() -> UsbAccessStatus:
             return UsbAccessStatus(True, False, None)
 
         node = Path(f"/dev/bus/usb/{bus:03d}/{dev:03d}")
-        accessible = node.exists() and os.access(node, os.R_OK | os.W_OK)
+        accessible = (
+            node.exists()
+            and os.access(node, os.R_OK | os.W_OK)
+            and not legacy_udev_rule_installed()
+        )
         return UsbAccessStatus(True, accessible, str(node))
 
     return UsbAccessStatus(False, False, None)
@@ -65,6 +99,11 @@ def install_udev_rule() -> tuple[bool, str]:
     A single pkexec invocation performs all privileged setup steps so the user
     only has to authenticate once. No privileged command is run automatically
     at application startup.
+
+    The uaccess tag intentionally lives in a 70-* rule. systemd-logind applies
+    seat ACLs later in the udev rule chain, so a legacy 99-* rule can appear to
+    work initially but lose access when the USB display re-enumerates after
+    suspend. Re-running setup migrates that old rule in the same authentication.
     """
     pkexec = shutil.which("pkexec")
     install = shutil.which("install")
@@ -86,10 +125,12 @@ def install_udev_rule() -> tuple[bool, str]:
             handle.write(rule_text)
             temp_path = Path(handle.name)
 
-        destination = f"/etc/udev/rules.d/{RULE_NAME}"
+        destination = str(UDEV_RULE_DIR / RULE_NAME)
+        legacy_destination = str(UDEV_RULE_DIR / LEGACY_RULE_NAME)
 
         commands = [
             f'install -m 0644 "{temp_path}" "{destination}"',
+            f'rm -f "{legacy_destination}"',
         ]
         if udevadm:
             commands.extend(
@@ -119,8 +160,9 @@ def install_udev_rule() -> tuple[bool, str]:
                 return False, "Die Administratorfreigabe wurde abgebrochen."
             return False, detail or "Die USB-Regel konnte nicht installiert werden."
 
-        # udev may need a moment to update permissions on the existing device.
-        for _ in range(10):
+        # udev/logind may need a moment to install the seat ACL on the existing
+        # device node after the rule reload and targeted re-trigger.
+        for _ in range(15):
             if probe_artinchip_usb().accessible:
                 return True, "USB-Zugriff wurde erfolgreich eingerichtet."
             time.sleep(0.2)

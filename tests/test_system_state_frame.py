@@ -10,6 +10,8 @@ STRINGS = {
     "system_locked": "System locked",
     "shutting_down": "Shutting down",
     "restarting": "Restarting",
+    "system_transition": "System transition",
+    "ending_session": "OwnDash is ending the current session.",
     "idle": "Idle",
 }
 
@@ -28,6 +30,16 @@ def render(width, height, state, theme="owndash", **kwargs):
 
 def image_digest(image: QImage) -> bytes:
     return bytes(image.constBits())
+
+
+def _count_pixels(image: QImage, x0: int, y0: int, x1: int, y1: int, predicate) -> int:
+    total = 0
+    for y in range(max(0, y0), min(image.height(), y1), 3):
+        for x in range(max(0, x0), min(image.width(), x1), 3):
+            color = image.pixelColor(x, y)
+            if predicate(color.red(), color.green(), color.blue()):
+                total += 1
+    return total
 
 
 def test_all_states_render_exact_size_in_portrait_and_landscape():
@@ -93,6 +105,48 @@ def test_locked_and_idle_accept_optional_context():
     assert image_digest(locked) != image_digest(idle)
 
 
+def test_lock_and_idle_hud_phase_changes_visual_frame():
+    for state in (SystemState.LOCKED, SystemState.IDLE):
+        phase_a = render(480, 1920, state, animation_phase=0.0, clock_text="11:42")
+        phase_b = render(480, 1920, state, animation_phase=0.5, clock_text="11:42")
+        assert image_digest(phase_a) != image_digest(phase_b)
+
+
+def test_terminal_states_ignore_animation_phase_for_stable_final_frame():
+    for state in (SystemState.SUSPENDING, SystemState.SHUTTING_DOWN, SystemState.RESTARTING):
+        phase_a = render(480, 1920, state, animation_phase=0.0)
+        phase_b = render(480, 1920, state, animation_phase=0.75)
+        assert image_digest(phase_a) == image_digest(phase_b)
+
+
+def test_approved_locked_master_keeps_reference_rails_gradient_and_floor():
+    image = render(
+        480,
+        1920,
+        SystemState.LOCKED,
+        animation_phase=0.25,
+        clock_text="11:42",
+        date_text="19.09.2026",
+    )
+
+    cyan_left = _count_pixels(
+        image, 0, 100, 70, 1500,
+        lambda r, g, b: b > 100 and g > 90 and b > r * 1.30,
+    )
+    magenta_right = _count_pixels(
+        image, 410, 100, 480, 1500,
+        lambda r, g, b: r > 105 and b > 80 and r > g * 1.20,
+    )
+    neon_floor = _count_pixels(
+        image, 35, 1480, 445, 1915,
+        lambda r, g, b: max(r, g, b) > 75 and max(r, g, b) - min(r, g, b) > 38,
+    )
+
+    assert cyan_left >= 28
+    assert magenta_right >= 28
+    assert neon_floor >= 45
+
+
 def test_active_state_is_not_a_state_screen():
     try:
         render(640, 360, SystemState.ACTIVE)
@@ -110,3 +164,12 @@ def test_invalid_dimensions_are_rejected():
             pass
         else:
             raise AssertionError("non-positive dimensions must be rejected")
+
+
+def test_neutral_terminal_transition_renders_when_shutdown_kind_is_unknown():
+    states = {state.value: state for state in SystemState}
+    assert "transitioning" in states
+    image = render(480, 1920, states["transitioning"])
+    assert not image.isNull()
+    assert image.width() == 480
+    assert image.height() == 1920

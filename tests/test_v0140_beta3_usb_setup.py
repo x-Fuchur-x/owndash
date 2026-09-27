@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import owndash.hardware.usb_setup as usb_setup
+
 
 ROOT = Path(__file__).resolve().parents[1]
 USB = (ROOT / "src/owndash/hardware/usb_setup.py").read_text(encoding="utf-8")
+WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 
 
 def test_beta3_usb_setup_uses_single_pkexec_authentication():
@@ -16,7 +19,58 @@ def test_beta3_usb_setup_verifies_access_after_installation():
     assert ".accessible" in USB
 
 
-WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
+def test_usb_uaccess_rule_runs_before_systemd_seat_acl_rule():
+    """TAG+=uaccess must be present before systemd's later seat ACL processing."""
+    assert 'RULE_NAME = "70-owndash-usb.rules"' in USB
+
+
+def test_usb_setup_migrates_legacy_late_rule():
+    """Re-running graphical USB setup must remove the old too-late 99-* rule."""
+    assert 'LEGACY_RULE_NAME = "99-owndash-usb.rules"' in USB
+    assert "rm -f" in USB
+    assert "LEGACY_RULE_NAME" in USB
+
+
+def test_legacy_late_rule_is_detected_for_proactive_migration():
+    """A working display must still request setup before suspend exposes bad rule ordering."""
+    assert "def legacy_udev_rule_installed()" in USB
+    assert "not legacy_udev_rule_installed()" in USB
+
+
+def test_passive_udev_state_reports_current_rule(tmp_path, monkeypatch):
+    probe = getattr(usb_setup, "probe_owndash_udev_state", None)
+    assert probe is not None
+    monkeypatch.setattr(usb_setup, "UDEV_RULE_DIR", tmp_path)
+    (tmp_path / usb_setup.RULE_NAME).write_text("rule", encoding="utf-8")
+    assert probe() == "ok"
+
+
+def test_passive_udev_state_prefers_legacy_rule(tmp_path, monkeypatch):
+    probe = getattr(usb_setup, "probe_owndash_udev_state", None)
+    assert probe is not None
+    monkeypatch.setattr(usb_setup, "UDEV_RULE_DIR", tmp_path)
+    (tmp_path / usb_setup.RULE_NAME).write_text("rule", encoding="utf-8")
+    (tmp_path / usb_setup.LEGACY_RULE_NAME).write_text("legacy", encoding="utf-8")
+    assert probe() == "legacy"
+
+
+def test_passive_udev_state_reports_missing_rule(tmp_path, monkeypatch):
+    probe = getattr(usb_setup, "probe_owndash_udev_state", None)
+    assert probe is not None
+    monkeypatch.setattr(usb_setup, "UDEV_RULE_DIR", tmp_path)
+    assert probe() == "missing"
+
+
+def test_passive_udev_state_reports_unknown_when_directory_unreadable(monkeypatch):
+    probe = getattr(usb_setup, "probe_owndash_udev_state", None)
+    assert probe is not None
+
+    class UnreadableRuleDir:
+        def __truediv__(self, _name):
+            raise OSError("cannot inspect")
+
+    monkeypatch.setattr(usb_setup, "UDEV_RULE_DIR", UnreadableRuleDir())
+    assert probe() == "unknown"
 
 
 def test_beta3_missing_usb_access_is_marked_as_required():

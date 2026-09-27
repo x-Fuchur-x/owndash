@@ -142,6 +142,13 @@ EN: dict[str, str] = {
     "Sprache und Erscheinungsbild werden sofort angewendet.":
         "Language and appearance are applied immediately.",
     "Systemeinstellung": "System setting",
+    "Systemstart": "Startup",
+    "OwnDash mit dem System starten": "Start OwnDash with the system",
+    "USB-Display beim Start automatisch verbinden": "Automatically connect USB display on startup",
+    "Letzte Vorlage / letztes Profil beim Start wiederherstellen": "Restore the last template / profile on startup",
+    "Funktioniert auch mit der portablen AppImage-Version. Standard-Monitore werden aus Sicherheitsgründen nicht automatisch übernommen.":
+        "Also works with the portable AppImage version. Standard monitors are not taken over automatically for safety.",
+    "Autostart konnte nicht eingerichtet werden": "Autostart could not be configured",
     "Systemzustandsanzeigen": "System state screens",
     "Systemzustände auf dem Display anzeigen": "Show system states on the display",
     "Bazzite-inspiriert": "Bazzite-inspired",
@@ -152,6 +159,8 @@ EN: dict[str, str] = {
     "Standby": "Standby",
     "Standby wird vorbereitet": "Entering standby",
     "System gesperrt": "System locked",
+    "Systemwechsel": "System transition",
+    "OwnDash beendet die aktuelle Sitzung.": "OwnDash is ending the current session.",
     "Herunterfahren": "Shutting down",
     "Neustart": "Restarting",
     "Display auswählen": "Select display", "Display auswählen …": "Select display …",
@@ -192,7 +201,8 @@ EN: dict[str, str] = {
     "Temperatur": "Temperature", "Leistung": "Power", "Uhr": "Clock",
     "Tacho · CPU": "Gauge · CPU", "Tacho · GPU": "Gauge · GPU",
     "Tacho · Temperatur": "Gauge · Temperature", "Tacho · Leistung": "Gauge · Power",
-    "Diagramm": "Chart", "Text": "Text",
+    "Diagramm": "Chart", "Text": "Text", "Bild": "Image",
+    "CPU Verlauf": "CPU history", "GPU Verlauf": "GPU history",
 }
 
 def resolved_language(preference: str) -> str:
