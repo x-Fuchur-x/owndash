@@ -9,7 +9,6 @@ from PySide6.QtWidgets import QApplication
 from owndash.core.display import DisplayInfo
 from owndash.core.preferences import AppPreferences
 from owndash.gui.app_window import SafeShutdownWindow
-from owndash.gui.system_state_frame import _portrait_layout
 
 
 @pytest.fixture
@@ -124,15 +123,3 @@ def test_fit_width_tracks_window_size_but_manual_100_percent_does_not(window):
     app.processEvents()
     window.canvas._fit_if_enabled()
     assert math.isclose(window.canvas.transform().m11(), 1.0, rel_tol=0.0, abs_tol=1e-9)
-
-
-def test_portrait_status_branding_is_present_but_status_remains_primary():
-    layout = _portrait_layout(480, 1920)
-
-    assert 480 * 0.085 <= layout.wordmark_font_px <= 480 * 0.100
-    assert layout.brand_icon_rect.width() >= 480 * 0.12
-    assert layout.status_font_px >= layout.wordmark_font_px
-    assert layout.status_font_px <= 480 * 0.100
-    assert 480 * 0.50 <= layout.wordmark_rect.width() <= 480 * 0.60
-    assert layout.brand_icon_rect.bottom() < layout.wordmark_rect.top()
-    assert layout.wordmark_rect.bottom() < layout.status_rect.top()

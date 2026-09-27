@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QApplication
 
 from owndash.core.system_state import SystemState
 from owndash.gui.status_master import _master_image
-from owndash.gui.system_state_frame import render_system_state_image
+from owndash.gui.system_state_frame import _load_master, render_system_state_image
 
 
 STRINGS_DE = {
@@ -18,12 +18,22 @@ STRINGS_DE = {
 }
 
 
-def test_locked_panel_uses_approved_master_artwork():
-    app = QApplication.instance() or QApplication([])
+def test_embedded_portrait_master_is_single_valid_source():
     master = _master_image()
+    loaded = _load_master(480, 1920)
+
     assert not master.isNull()
     assert (master.width(), master.height()) == (480, 1920)
+    assert (loaded.width(), loaded.height()) == (480, 1920)
+    assert loaded.cacheKey() != master.cacheKey()
 
+    for x, y in ((240, 330), (240, 475), (95, 840), (240, 1505), (300, 1810)):
+        assert loaded.pixelColor(x, y) == master.pixelColor(x, y)
+
+
+def test_locked_panel_uses_embedded_master_artwork():
+    app = QApplication.instance() or QApplication([])
+    master = _master_image()
     rendered = render_system_state_image(
         480,
         1920,
@@ -35,6 +45,7 @@ def test_locked_panel_uses_approved_master_artwork():
         date_text="22.09.2026",
         animation_phase=0.31,
     )
+
     assert app is not None
     assert (rendered.width(), rendered.height()) == (480, 1920)
 

@@ -9,7 +9,6 @@ import owndash.gui.app_window as app_window_module
 from owndash.core.preferences import AppPreferences
 from owndash.core.system_state import SystemState
 from owndash.gui.app_window import SafeShutdownWindow
-from owndash.gui.system_state_frame import _portrait_layout
 
 
 @pytest.fixture
@@ -60,19 +59,3 @@ def test_usb_system_state_renderer_uses_dashboard_logical_orientation(state_wind
 
     assert calls == [(logical_w, logical_h)]
     assert (transport.width(), transport.height()) == (logical_w, logical_h)
-
-
-def test_portrait_status_layout_matches_approved_reference_hierarchy():
-    width, height = 480, 1920
-    layout = _portrait_layout(width, height)
-    ring_bottom = layout.hud_center.y() + layout.hud_diameter / 2.0
-
-    assert width * 0.65 <= layout.hud_diameter <= width * 0.70
-    assert layout.status_font_px >= layout.wordmark_font_px
-    assert layout.separator_y > ring_bottom
-    assert layout.state_icon_rect.top() > layout.separator_y
-    assert layout.status_rect.top() > layout.state_icon_rect.bottom()
-    assert layout.detail_rect.top() > layout.status_rect.bottom()
-    assert layout.bar_rect.top() > layout.detail_rect.bottom()
-    assert layout.context_top > layout.bar_rect.bottom()
-    assert layout.floor_horizon > layout.context_top
