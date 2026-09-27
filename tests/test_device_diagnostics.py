@@ -229,3 +229,79 @@ def test_inaccessible_probe_overrides_generic_protocol_error_as_permission():
     service.record_error(DisplayProtocolError("USB open failed"))
     result = snapshot(service)
     assert result.last_error_category.value == "permission"
+
+
+def test_diagnostic_report_contains_whitelisted_device_and_system_facts():
+    module = diagnostics_module()
+    formatter = getattr(module, "format_diagnostic_report", None)
+    assert callable(formatter)
+    service = make_service(
+        usb_status=UsbAccessStatus(True, True, "/dev/bus/usb/001/006"),
+        udev_state="ok",
+    )
+    info = DisplayInfo("USB Bar Display", 1920, 480, 30)
+    service.record_connected(info)
+    result = snapshot(service, connected=True, current_info=info)
+
+    report = formatter(
+        result,
+        app_version="0.14.0b4",
+        system_info={
+            "distribution": "Bazzite",
+            "kernel": "6.17-test",
+            "desktop": "KDE Plasma",
+            "session": "Wayland",
+            "secret": "must-not-appear",
+        },
+    )
+
+    for expected in (
+        "OwnDash Device Diagnostic",
+        "0.14.0b4",
+        "aic_usb",
+        "ArtInChip USB",
+        "Direct USB",
+        "270",
+        "USB Bar Display",
+        "1920x480",
+        "30",
+        "33C3:0E02",
+        "/dev/bus/usb/001/006",
+        "udev: ok",
+        "hardware_brightness: unverified",
+        "firmware_upgrade: unsupported",
+        "Bazzite",
+        "KDE Plasma",
+        "Wayland",
+    ):
+        assert expected in report
+    assert "must-not-appear" not in report
+
+
+def test_diagnostic_report_sanitizes_user_identity_and_home_paths_but_keeps_device_node():
+    module = diagnostics_module()
+    formatter = getattr(module, "format_diagnostic_report", None)
+    sanitizer = getattr(module, "sanitize_diagnostic_text", None)
+    assert callable(formatter)
+    assert callable(sanitizer)
+
+    service = make_service(
+        usb_status=UsbAccessStatus(True, True, "/dev/bus/usb/001/006"),
+        udev_state="ok",
+    )
+    service.record_error(
+        RuntimeError("failed /home/alice/private.txt and /var/home/alice/config for alice")
+    )
+    result = snapshot(service)
+    report = formatter(
+        result,
+        app_version="0.14.0b4",
+        home="/home/alice",
+        username="alice",
+    )
+
+    assert "alice" not in report
+    assert "/home/alice" not in report
+    assert "/var/home/alice" not in report
+    assert "/dev/bus/usb/001/006" in report
+    assert "[redacted]" in report
