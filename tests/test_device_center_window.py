@@ -31,6 +31,7 @@ def device_window(monkeypatch, tmp_path):
         idle_mode=False,
         idle_timeout_minutes=30,
         lock_screen_state=True,
+        language="de",
     )
     monkeypatch.setattr("owndash.gui.main_window.load_preferences", lambda: prefs)
     monkeypatch.setattr("owndash.gui.main_window.SystemSensorProvider.snapshot", lambda self: {})
