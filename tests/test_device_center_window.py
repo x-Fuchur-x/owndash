@@ -72,6 +72,21 @@ def test_device_center_action_retranslates_when_language_changes(device_window):
     assert window.device_center_action.text() == "Geräteinformationen …"
 
 
+def test_display_menu_groups_device_management_actions(device_window):
+    display_menu = next(
+        action.menu()
+        for action in device_window.menuBar().actions()
+        if action.menu() is not None and action.text().replace("&", "") == "Display"
+    )
+    actions = display_menu.actions()
+    device_index = actions.index(device_window.device_center_action)
+    dimming_index = actions.index(device_window.software_dimming_action)
+
+    assert dimming_index == device_index + 1
+    assert device_index > 0 and actions[device_index - 1].isSeparator()
+    assert dimming_index + 1 < len(actions) and actions[dimming_index + 1].isSeparator()
+
+
 def test_device_center_dialog_uses_professional_title_and_scrollable_content(device_window, monkeypatch):
     monkeypatch.setattr(QDialog, "exec", lambda self: 0)
 
