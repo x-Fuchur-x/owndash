@@ -169,7 +169,7 @@ class DeviceCenterWidget(QWidget):
         self.usb_inventory_form.addRow(self._t("Interfaces & Endpoints"), self.usb_inventory_details_label)
         outer.addWidget(self.usb_inventory_section)
 
-        self.capabilities_section = QGroupBox(self._t("Funktionen"), self)
+        self.capabilities_section = QGroupBox(self._t("Hardware-Funktionen"), self)
         self.capabilities_section.setObjectName("deviceCenterCapabilitiesSection")
         self.capabilities_form = QFormLayout(self.capabilities_section)
         outer.addWidget(self.capabilities_section)
