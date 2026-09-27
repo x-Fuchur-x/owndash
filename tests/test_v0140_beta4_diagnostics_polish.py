@@ -2,6 +2,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WINDOW = (ROOT/"src/owndash/gui/main_window.py").read_text(encoding="utf-8")
+DISPLAY = (ROOT/"src/owndash/gui/display_controls.py").read_text(encoding="utf-8")
+INFO_LAYOUT_PATH = ROOT/"src/owndash/gui/info_layout.py"
 SYSTEM = (ROOT/"src/owndash/sensors/system.py").read_text(encoding="utf-8")
 I18N = (ROOT/"src/owndash/i18n.py").read_text(encoding="utf-8")
 
@@ -20,6 +22,15 @@ def test_diagnostics_has_consistent_spacing():
     assert "setHorizontalSpacing(22)" in WINDOW
     assert "setVerticalSpacing(9)" in WINDOW
     assert "setFixedWidth(34)" in WINDOW
+
+def test_info_dialogs_share_key_value_column_standard():
+    assert INFO_LAYOUT_PATH.exists()
+    info_layout = INFO_LAYOUT_PATH.read_text(encoding="utf-8")
+    assert "INFO_LABEL_COLUMN_WIDTH" in info_layout
+    assert "configure_info_form" in info_layout
+    assert "configure_info_grid" in info_layout
+    assert "configure_info_form" in DISPLAY
+    assert "configure_info_grid" in WINDOW
 
 def test_gpu_name_uses_optional_lspci():
     assert 'shutil.which("lspci")' in SYSTEM
