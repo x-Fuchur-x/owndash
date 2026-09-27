@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QDialog, QScrollArea
+from PySide6.QtWidgets import QApplication, QDialog, QPushButton, QScrollArea
 
 from owndash.core.display import DisplayCapabilities, DisplayInfo
 from owndash.core.preferences import AppPreferences
@@ -85,6 +85,27 @@ def test_device_center_dialog_uses_professional_title_and_scrollable_content(dev
     assert scroll is not None
     assert scroll.widgetResizable() is True
     assert scroll.horizontalScrollBarPolicy().name == "ScrollBarAlwaysOff"
+
+
+def test_device_center_actions_stay_visible_outside_scroll_area(device_window, monkeypatch):
+    monkeypatch.setattr(QDialog, "exec", lambda self: 0)
+
+    device_window._open_device_center()
+
+    dialogs = device_window.findChildren(QDialog)
+    assert dialogs
+    dialog = dialogs[-1]
+    scroll = dialog.findChild(QScrollArea, "deviceCenterScrollArea")
+    assert scroll is not None
+
+    for object_name, text in (
+        ("deviceCenterRefreshButton", "Aktualisieren"),
+        ("deviceCenterCopyButton", "Diagnosebericht kopieren"),
+    ):
+        button = dialog.findChild(QPushButton, object_name)
+        assert button is not None
+        assert button.text() == text
+        assert not scroll.isAncestorOf(button)
 
 
 def test_device_diagnostics_remember_connection_disconnect_and_error(device_window, monkeypatch):
