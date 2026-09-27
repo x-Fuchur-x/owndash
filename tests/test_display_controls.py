@@ -10,6 +10,11 @@ from PySide6.QtWidgets import QApplication, QCheckBox, QGroupBox, QLabel, QPushB
 
 import owndash.gui.display_controls as display_controls
 from owndash.core.display import DisplayInfo
+from owndash.hardware.aic_usb_inventory import (
+    ArtInChipUsbInventory,
+    UsbEndpointInventory,
+    UsbInterfaceInventory,
+)
 from owndash.service.device_diagnostics import (
     CapabilityDiagnostic,
     CapabilityStatus,
@@ -22,8 +27,36 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
-def make_snapshot(*, connected=False, device_name=None, last_known=True):
+def sample_inventory():
+    return ArtInChipUsbInventory(
+        status="present",
+        sysfs_name="1-2",
+        busnum=1,
+        devnum=6,
+        device_node="/dev/bus/usb/001/006",
+        device_class="00",
+        interfaces=(
+            UsbInterfaceInventory(
+                name="1-2:1.0",
+                number="00",
+                alternate_setting="00",
+                class_code="ff",
+                subclass_code="00",
+                protocol_code="00",
+                driver=None,
+                endpoints=(
+                    UsbEndpointInventory("01", "02", "0200"),
+                    UsbEndpointInventory("81", "02", "0200"),
+                ),
+            ),
+        ),
+    )
+
+
+def make_snapshot(*, connected=False, device_name=None, last_known=True, usb_inventory=None):
     info = DisplayInfo("USB Bar Display", 1920, 480, 30) if last_known else None
+    if usb_inventory is None:
+        usb_inventory = sample_inventory()
     return DeviceDiagnosticSnapshot(
         backend_key="aic_usb",
         backend_name="ArtInChip USB",
@@ -49,6 +82,7 @@ def make_snapshot(*, connected=False, device_name=None, last_known=True):
         last_error_category=None,
         last_error_message=None,
         last_known_info=info,
+        usb_inventory=usb_inventory,
     )
 
 
@@ -65,12 +99,13 @@ def build_widget(app, snapshot=None, refresh_snapshot=None, report_text=None):
     return widget
 
 
-def test_device_center_renders_four_read_only_sections(app):
+def test_device_center_renders_five_read_only_sections(app):
     widget = build_widget(app)
     try:
         expected = {
             "deviceCenterDeviceSection": "Gerät",
             "deviceCenterUsbSection": "USB & Zugriff",
+            "deviceCenterUsbInventorySection": "USB-Inventar",
             "deviceCenterCapabilitiesSection": "Funktionen",
             "deviceCenterActivitySection": "Letzte Aktivität",
         }
@@ -80,6 +115,41 @@ def test_device_center_renders_four_read_only_sections(app):
             assert group.title() == title
         assert widget.findChildren(QSlider) == []
         assert widget.findChildren(QCheckBox) == []
+    finally:
+        widget.close()
+
+
+def test_usb_inventory_section_shows_passive_sysfs_evidence(app):
+    widget = build_widget(app)
+    try:
+        status = widget.findChild(QLabel, "deviceCenterUsbInventoryStatus")
+        sysfs = widget.findChild(QLabel, "deviceCenterUsbInventorySysfs")
+        device_class = widget.findChild(QLabel, "deviceCenterUsbInventoryDeviceClass")
+        details = widget.findChild(QLabel, "deviceCenterUsbInventoryDetails")
+        assert status is not None and status.text() == "Vorhanden"
+        assert sysfs is not None and sysfs.text() == "1-2"
+        assert device_class is not None and device_class.text() == "00"
+        assert details is not None
+        for expected in (
+            "1-2:1.0",
+            "Klasse ff",
+            "Treiber —",
+            "EP 01 · Attr 02 · Max 0200",
+            "EP 81 · Attr 02 · Max 0200",
+        ):
+            assert expected in details.text()
+    finally:
+        widget.close()
+
+
+def test_usb_inventory_unknown_state_is_explicit(app):
+    snapshot = make_snapshot(usb_inventory=ArtInChipUsbInventory(status="unknown"))
+    widget = build_widget(app, snapshot)
+    try:
+        status = widget.findChild(QLabel, "deviceCenterUsbInventoryStatus")
+        details = widget.findChild(QLabel, "deviceCenterUsbInventoryDetails")
+        assert status is not None and status.text() == "Unbekannt"
+        assert details is not None and details.text() == "—"
     finally:
         widget.close()
 
