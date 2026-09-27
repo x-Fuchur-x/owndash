@@ -95,6 +95,15 @@ class DeviceCenterWindow(SafeShutdownWindow):
         self.device_center_action.setText(self._device_t("Display & Gerät …"))
         self.device_center_action.setEnabled(True)
 
+    def _retranslate_ui(self) -> None:
+        # MainWindow retranslates its canonical UI tree. Device Center copy is
+        # intentionally isolated here, so refresh the reused Display action
+        # after every runtime language change as well as during startup.
+        super()._retranslate_ui()
+        action = getattr(self, "device_center_action", None)
+        if action is not None:
+            action.setText(self._device_t("Display & Gerät …"))
+
     def __init__(self) -> None:
         super().__init__()
         self._device_diagnostics = DeviceDiagnosticsService()
