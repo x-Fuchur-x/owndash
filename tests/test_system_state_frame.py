@@ -119,7 +119,7 @@ def test_terminal_states_ignore_animation_phase_for_stable_final_frame():
         assert image_digest(phase_a) == image_digest(phase_b)
 
 
-def test_approved_locked_master_keeps_reference_rails_gradient_and_floor():
+def test_locked_hud_keeps_reference_rails_and_lower_neon_geometry():
     image = render(
         480,
         1920,
