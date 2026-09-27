@@ -35,18 +35,29 @@ The current priority is making the public beta increasingly predictable across r
 
 The system-state implementation and its fallback/resource behavior are documented in [`docs/system-state-screens.md`](docs/system-state-screens.md).
 
-## Next — 0.15 Device Experience
+## In progress — 0.15 Device Experience
 
 Make connected displays easier to understand and control without exposing unsupported hardware functions.
 
-- Capability-driven device information for compatible ArtInChip displays
-- Hardware brightness control where the selected backend and hardware expose a verified mechanism
-- Expansion Screen Mode where the connected device reports support
-- Improved display and device detection
-- Clearer diagnostics for unavailable, unsupported, or permission-limited devices
+The first 0.15 slice is now implemented on the Device Center feature branch:
+
+- Always-available **Display & Device** Device Center, including when no display is connected
+- Passive ArtInChip / VSDISPLAY presence, USB-access, device-node and OwnDash-udev diagnostics
+- Current and session-only last-known device state, connection times and categorized display errors
+- Explicit capability states that distinguish **available**, **unsupported**, and **not yet verified**
+- Sanitized, copyable diagnostic reports intended for GitHub issues and support
+- Read-only refresh behavior protected by regressions so diagnostics do not connect, reconnect, send frames or issue hardware-control writes
+
+Remaining 0.15 work:
+
+- Hardware brightness control only where the selected backend and real hardware expose a verified mechanism
+- Expansion Screen Mode only after the connected device and transport have been verified safely
+- Further device-detection improvements based on real beta hardware feedback
 - More consistent display-management UX across direct USB and standard-monitor output
-- Persistent startup-image support after a separate real-hardware verification phase
+- Persistent startup-image support only after a separate real-hardware verification phase
 - Update-notification polish based on beta feedback, while keeping downloads and installation user-controlled
+
+The current `33C3:0E02` ArtInChip path deliberately keeps hardware brightness, Expansion Screen Mode and startup-media writes disabled until real-device evidence proves a safe transport. The Device Center reports that distinction as **not yet verified** rather than pretending those functions are unsupported.
 
 ## Planned — 0.16 Dashboard Studio
 
