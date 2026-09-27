@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - "feat/**"
+      - "chore/status-screen-cleanup"
     tags:
       - "v*"
 
