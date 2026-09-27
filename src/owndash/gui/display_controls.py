@@ -20,6 +20,8 @@ from owndash.service.device_diagnostics import (
     DeviceDiagnosticSnapshot,
 )
 
+from .info_layout import configure_info_form
+
 
 _CAPABILITY_TITLES = {
     "jpeg_streaming": "JPEG-Ausgabe",
@@ -112,6 +114,7 @@ class DeviceCenterWidget(QWidget):
         self.output_summary_form.addRow(self._t("Ausgewählter Ausgang"), self.selected_output_label)
         self.output_summary_form.addRow(self._t("Aktiver Ausgang"), self.active_output_label)
         self.output_summary_form.addRow(self._t("Verbindung"), self.summary_connection_label)
+        configure_info_form(self.output_summary_form)
         outer.addWidget(self.output_summary_section)
 
         self.software_section = QGroupBox(self._t("OwnDash-Funktionen"), self)
@@ -119,6 +122,7 @@ class DeviceCenterWidget(QWidget):
         self.software_form = QFormLayout(self.software_section)
         self.software_dimming_label = self._value_label("deviceCenterSoftwareDimming")
         self.software_form.addRow(self._t("Software-Dimmung"), self.software_dimming_label)
+        configure_info_form(self.software_form)
         outer.addWidget(self.software_section)
 
         self.device_section = QGroupBox(self._t("Gerät"), self)
@@ -138,6 +142,7 @@ class DeviceCenterWidget(QWidget):
         self.device_form.addRow(self._t("Bildrate"), self.refresh_label)
         self.device_form.addRow(self._t("Ausgabemodus"), self.output_label)
         self.device_form.addRow(self._t("Rotation"), self.rotation_label)
+        configure_info_form(self.device_form)
         outer.addWidget(self.device_section)
 
         self.usb_section = QGroupBox(self._t("USB-Zugriff"), self)
@@ -153,6 +158,7 @@ class DeviceCenterWidget(QWidget):
         self.usb_form.addRow(self._t("Zugriff"), self.access_label)
         self.usb_form.addRow(self._t("Device-Node"), self.device_node_label)
         self.usb_form.addRow(self._t("udev-Regel"), self.udev_label)
+        configure_info_form(self.usb_form)
         outer.addWidget(self.usb_section)
 
         self.usb_inventory_section = QGroupBox(self._t("USB-Inventar"), self)
@@ -167,11 +173,13 @@ class DeviceCenterWidget(QWidget):
         self.usb_inventory_form.addRow(self._t("Sysfs-Gerät"), self.usb_inventory_sysfs_label)
         self.usb_inventory_form.addRow(self._t("Device-Class"), self.usb_inventory_class_label)
         self.usb_inventory_form.addRow(self._t("Interfaces & Endpoints"), self.usb_inventory_details_label)
+        configure_info_form(self.usb_inventory_form)
         outer.addWidget(self.usb_inventory_section)
 
         self.capabilities_section = QGroupBox(self._t("Hardware-Funktionen"), self)
         self.capabilities_section.setObjectName("deviceCenterCapabilitiesSection")
         self.capabilities_form = QFormLayout(self.capabilities_section)
+        configure_info_form(self.capabilities_form)
         outer.addWidget(self.capabilities_section)
 
         self.activity_section = QGroupBox(self._t("Letzte Aktivität"), self)
@@ -186,6 +194,7 @@ class DeviceCenterWidget(QWidget):
         self.activity_form.addRow(self._t("Zuletzt getrennt"), self.last_disconnected_label)
         self.activity_form.addRow(self._t("Zuletzt erkannt"), self.last_known_label)
         self.activity_form.addRow(self._t("Letzter Fehler"), self.last_error_label)
+        configure_info_form(self.activity_form)
         outer.addWidget(self.activity_section)
 
         footer = QHBoxLayout()
@@ -205,6 +214,7 @@ class DeviceCenterWidget(QWidget):
     def _value_label(self, object_name: str) -> QLabel:
         label = QLabel("—", self)
         label.setObjectName(object_name)
+        label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
 
@@ -285,10 +295,12 @@ class DeviceCenterWidget(QWidget):
             name_label = QLabel(title, self.capabilities_section)
             status_label = QLabel(self._t(_CAPABILITY_STATUS_TEXT[item.status]), self.capabilities_section)
             status_label.setObjectName(f"deviceCenterCapability_{item.key}")
+            status_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
             status_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
             self.capabilities_form.addRow(name_label, status_label)
             self._capability_name_labels.append(name_label)
             self._capability_labels[item.key] = status_label
+        configure_info_form(self.capabilities_form)
 
     def _refresh(self) -> None:
         try:
