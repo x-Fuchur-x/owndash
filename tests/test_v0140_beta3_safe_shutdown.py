@@ -8,6 +8,7 @@ from owndash.core.streaming import DisplayStreamer
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY = (ROOT / "src" / "owndash" / "__main__.py").read_text(encoding="utf-8")
 APP_WINDOW = ROOT / "src" / "owndash" / "gui" / "app_window.py"
+DEVICE_CENTER_WINDOW = ROOT / "src" / "owndash" / "gui" / "device_center_window.py"
 
 
 class RecordingBackend:
@@ -40,7 +41,9 @@ def test_streamer_can_confirm_final_frame_before_shutdown():
 
 
 def test_application_uses_safe_shutdown_window():
-    assert "from owndash.gui.app_window import SafeShutdownWindow as MainWindow" in ENTRY
+    assert "from owndash.gui.device_center_window import DeviceCenterWindow as MainWindow" in ENTRY
+    device_center_source = DEVICE_CENTER_WINDOW.read_text(encoding="utf-8")
+    assert "class DeviceCenterWindow(SafeShutdownWindow):" in device_center_source
     assert "window = MainWindow()" in ENTRY
 
 
