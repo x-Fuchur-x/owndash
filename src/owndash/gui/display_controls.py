@@ -70,7 +70,8 @@ def _format_usb_inventory_details(snapshot: DeviceDiagnosticSnapshot) -> str:
         )
         for endpoint in interface.endpoints:
             lines.append(
-                f"  EP {endpoint.address or '—'} · Attr {endpoint.attributes or '—'} · "
+                f"  EP {endpoint.address or '—'} · {endpoint.direction or '—'} · "
+                f"{endpoint.transfer_type or '—'} · Attr {endpoint.attributes or '—'} · "
                 f"Max {endpoint.max_packet_size or '—'}"
             )
     return "\n".join(lines)
