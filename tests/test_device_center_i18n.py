@@ -12,7 +12,8 @@ class EnglishContext:
 def test_device_center_english_copy_covers_primary_ui_terms():
     context = EnglishContext()
     expected = {
-        "Display & Gerät …": "Display & Device …",
+        "Geräteinformationen …": "Device Information …",
+        "Geräteinformationen": "Device Information",
         "USB & Zugriff": "USB & Access",
         "Funktionen": "Capabilities",
         "Letzte Aktivität": "Last activity",
