@@ -1,22 +1,39 @@
 # System state screens
 
-OwnDash can replace the normal dashboard with a lightweight static status frame when the Linux session changes state. The feature is designed for small internal PC displays and direct USB sensor panels where leaving a busy animated dashboard running during lock, idle or standby is unnecessary.
+OwnDash can replace the normal dashboard with a lightweight status view when the Linux session changes state. The feature is designed for small internal PC displays and direct USB sensor panels where leaving a busy dashboard running during lock, idle or standby is unnecessary.
 
 ## Implementation status
 
-The system-state behavior is already functionally implemented for idle, lock, suspend/standby, shutdown and restart. State detection, priority handling, static-frame output, timer pausing/restoration and the bounded direct-USB resume recovery path are covered by automated tests and have been exercised on the project's Bazzite/KDE + VSDISPLAY development setup.
+The lifecycle behavior is functionally implemented for idle, lock, suspend/standby, shutdown and restart. State detection, priority handling, timer pausing/restoration and bounded direct-USB resume recovery are covered by automated tests and have been exercised on the project's Bazzite/KDE + VSDISPLAY development setup.
 
-The visual presentation is not considered final yet. Layout, spacing, artwork and wording may still be refined after additional physical-display checks, especially across portrait/landscape orientations and shutdown/standby timing. Visual polish is therefore remaining release work; the underlying lifecycle feature itself is not merely a future placeholder.
+The visual renderer has now been rebuilt as one unified OwnDash HUD family. It no longer depends on the previous embedded portrait master artwork. The new renderer uses the packaged OwnDash application logo, shared geometry, state-specific symbols and accents, a large HUD ring and a consistent footer/branding language across portrait and landscape output. The disconnected/closed OwnDash screen delegates to the same visual family instead of maintaining separate artwork.
+
+The primary visual reference is the project's 480×1920 portrait VSDISPLAY. Automated tests enforce exact requested output dimensions, but final visual acceptance still requires physical Bazzite/KDE + VSDISPLAY inspection so spacing and perceived scale can be tuned on the real panel before release.
 
 ## Renderer architecture rule
 
-System-state output has exactly **one production renderer path**. Future visual work must refine that path rather than adding another renderer generation alongside it.
+System-state output has exactly **one production renderer path**. Visual work must refine that path rather than adding another renderer generation alongside it.
 
-Allowed variation belongs behind explicit state, orientation or theme configuration within the current renderer. The project should not reintroduce versioned renderer implementations, hidden package-level monkeypatches, duplicate fallback renderers or separate experimental rendering paths that can drift away from the production behavior.
+Allowed variation belongs behind explicit state, orientation or theme configuration within the current renderer. The project must not reintroduce versioned renderer implementations, hidden package-level monkeypatches, duplicate fallback renderers or separate experimental production paths.
 
-Visual experiments are fine during development, but they must not become parallel production implementations. Before integration, an experiment must either be folded into the single current renderer or removed. Regression tests should describe current intended behavior rather than preserve obsolete design generations.
+The former embedded status-master loader and its data chunks have been removed. There is deliberately no fallback to the retired artwork: a renderer regression should fail visibly in tests rather than silently showing an obsolete design.
 
-This rule is intentionally documented here and in the roadmap so the final status-screen layout can continue evolving without rebuilding the renderer architecture each time.
+Visual experiments are fine during development, but before integration they must either be folded into the single current renderer or removed. Regression tests describe current intended geometry and behavior rather than preserving obsolete design generations.
+
+## Visual design language
+
+The unified renderer uses the real packaged OwnDash logo and a common HUD structure for all states. State identity comes from the symbol, wording and accent rather than a different layout implementation for each screen.
+
+Current accents are:
+
+- lock: cyan / blue
+- idle: green / teal
+- standby: amber / orange
+- shutdown: red
+- restart: violet
+- disconnected / OwnDash closed: neutral OwnDash blue-violet treatment
+
+Portrait output uses one shared geometric system for the logo/header, HUD ring, state symbol, headline, detail text, optional clock/date, lower HUD geometry and version footer. Landscape output is derived from the same design family rather than treated as a separate renderer.
 
 ## States and priority
 
@@ -48,54 +65,52 @@ If Qt D-Bus, logind or a required session object is unavailable, OwnDash fails o
 
 ## Idle detection
 
-Idle handling is also event-driven. OwnDash reads logind's system idle information and only arms a single-shot Qt timer after the session has already become idle and the configured OwnDash delay still needs to expire.
+Idle handling is event-driven. OwnDash reads logind's system idle information and only arms a single-shot Qt timer after the session has already become idle and the configured OwnDash delay still needs to expire.
 
-There is no continuously running idle polling timer.
+There is no continuously running idle polling timer. The user-configurable idle delay is 1–240 minutes, with 30 minutes as the default.
 
-The user-configurable idle delay is 1–240 minutes. The default is 30 minutes.
+## Resource behavior and HUD animation
 
-## Resource behavior
-
-System-state screens are static by design. When one becomes visible, OwnDash stops its recurring work that is not useful for a static state frame:
+When a system-state screen becomes visible, OwnDash stops recurring dashboard work that is not useful for the status view:
 
 - live sensor refresh timer
-- display rendering/output timer
+- normal display rendering/output timer
 - automatic dashboard-page cycling timer
 
-One status JPEG is rendered and submitted. Normal dashboard rendering is suppressed until the effective state returns to `ACTIVE`.
+Persistent `IDLE` and `LOCKED` views may run one dedicated low-rate HUD animation timer. It currently advances the ring at a 750 ms cadence and submits non-blocking status frames. This is intentionally much lighter than keeping normal dashboard rendering and sensor updates active.
 
-On resume or unlock, OwnDash restores the timers that had actually been active before the state transition and immediately pushes a fresh dashboard frame.
+Suspend, shutdown, restart and other terminal lifecycle frames remain static. Their `animation_phase` is deliberately ignored so terminal transitions retain the bounded, deterministic final-frame behavior required for lifecycle safety.
 
-This design avoids running decorative animation loops while the PC is idle, locked or entering standby.
+On resume or unlock, OwnDash stops the HUD animation, restores the timers that had actually been active before the transition and immediately pushes a fresh dashboard frame.
 
 ## Suspend and shutdown safety
 
 OwnDash does not acquire a systemd sleep or shutdown inhibitor for this feature.
 
-The final state frame is best-effort and uses a short bounded wait (currently 250 ms) for the display sender. A slow or disconnected display must not meaningfully delay system suspend or shutdown.
+The final terminal state frame is best-effort and uses a short bounded wait (currently 250 ms) for the display sender. A slow or disconnected display must not meaningfully delay system suspend or shutdown.
 
 Display-I/O errors during a system transition are contained and do not abort the operating-system lifecycle event.
 
 ## USB resume recovery
 
-Some direct USB displays disappear from the USB bus while the machine sleeps. For the ArtInChip / VSDISPLAY backend, OwnDash treats a disconnect during suspend (or immediately after resume) as a recoverable lifecycle event:
+Some direct USB displays disappear from the USB bus while the machine sleeps. For the ArtInChip / VSDISPLAY backend, OwnDash treats a disconnect during suspend or immediately after resume as a recoverable lifecycle event:
 
 - the failed stream is released quietly
 - no suspend-time warning-dialog spam is shown
-- after resume, one delayed reconnect attempt is scheduled
+- after resume, one bounded reconnect sequence is scheduled
 - there is no reconnect polling loop or endless retry loop
 - a normal manual display stop cancels pending recovery state
 
-If the reconnect succeeds while the session is still locked or idle, OwnDash sends the appropriate system-state screen rather than briefly flashing the normal dashboard.
+If reconnect succeeds while the session is still locked or idle, OwnDash sends the appropriate system-state HUD rather than briefly flashing the normal dashboard.
 
 ## Themes and localization
 
-Two built-in static visual treatments are currently available:
+Two visual treatments are currently available:
 
 - `OwnDash`
 - `Bazzite-inspired`
 
-The Bazzite-inspired theme is an original OwnDash visual treatment and does not bundle or reproduce third-party Bazzite logos or artwork.
+The Bazzite-inspired theme is an original OwnDash visual treatment and does not bundle or reproduce third-party Bazzite logos or artwork. Both themes use the real OwnDash application logo.
 
 System-state labels, runtime status messages and settings participate in OwnDash's German/English localization system.
 
@@ -113,6 +128,6 @@ Settings are stored in the normal OwnDash preferences file. Existing Beta 4 pref
 
 ## Compatibility and testing
 
-Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, static frame rendering, preference migration, exact D-Bus signal signatures, initial and live `LockedHint` lock-state detection, timer pause/restore behavior, localized lifecycle status messages and direct-USB resume recovery.
+Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, output dimensions, state-specific visuals, removal of the retired embedded-master path, persistent HUD animation, static terminal frames, shared disconnected-screen rendering, preference migration, exact D-Bus signal signatures, initial and live `LockedHint` detection, timer pause/restore behavior, localized lifecycle status messages and direct-USB resume recovery.
 
-Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. Release acceptance therefore includes physical Bazzite/KDE + VSDISPLAY checks in addition to automated CI and AppImage checks. Those physical checks are also used to finish the still-provisional visual layout and artwork.
+Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. Release acceptance therefore includes physical Bazzite/KDE + VSDISPLAY checks in addition to automated CI and AppImage checks. The current unified HUD is the release candidate design, but its final pixel-level spacing remains subject to that physical 480×1920 review.
