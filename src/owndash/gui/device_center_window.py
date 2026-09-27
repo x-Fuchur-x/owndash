@@ -121,6 +121,7 @@ class DeviceCenterWindow(SafeShutdownWindow):
             if menu is not None and menu_action.text().replace("&", "") == "Display":
                 menu.insertSeparator(self.device_center_action)
                 menu.insertAction(self.keep_running_action, self.software_dimming_action)
+                menu.insertSeparator(self.keep_running_action)
                 break
 
     def _retranslate_ui(self) -> None:
