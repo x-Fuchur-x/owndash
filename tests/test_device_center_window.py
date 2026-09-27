@@ -180,6 +180,58 @@ def test_snapshot_refresh_does_not_touch_active_stream_or_timer(device_window):
     assert forbidden == []
 
 
+def test_device_center_summary_separates_selected_and_active_output(device_window):
+    from PySide6.QtWidgets import QLabel
+    from owndash.gui.display_controls import DeviceCenterWidget
+
+    window = device_window
+    window.display_backend_key = "aic_usb"
+    window.display_connected = False
+    window.preferences.software_dimming_percent = 65
+    snapshot = window._device_diagnostic_snapshot()
+
+    controls = DeviceCenterWidget(
+        snapshot,
+        refresh_snapshot=window._device_diagnostic_snapshot,
+        report_text=window._device_diagnostic_report,
+        translate=window._device_t,
+        software_dimming_percent=window.preferences.software_dimming_percent,
+    )
+
+    selected = controls.findChild(QLabel, "deviceCenterSelectedOutput")
+    active = controls.findChild(QLabel, "deviceCenterActiveOutput")
+    dimming = controls.findChild(QLabel, "deviceCenterSoftwareDimming")
+    assert selected is not None
+    assert active is not None
+    assert dimming is not None
+    assert selected.text() == "ArtInChip / VSDISPLAY"
+    assert active.text() == "Kein aktiver Ausgang"
+    assert dimming.text() == "65 % · OwnDash-Softwarefunktion"
+
+
+def test_device_center_summary_uses_backend_name_when_output_is_active(device_window):
+    from PySide6.QtWidgets import QLabel
+    from owndash.gui.display_controls import DeviceCenterWidget
+
+    window = device_window
+    window.display_backend_key = "screen"
+    window.display_connected = True
+    window._connected_display_info = DisplayInfo("DP-1", 2560, 1440, 60)
+    snapshot = window._device_diagnostic_snapshot()
+
+    controls = DeviceCenterWidget(
+        snapshot,
+        refresh_snapshot=window._device_diagnostic_snapshot,
+        report_text=window._device_diagnostic_report,
+        translate=window._device_t,
+        software_dimming_percent=100,
+    )
+
+    active = controls.findChild(QLabel, "deviceCenterActiveOutput")
+    assert active is not None
+    assert active.text() == "Standard-Monitor"
+
+
 def test_main_entry_uses_device_center_window():
     from pathlib import Path
 
