@@ -45,8 +45,8 @@ def sample_inventory():
                 protocol_code="00",
                 driver=None,
                 endpoints=(
-                    UsbEndpointInventory("01", "02", "0200"),
-                    UsbEndpointInventory("81", "02", "0200"),
+                    UsbEndpointInventory("01", "02", "0200", "OUT", "Bulk"),
+                    UsbEndpointInventory("81", "02", "0200", "IN", "Bulk"),
                 ),
             ),
         ),
@@ -134,8 +134,8 @@ def test_usb_inventory_section_shows_passive_sysfs_evidence(app):
             "1-2:1.0",
             "Klasse ff",
             "Treiber —",
-            "EP 01 · Attr 02 · Max 0200",
-            "EP 81 · Attr 02 · Max 0200",
+            "EP 01 · OUT · Bulk · Attr 02 · Max 0200",
+            "EP 81 · IN · Bulk · Attr 02 · Max 0200",
         ):
             assert expected in details.text()
     finally:
