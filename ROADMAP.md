@@ -25,6 +25,7 @@ The current priority is making the public beta increasingly predictable across r
 
 - Beta bug fixes and regression prevention
 - Event-driven system-state screens for idle, lock, suspend, shutdown and restart are functionally implemented; final visual layout/artwork polish and physical Bazzite/KDE + VSDISPLAY validation remain before release
+- Finalize system-state visual layout and artwork on the **single production renderer path**; new visual iterations must refine that renderer instead of introducing parallel renderer generations, hidden fallbacks or version-specific rendering paths
 - Static system-state output already pauses unnecessary sensor refresh, display rendering and dashboard cycling while a state screen is visible
 - Direct-USB suspend/resume recovery already uses a bounded one-shot reconnect instead of background polling
 - Continued real-device validation, especially output switching and shutdown/end-state behavior
@@ -102,6 +103,7 @@ Performance and maintainability continue alongside feature development.
 - Investigate render and JPEG encoding paths that avoid unnecessary duplicate work
 - Improve USB streaming efficiency where measurements show a real benefit
 - Keep display backends isolated behind clear interfaces
+- Keep exactly one production system-state renderer path; visual variants belong behind explicit theme/state configuration, not separate renderer implementations or versioned renderer branches
 - Split oversized GUI responsibilities when related feature work benefits from smaller, testable components
 
 OwnDash will favor targeted refactoring over a rewrite. Existing working behavior should remain protected by automated tests.
