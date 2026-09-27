@@ -85,6 +85,8 @@ _AIC_UNVERIFIED = {
     "hardware_screen_off",
 }
 
+_SYSTEM_REPORT_KEYS = ("distribution", "kernel", "desktop", "session")
+
 
 class DeviceDiagnosticsService:
     """Session-lifetime, read-only display diagnostics state."""
@@ -221,3 +223,105 @@ class DeviceDiagnosticsService:
         ):
             return DeviceErrorCategory.DISCONNECTED
         return DeviceErrorCategory.UNKNOWN
+
+
+def sanitize_diagnostic_text(
+    text: str,
+    *,
+    home: str | None = None,
+    username: str | None = None,
+) -> str:
+    """Remove user-identifying path/name fragments from diagnostic text."""
+    result = str(text)
+    if home:
+        result = result.replace(str(home), "[redacted-home]")
+    if username:
+        result = result.replace(f"/var/home/{username}", "[redacted-home]")
+        result = result.replace(f"/home/{username}", "[redacted-home]")
+        result = result.replace(str(username), "[redacted]")
+    return result
+
+
+def _report_bool(value: bool | None) -> str:
+    if value is None:
+        return "unknown"
+    return "yes" if value else "no"
+
+
+def _report_time(value: datetime | None) -> str:
+    if value is None:
+        return "—"
+    return value.isoformat(sep=" ", timespec="seconds")
+
+
+def format_diagnostic_report(
+    snapshot: DeviceDiagnosticSnapshot,
+    *,
+    app_version: str,
+    system_info: dict[str, str] | None = None,
+    home: str | None = None,
+    username: str | None = None,
+) -> str:
+    """Format a deterministic, sanitized report suitable for an issue."""
+    lines = [
+        "OwnDash Device Diagnostic",
+        f"OwnDash: {app_version}",
+        f"Backend: {snapshot.backend_key} ({snapshot.backend_name})",
+        f"Connected: {_report_bool(snapshot.connected)}",
+        f"Output: {snapshot.output_mode}",
+        f"Rotation: {snapshot.rotation if snapshot.rotation is not None else '—'}",
+    ]
+
+    if snapshot.device_name is not None:
+        lines.append(f"Device: {snapshot.device_name}")
+    if snapshot.native_width is not None and snapshot.native_height is not None:
+        lines.append(f"Native: {snapshot.native_width}x{snapshot.native_height}")
+    if snapshot.refresh_hz is not None:
+        lines.append(f"FPS: {snapshot.refresh_hz}")
+
+    if snapshot.usb_vid_pid is not None:
+        lines.extend(
+            [
+                "",
+                "USB:",
+                f"VID:PID: {snapshot.usb_vid_pid}",
+                f"Detected: {_report_bool(snapshot.device_detected)}",
+                f"Access: {_report_bool(snapshot.accessible)}",
+                f"Device node: {snapshot.device_node or '—'}",
+                f"udev: {snapshot.udev_state}",
+            ]
+        )
+
+    lines.extend(["", "Capabilities:"])
+    lines.extend(f"{item.key}: {item.status.value}" for item in snapshot.capabilities)
+
+    lines.extend(
+        [
+            "",
+            "Last activity:",
+            f"Last connected: {_report_time(snapshot.last_connected_at)}",
+            f"Last disconnected: {_report_time(snapshot.last_disconnected_at)}",
+        ]
+    )
+    if snapshot.last_known_info is not None:
+        info = snapshot.last_known_info
+        lines.append(f"Last known device: {info.name} · {info.width}x{info.height}")
+    if snapshot.last_error_category is not None:
+        lines.append(f"Last error category: {snapshot.last_error_category.value}")
+    if snapshot.last_error_message:
+        lines.append(f"Last error: {snapshot.last_error_message}")
+
+    if system_info:
+        system_lines = []
+        for key in _SYSTEM_REPORT_KEYS:
+            value = system_info.get(key)
+            if value:
+                system_lines.append(f"{key}: {value}")
+        if system_lines:
+            lines.extend(["", "System:", *system_lines])
+
+    return sanitize_diagnostic_text(
+        "\n".join(lines).rstrip() + "\n",
+        home=home,
+        username=username,
+    )
