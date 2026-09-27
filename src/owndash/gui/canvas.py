@@ -1085,6 +1085,25 @@ class DashboardCanvas(QGraphicsView):
         self.setDragMode(QGraphicsView.NoDrag if enabled else QGraphicsView.RubberBandDrag)
         self.viewport().update()
 
+    def background_image_is_selected(self) -> bool:
+        item = self._background_item
+        return bool(item is not None and item.isSelected())
+
+    def remove_background_image(self) -> bool:
+        if self._background_item is None and not self.background_config.image_path:
+            return False
+        config = self.current_background_config()
+        config.mode = "gradient"
+        config.image_path = ""
+        config.image_x = 0.0
+        config.image_y = 0.0
+        config.image_width = 0.0
+        config.image_height = 0.0
+        config.image_fit = "cover"
+        self.set_background_edit_enabled(False)
+        self.set_background_config(config)
+        return True
+
     def fit_background_image(self, fit: str) -> None:
         if fit not in {"cover", "contain", "original"} or self._background_item is None:
             return
