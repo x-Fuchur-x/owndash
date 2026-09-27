@@ -1,8 +1,7 @@
-"""System-state artwork renderer with an approved portrait master."""
+"""System-state artwork renderer with a single embedded portrait master."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.resources import files
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -20,6 +19,8 @@ from PySide6.QtGui import (
 
 from owndash import APP_NAME
 from owndash.core.system_state import SystemState
+
+from .status_master import _master_image
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,9 +166,7 @@ def _state_text(state: SystemState, strings: dict[str, str]) -> tuple[str, str]:
 
 
 def _load_master(width: int, height: int) -> QImage:
-    resource = files("owndash").joinpath("assets", "status-master-locked-480x1920.jpg")
-    image = QImage.fromData(resource.read_bytes(), "JPG")
-    if image.isNull(): return image
+    image = _master_image().copy()
     if image.width() != width or image.height() != height:
         image = image.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
     return image.convertToFormat(QImage.Format_RGB32)
@@ -219,7 +218,6 @@ def render_system_state_image(width: int, height: int, state: SystemState, theme
     title,detail=_state_text(state,strings)
     if height < width*1.35: return _render_landscape(width,height,state,theme,title,detail,clock_text)
     image=_load_master(width,height)
-    if image.isNull(): return _render_landscape(width,height,state,theme,title,detail,clock_text)
     p=QPainter(image); p.setRenderHint(QPainter.Antialiasing); p.setRenderHint(QPainter.SmoothPixmapTransform)
     if state is not SystemState.LOCKED: _draw_dynamic_portrait_state(p,image,state,title,detail)
     _draw_clock_and_date(p,image,width,height,clock_text,date_text if state is SystemState.LOCKED else None)
