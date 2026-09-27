@@ -88,6 +88,8 @@ Compatible ArtInChip-based sensor displays can be driven directly over USB witho
 
 OwnDash includes an always-available **Device Information** view with passive device, USB-access and capability diagnostics. Refreshing diagnostics is read-only and does not connect, reconnect or send hardware-control commands.
 
+The Device Center now distinguishes the **selected output** from the actually **active output** and reports the connection state separately. If a backend is configured but not running, it explicitly shows **No active output**. OwnDash-only features such as software dimming are listed separately from hardware capabilities, so a software feature is never presented as device support.
+
 **Software dimming** is available from **Display → Software dimming …**. The slider covers 10–100%, previews changes live, saves the selected value when applied and restores the previous value when cancelled. This feature darkens only the image produced by OwnDash; it does **not** change the display backlight or send a hardware-brightness command.
 
 For the `33C3:0E02` backend, hardware brightness, device-version queries, panel queries and Expansion Screen Mode remain disabled because a compatible control transport has not been verified. Hardware brightness therefore remains separate from software dimming. No hardware brightness range or power-off behavior is established for this device.
@@ -167,6 +169,7 @@ Core dependencies are declared in `pyproject.toml` and include PySide6, Pillow, 
 
 - **[Roadmap](ROADMAP.md)** — planned direction toward 1.0 and broader device support
 - **[Changelog](CHANGELOG.md)** — released features and version history
+- **[Device Center and display management](docs/device-center.md)** — output state, software dimming, hardware-capability wording and diagnostics
 - **[System state screens](docs/system-state-screens.md)** — lifecycle behavior, resource handling and suspend/resume details
 - **[Contributing](CONTRIBUTING.md)** — how to contribute
 - **[Issues](https://github.com/x-Fuchur-x/owndash/issues)** — bugs and feature requests
