@@ -8,7 +8,12 @@
 - Device capabilities are reported as **available**, **unsupported**, or **not yet verified** instead of collapsing those states together.
 - Added a sanitized, copyable diagnostic report for support and GitHub issues without usernames, home-directory paths, environment dumps or system logs.
 - Device Center refresh is read-only and covered by regressions proving it does not connect/reconnect hardware, send frames, issue brightness/Expansion writes, or stop the active display timer.
+- Added **Software dimming** from 10–100% for the rendered output. It changes only the generated image and does not send brightness commands to display hardware.
+- Software dimming is persisted in normal OwnDash preferences, previews live while the control is open and restores the previous value when cancelled.
 - Hardware brightness, Expansion Screen Mode and startup-media operations remain intentionally disabled for the current ArtInChip transport until they are verified safely on real hardware.
+- Added event-driven system-state screens for idle, lock, suspend, shutdown and restart, including static output, timer pausing and bounded direct-USB resume recovery.
+- System-state behavior is functionally implemented and tested; the final visual layout and artwork remain subject to further real-hardware polish before release.
+- AppImage CI now also builds `feat/**` branches so feature work can be validated with the same Debian 12 / GLIBC baseline before integration.
 
 ## 0.14.0 Beta 4
 
