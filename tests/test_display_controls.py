@@ -99,14 +99,16 @@ def build_widget(app, snapshot=None, refresh_snapshot=None, report_text=None):
     return widget
 
 
-def test_device_center_renders_five_read_only_sections(app):
+def test_device_center_renders_read_only_display_sections(app):
     widget = build_widget(app)
     try:
         expected = {
+            "deviceCenterOutputSummarySection": "Ausgabe",
+            "deviceCenterSoftwareSection": "OwnDash-Funktionen",
             "deviceCenterDeviceSection": "Gerät",
             "deviceCenterUsbSection": "USB & Zugriff",
             "deviceCenterUsbInventorySection": "USB-Inventar",
-            "deviceCenterCapabilitiesSection": "Funktionen",
+            "deviceCenterCapabilitiesSection": "Hardware-Funktionen",
             "deviceCenterActivitySection": "Letzte Aktivität",
         }
         for object_name, title in expected.items():
