@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog, QScrollArea
 
 from owndash.core.display import DisplayCapabilities, DisplayInfo
 from owndash.core.preferences import AppPreferences
@@ -70,6 +70,20 @@ def test_device_center_action_retranslates_when_language_changes(device_window):
     window.language = "de"
     window._retranslate_ui()
     assert window.device_center_action.text() == "Display & Gerät …"
+
+
+def test_device_center_dialog_uses_scrollable_content(device_window, monkeypatch):
+    monkeypatch.setattr(QDialog, "exec", lambda self: 0)
+
+    device_window._open_device_center()
+
+    dialogs = device_window.findChildren(QDialog)
+    assert dialogs
+    dialog = dialogs[-1]
+    scroll = dialog.findChild(QScrollArea, "deviceCenterScrollArea")
+    assert scroll is not None
+    assert scroll.widgetResizable() is True
+    assert scroll.horizontalScrollBarPolicy().name == "ScrollBarAlwaysOff"
 
 
 def test_device_diagnostics_remember_connection_disconnect_and_error(device_window, monkeypatch):
