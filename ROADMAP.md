@@ -24,17 +24,19 @@ Released features and full historical details remain documented in [`CHANGELOG.m
 The current priority is making the public beta increasingly predictable across real Linux systems and supported display paths.
 
 - Beta bug fixes and regression prevention
-- Event-driven system-state screens for idle, lock, suspend, shutdown and restart are functionally implemented; final visual layout/artwork polish and physical Bazzite/KDE + VSDISPLAY validation remain before release
-- Finalize system-state visual layout and artwork on the **single production renderer path**; new visual iterations must refine that renderer instead of introducing parallel renderer generations, hidden fallbacks or version-specific rendering paths
-- Static system-state output already pauses unnecessary sensor refresh, display rendering and dashboard cycling while a state screen is visible
-- Direct-USB suspend/resume recovery already uses a bounded one-shot reconnect instead of background polling
+- Event-driven system-state screens for idle, lock, suspend, shutdown and restart are functionally implemented
+- The system-state visuals have been rebuilt on the **single production renderer path** as one unified OwnDash HUD family with the real packaged logo, shared geometry, state-specific rings/symbols and a matching disconnected/closed screen
+- The retired embedded portrait-master artwork and its loader/data chunks have been removed; there is no hidden visual fallback to the old design
+- Persistent idle/lock screens use a dedicated low-rate HUD ring animation while normal sensor refresh, dashboard rendering and page cycling remain paused; suspend/shutdown/restart frames stay static for lifecycle safety
+- Physical 480×1920 Bazzite/KDE + VSDISPLAY visual acceptance and pixel-level spacing polish remain before the new system-state design is considered release-final
+- Direct-USB suspend/resume recovery already uses a bounded reconnect sequence instead of background polling
 - Continued real-device validation, especially output switching and shutdown/end-state behavior
 - Linux distribution, desktop, sensor, and display compatibility improvements
 - AppImage packaging and release reliability
 - Diagnostics and setup polish where beta feedback shows friction
 - Validation of mixed-DPI and compositor-specific fullscreen behavior on additional real systems
 
-The system-state implementation and its fallback/resource behavior are documented in [`docs/system-state-screens.md`](docs/system-state-screens.md).
+The system-state implementation, unified renderer architecture and resource behavior are documented in [`docs/system-state-screens.md`](docs/system-state-screens.md).
 
 ## In progress — 0.15 Device Experience
 
