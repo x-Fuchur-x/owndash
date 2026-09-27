@@ -4,17 +4,22 @@ import getpass
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QScrollArea,
+    QSlider,
     QVBoxLayout,
 )
 
 from owndash import __version__
 from owndash.core.display import DisplayCapabilities, DisplayInfo
+from owndash.core.preferences import save_preferences
+from owndash.core.software_dimming import dim_jpeg
 from owndash.service.device_diagnostics import (
     DeviceDiagnosticSnapshot,
     DeviceDiagnosticsService,
@@ -28,6 +33,10 @@ from .display_controls import DeviceCenterWidget
 _DEVICE_CENTER_EN: dict[str, str] = {
     "Geräteinformationen …": "Device Information …",
     "Geräteinformationen": "Device Information",
+    "Software-Dimmung …": "Software dimming …",
+    "Software-Dimmung": "Software dimming",
+    "Die Ausgabe wird nur im Bild abgedunkelt. Die Hardware-Helligkeit des Displays wird nicht verändert.":
+        "Only the image output is dimmed. The display hardware brightness is not changed.",
     "Gerät": "Device",
     "USB & Zugriff": "USB & Access",
     "Funktionen": "Capabilities",
@@ -65,6 +74,8 @@ _DEVICE_CENTER_EN: dict[str, str] = {
     "Startvideo": "Startup video",
     "Hardware-Bildschirm aus": "Hardware screen off",
     "Firmware-Aktualisierung": "Firmware upgrade",
+    "Übernehmen": "Apply",
+    "Abbrechen": "Cancel",
     "Schließen": "Close",
 }
 
@@ -82,12 +93,7 @@ _OUTPUT_MODES = {
 
 
 class DeviceCenterWindow(SafeShutdownWindow):
-    """OwnDash main window with isolated, read-only device diagnostics.
-
-    Keeping this integration in its own thin subclass avoids adding another
-    responsibility to the already sizeable SafeShutdownWindow while preserving
-    all of its shutdown, suspend/resume and system-state behavior unchanged.
-    """
+    """OwnDash main window with isolated diagnostics and safe display controls."""
 
     def _device_t(self, text: str) -> str:
         if getattr(self, "language", "de") == "en":
@@ -95,27 +101,106 @@ class DeviceCenterWindow(SafeShutdownWindow):
         return self._t(text)
 
     def _build_toolbar(self) -> None:
-        # The base class creates the existing Display menu slot. Reuse it so
-        # menu order and shortcuts remain stable, but broaden its purpose and
-        # keep it available even when no hardware is connected.
         super()._build_toolbar()
         self.device_center_action = self.display_controls_action
         self.device_center_action.setText(self._device_t("Geräteinformationen …"))
         self.device_center_action.setEnabled(True)
 
+        self.software_dimming_action = QAction(self._device_t("Software-Dimmung …"), self)
+        self.software_dimming_action.triggered.connect(self._open_software_dimming)
+        for menu_action in self.menuBar().actions():
+            menu = menu_action.menu()
+            if menu is not None and menu_action.text().replace("&", "") == "Display":
+                menu.insertAction(self.keep_running_action, self.software_dimming_action)
+                break
+
     def _retranslate_ui(self) -> None:
-        # MainWindow retranslates its canonical UI tree. Device Center copy is
-        # intentionally isolated here, so refresh the reused Display action
-        # after every runtime language change as well as during startup.
         super()._retranslate_ui()
         action = getattr(self, "device_center_action", None)
         if action is not None:
             action.setText(self._device_t("Geräteinformationen …"))
+        dimming_action = getattr(self, "software_dimming_action", None)
+        if dimming_action is not None:
+            dimming_action.setText(self._device_t("Software-Dimmung …"))
 
     def __init__(self) -> None:
         super().__init__()
         self._device_diagnostics = DeviceDiagnosticsService()
         self.device_center_action.setEnabled(True)
+
+    def _software_dim_frame(self, payload: bytes) -> bytes:
+        return dim_jpeg(payload, self.preferences.software_dimming_percent)
+
+    def _start_display_stream(self) -> None:
+        super()._start_display_stream()
+        streamer = self.display_streamer
+        if streamer is not None:
+            streamer.frame_transform = self._software_dim_frame
+
+    def _refresh_output_after_dimming_change(self) -> None:
+        self._last_display_payload = None
+        refresh_state = getattr(self, "_refresh_visible_system_state", None)
+        if callable(refresh_state):
+            refresh_state()
+        self._push_display_frame()
+
+    def _open_software_dimming(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self._device_t("Software-Dimmung"))
+        dialog.setModal(True)
+        dialog.setMinimumWidth(460)
+        layout = QVBoxLayout(dialog)
+
+        hint = QLabel(
+            self._device_t(
+                "Die Ausgabe wird nur im Bild abgedunkelt. Die Hardware-Helligkeit des Displays wird nicht verändert."
+            ),
+            dialog,
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        row = QHBoxLayout()
+        slider = QSlider(Qt.Horizontal, dialog)
+        slider.setObjectName("softwareDimmingSlider")
+        slider.setRange(10, 100)
+        slider.setSingleStep(5)
+        slider.setPageStep(10)
+        slider.setValue(int(self.preferences.software_dimming_percent))
+        value_label = QLabel(f"{slider.value()} %", dialog)
+        value_label.setObjectName("softwareDimmingValue")
+        value_label.setMinimumWidth(52)
+        value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row.addWidget(slider, 1)
+        row.addWidget(value_label)
+        layout.addLayout(row)
+
+        original = int(self.preferences.software_dimming_percent)
+
+        def preview(value: int) -> None:
+            self.preferences.software_dimming_percent = int(value)
+            value_label.setText(f"{value} %")
+            self._refresh_output_after_dimming_change()
+
+        slider.valueChanged.connect(preview)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Apply | QDialogButtonBox.Cancel, dialog)
+        apply_button = buttons.button(QDialogButtonBox.Apply)
+        cancel_button = buttons.button(QDialogButtonBox.Cancel)
+        if apply_button is not None:
+            apply_button.setText(self._device_t("Übernehmen"))
+            apply_button.clicked.connect(dialog.accept)
+        if cancel_button is not None:
+            cancel_button.setText(self._device_t("Abbrechen"))
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() == QDialog.Accepted:
+            self.preferences.software_dimming_percent = int(slider.value())
+            save_preferences(self.preferences)
+        else:
+            self.preferences.software_dimming_percent = original
+            self._refresh_output_after_dimming_change()
 
     def _display_connected(self, info: object) -> None:
         super()._display_connected(info)
@@ -157,8 +242,6 @@ class DeviceCenterWindow(SafeShutdownWindow):
                 try:
                     capabilities = backend.get_capabilities()
                 except Exception:
-                    # Diagnostics must never turn a backend read failure into a
-                    # modal app failure or an attempted reconnect.
                     capabilities = DisplayCapabilities()
 
         backend_key = str(getattr(self, "display_backend_key", "") or "unknown")
@@ -232,10 +315,6 @@ class DeviceCenterWindow(SafeShutdownWindow):
             translate=self._device_t,
         )
 
-        # Keep the information content scrollable, but surface the primary
-        # actions permanently below it. The embedded buttons stay as the
-        # single implementation of refresh/copy behavior and are triggered by
-        # the fixed dialog buttons.
         controls.refresh_button.hide()
         controls.copy_button.hide()
         controls.refresh_button.setObjectName("deviceCenterEmbeddedRefreshButton")
