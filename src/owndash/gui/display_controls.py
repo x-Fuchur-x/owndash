@@ -39,6 +39,12 @@ _CAPABILITY_STATUS_TEXT = {
     CapabilityStatus.UNVERIFIED: "Noch nicht verifiziert",
 }
 
+_INVENTORY_STATUS_TEXT = {
+    "present": "Vorhanden",
+    "absent": "Nicht gefunden",
+    "unknown": "Unbekannt",
+}
+
 
 def _format_time(value: datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M:%S") if value is not None else "—"
@@ -48,6 +54,26 @@ def _yes_no_unknown(value: bool | None, translate: Callable[[str], str]) -> str:
     if value is None:
         return translate("Unbekannt")
     return translate("Ja") if value else translate("Nein")
+
+
+def _format_usb_inventory_details(snapshot: DeviceDiagnosticSnapshot) -> str:
+    inventory = snapshot.usb_inventory
+    if inventory is None or not inventory.interfaces:
+        return "—"
+
+    lines: list[str] = []
+    for interface in inventory.interfaces:
+        lines.append(
+            f"{interface.name} · Nr {interface.number or '—'} · Alt {interface.alternate_setting or '—'} · "
+            f"Klasse {interface.class_code or '—'} · Sub {interface.subclass_code or '—'} · "
+            f"Proto {interface.protocol_code or '—'} · Treiber {interface.driver or '—'}"
+        )
+        for endpoint in interface.endpoints:
+            lines.append(
+                f"  EP {endpoint.address or '—'} · Attr {endpoint.attributes or '—'} · "
+                f"Max {endpoint.max_packet_size or '—'}"
+            )
+    return "\n".join(lines)
 
 
 class DeviceCenterWidget(QWidget):
@@ -107,6 +133,20 @@ class DeviceCenterWidget(QWidget):
         self.usb_form.addRow(self._t("Device-Node"), self.device_node_label)
         self.usb_form.addRow(self._t("udev-Regel"), self.udev_label)
         outer.addWidget(self.usb_section)
+
+        self.usb_inventory_section = QGroupBox(self._t("USB-Inventar"), self)
+        self.usb_inventory_section.setObjectName("deviceCenterUsbInventorySection")
+        self.usb_inventory_form = QFormLayout(self.usb_inventory_section)
+        self.usb_inventory_status_label = self._value_label("deviceCenterUsbInventoryStatus")
+        self.usb_inventory_sysfs_label = self._value_label("deviceCenterUsbInventorySysfs")
+        self.usb_inventory_class_label = self._value_label("deviceCenterUsbInventoryDeviceClass")
+        self.usb_inventory_details_label = self._value_label("deviceCenterUsbInventoryDetails")
+        self.usb_inventory_details_label.setWordWrap(True)
+        self.usb_inventory_form.addRow(self._t("Status"), self.usb_inventory_status_label)
+        self.usb_inventory_form.addRow(self._t("Sysfs-Gerät"), self.usb_inventory_sysfs_label)
+        self.usb_inventory_form.addRow(self._t("Device-Class"), self.usb_inventory_class_label)
+        self.usb_inventory_form.addRow(self._t("Interfaces & Endpoints"), self.usb_inventory_details_label)
+        outer.addWidget(self.usb_inventory_section)
 
         self.capabilities_section = QGroupBox(self._t("Funktionen"), self)
         self.capabilities_section.setObjectName("deviceCenterCapabilitiesSection")
@@ -175,6 +215,18 @@ class DeviceCenterWidget(QWidget):
         self.access_label.setText(_yes_no_unknown(snapshot.accessible, self._t))
         self.device_node_label.setText(snapshot.device_node or "—")
         self.udev_label.setText(snapshot.udev_state or "unknown")
+
+        inventory = snapshot.usb_inventory
+        if inventory is None:
+            self.usb_inventory_status_label.setText(self._t("Nicht verfügbar"))
+            self.usb_inventory_sysfs_label.setText("—")
+            self.usb_inventory_class_label.setText("—")
+        else:
+            status_text = _INVENTORY_STATUS_TEXT.get(inventory.status, "Unbekannt")
+            self.usb_inventory_status_label.setText(self._t(status_text))
+            self.usb_inventory_sysfs_label.setText(inventory.sysfs_name or "—")
+            self.usb_inventory_class_label.setText(inventory.device_class or "—")
+        self.usb_inventory_details_label.setText(_format_usb_inventory_details(snapshot))
 
         self._rebuild_capabilities(snapshot)
 
