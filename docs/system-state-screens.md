@@ -8,6 +8,16 @@ The system-state behavior is already functionally implemented for idle, lock, su
 
 The visual presentation is not considered final yet. Layout, spacing, artwork and wording may still be refined after additional physical-display checks, especially across portrait/landscape orientations and shutdown/standby timing. Visual polish is therefore remaining release work; the underlying lifecycle feature itself is not merely a future placeholder.
 
+## Renderer architecture rule
+
+System-state output has exactly **one production renderer path**. Future visual work must refine that path rather than adding another renderer generation alongside it.
+
+Allowed variation belongs behind explicit state, orientation or theme configuration within the current renderer. The project should not reintroduce versioned renderer implementations, hidden package-level monkeypatches, duplicate fallback renderers or separate experimental rendering paths that can drift away from the production behavior.
+
+Visual experiments are fine during development, but they must not become parallel production implementations. Before integration, an experiment must either be folded into the single current renderer or removed. Regression tests should describe current intended behavior rather than preserve obsolete design generations.
+
+This rule is intentionally documented here and in the roadmap so the final status-screen layout can continue evolving without rebuilding the renderer architecture each time.
+
 ## States and priority
 
 OwnDash normalizes Linux lifecycle events into these states:
