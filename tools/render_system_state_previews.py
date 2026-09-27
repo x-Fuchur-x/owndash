@@ -59,11 +59,12 @@ def main() -> int:
         detail="Keine aktive Verbindung zu OwnDash",
         farewell="",
         theme="owndash",
+        clock_text="18:35",
+        date_text="27.09.2026",
     )
     if not disconnected.save(str(out / "disconnected.png"), "PNG"):
         raise RuntimeError("failed to save disconnected preview")
 
-    # Keep the Qt application alive until all pixmaps/images have been saved.
     _ = app
     return 0
 
