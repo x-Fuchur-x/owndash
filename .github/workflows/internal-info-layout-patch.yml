@@ -1,0 +1,26 @@
+name: Internal info layout patch
+
+on:
+  push:
+    branches:
+      - feat/display-management-ux
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: run info layout patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply narrow info-layout patch
+        run: python tools/patch_info_layout.py
+      - name: Commit patched main window
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/owndash/gui/main_window.py
+          git diff --cached --check
+          git commit -m "feat: align system diagnostics info columns"
+          git push
