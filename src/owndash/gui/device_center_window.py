@@ -4,7 +4,14 @@ import getpass
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QScrollArea, QVBoxLayout
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+)
 
 from owndash import __version__
 from owndash.core.display import DisplayCapabilities, DisplayInfo
@@ -225,6 +232,15 @@ class DeviceCenterWindow(SafeShutdownWindow):
             translate=self._device_t,
         )
 
+        # Keep the information content scrollable, but surface the primary
+        # actions permanently below it. The embedded buttons stay as the
+        # single implementation of refresh/copy behavior and are triggered by
+        # the fixed dialog buttons.
+        controls.refresh_button.hide()
+        controls.copy_button.hide()
+        controls.refresh_button.setObjectName("deviceCenterEmbeddedRefreshButton")
+        controls.copy_button.setObjectName("deviceCenterEmbeddedCopyButton")
+
         scroll = QScrollArea(dialog)
         scroll.setObjectName("deviceCenterScrollArea")
         scroll.setWidgetResizable(True)
@@ -232,12 +248,26 @@ class DeviceCenterWindow(SafeShutdownWindow):
         scroll.setWidget(controls)
         layout.addWidget(scroll, 1)
 
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+
+        refresh_button = QPushButton(self._device_t("Aktualisieren"), dialog)
+        refresh_button.setObjectName("deviceCenterRefreshButton")
+        refresh_button.clicked.connect(controls.refresh_button.click)
+        footer.addWidget(refresh_button)
+
+        copy_button = QPushButton(self._device_t("Diagnosebericht kopieren"), dialog)
+        copy_button.setObjectName("deviceCenterCopyButton")
+        copy_button.clicked.connect(controls.copy_button.click)
+        footer.addWidget(copy_button)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Close, dialog)
         close_button = buttons.button(QDialogButtonBox.Close)
         if close_button is not None:
             close_button.setText(self._device_t("Schließen"))
         buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
+        footer.addWidget(buttons)
+        layout.addLayout(footer)
         dialog.exec()
 
     def _open_display_controls(self) -> None:
