@@ -47,10 +47,10 @@ _ANIMATION_COLORS = {
 # The approved PNGs contain their state wording as part of the generated source
 # artwork. OwnDash masks only that central copy block and redraws the visible
 # title/detail at runtime so the application language remains authoritative.
-_STATE_COPY_PANEL = QRectF(55, 730, 370, 255)
-_STATE_TITLE_RECT = QRectF(65, 760, 350, 82)
-_STATE_DETAIL_RECT = QRectF(72, 842, 336, 48)
-_STATE_ACCENT_RECT = QRectF(75, 918, 330, 8)
+_STATE_COPY_PANEL = QRectF(50, 730, 380, 255)
+_STATE_TITLE_RECT = QRectF(55, 760, 370, 82)
+_STATE_DETAIL_RECT = QRectF(55, 842, 370, 48)
+_STATE_ACCENT_RECT = QRectF(65, 918, 350, 8)
 
 # The fresh PNG artwork deliberately contains no time, date or version text.
 # These reference-space rectangles are reserved exclusively for live overlays.
