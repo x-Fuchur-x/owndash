@@ -57,7 +57,7 @@ def test_state_copy_is_rendered_from_localized_strings():
         QIcon(),
         EN_STRINGS,
         clock_text="21:33",
-        date_text="2026-09-28",
+        date_text="28.09.2026",
     )
 
     assert _digest(german) != _digest(english)
