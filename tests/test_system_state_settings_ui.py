@@ -24,7 +24,7 @@ def test_controls_load_from_preferences(app):
     widget = SystemStateSettingsWidget(prefs)
     try:
         assert widget.enabled_check.isChecked() is False
-        assert widget.theme_combo.currentData() == "bazzite-inspired"
+        assert not hasattr(widget, "theme_combo")
         assert widget.idle_check.isChecked() is False
         assert widget.idle_timeout.value() == 90
         assert widget.lock_check.isChecked() is False
@@ -32,12 +32,11 @@ def test_controls_load_from_preferences(app):
         widget.deleteLater()
 
 
-def test_apply_updates_preferences(app):
-    prefs = AppPreferences()
+def test_apply_updates_preferences_without_rewriting_legacy_theme(app):
+    prefs = AppPreferences(system_state_theme="bazzite-inspired")
     widget = SystemStateSettingsWidget(prefs)
     try:
         widget.enabled_check.setChecked(True)
-        widget.theme_combo.setCurrentIndex(widget.theme_combo.findData("bazzite-inspired"))
         widget.idle_check.setChecked(True)
         widget.idle_timeout.setValue(45)
         widget.lock_check.setChecked(False)
@@ -63,19 +62,15 @@ def test_master_toggle_disables_children_without_destroying_values(app):
     widget = SystemStateSettingsWidget(prefs)
     try:
         widget.enabled_check.setChecked(False)
-        assert widget.theme_combo.isEnabled() is False
         assert widget.idle_check.isEnabled() is False
         assert widget.idle_timeout.isEnabled() is False
         assert widget.lock_check.isEnabled() is False
-        assert widget.theme_combo.currentData() == "bazzite-inspired"
         assert widget.idle_timeout.value() == 75
 
         widget.enabled_check.setChecked(True)
-        assert widget.theme_combo.isEnabled() is True
         assert widget.idle_check.isEnabled() is True
         assert widget.idle_timeout.isEnabled() is True
         assert widget.lock_check.isEnabled() is True
-        assert widget.theme_combo.currentData() == "bazzite-inspired"
         assert widget.idle_timeout.value() == 75
     finally:
         widget.deleteLater()
