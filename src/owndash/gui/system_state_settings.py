@@ -4,7 +4,6 @@ from collections.abc import Callable
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -22,6 +21,10 @@ class SystemStateSettingsWidget(QWidget):
     The widget owns no timers or platform services. It only edits preferences,
     which keeps the settings dialog cheap and makes the runtime integration
     independent from UI lifetime.
+
+    The current approved system-state artwork is one visual family. Historical
+    ``system_state_theme`` preference values remain untouched for backwards
+    compatibility, but are intentionally no longer exposed as a no-op control.
     """
 
     def __init__(
@@ -54,13 +57,6 @@ class SystemStateSettingsWidget(QWidget):
         form.setContentsMargins(0, 0, 0, 0)
         form.setSpacing(8)
 
-        self.theme_combo = QComboBox(self)
-        self.theme_combo.addItem("OwnDash", "owndash")
-        self.theme_combo.addItem(self._t("Bazzite-inspiriert"), "bazzite-inspired")
-        theme_index = self.theme_combo.findData(preferences.system_state_theme)
-        self.theme_combo.setCurrentIndex(max(0, theme_index))
-        form.addRow(self._t("Theme"), self.theme_combo)
-
         self.idle_check = QCheckBox(self._t("Ruhemodus"), self)
         self.idle_check.setChecked(preferences.idle_mode)
         form.addRow("", self.idle_check)
@@ -91,14 +87,12 @@ class SystemStateSettingsWidget(QWidget):
 
     def _sync_enabled(self) -> None:
         master = self.enabled_check.isChecked()
-        self.theme_combo.setEnabled(master)
         self.idle_check.setEnabled(master)
         self.idle_timeout.setEnabled(master and self.idle_check.isChecked())
         self.lock_check.setEnabled(master)
 
     def apply_to(self, preferences: AppPreferences) -> None:
         preferences.system_state_screens = self.enabled_check.isChecked()
-        preferences.system_state_theme = str(self.theme_combo.currentData())
         preferences.idle_mode = self.idle_check.isChecked()
         preferences.idle_timeout_minutes = int(self.idle_timeout.value())
         preferences.lock_screen_state = self.lock_check.isChecked()
