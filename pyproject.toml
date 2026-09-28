@@ -24,4 +24,4 @@ owndash = "owndash.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-owndash = ["assets/*.svg", "assets/*.jpg", "resources/*.rules"]
+owndash = ["assets/*.svg", "assets/*.jpg", "assets/*.png", "resources/*.rules"]

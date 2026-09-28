@@ -7,7 +7,10 @@ from PySide6.QtGui import QIcon
 
 from owndash.core.system_state import SystemState
 from owndash.gui.shutdown_frame import render_shutdown_image
-from owndash.gui.system_state_frame import render_disconnected_status_image, render_system_state_image
+from owndash.gui.system_state_frame import (
+    render_disconnected_status_image,
+    render_system_state_image,
+)
 
 
 STRINGS = {
@@ -21,47 +24,45 @@ STRINGS = {
     "idle": "Leerlauf",
 }
 
-# These are the six 480x1920 designs approved in chat on 2026-09-27.
-# Their hashes are the visual contract: production may add only the explicit
-# dynamic overlays (localized copy, clock/date and the restrained live sweep).
+# Fresh 480x1920 PNG state artwork. Runtime clock/date/version text is
+# deliberately absent from these PNG files and is painted only by the renderer.
 _APPROVED_ASSETS = {
-    "status_hud_locked.jpg": "42f952fec87e0294e36b444153a5b3bd087b68ec5b7357a2d12fbb759ea22335",
-    "status_hud_idle.jpg": "367963a02d0de29dced91fe11357bd88da6b13ff147ea9f33150529c0580a94c",
-    "status_hud_standby.jpg": "886a0bd2e1df06ff4f7f6ce56f9955eec852a0fea9ef51ab0a06cfc182ba8eb7",
-    "status_hud_shutdown.jpg": "2fab18722fef30caf61bac292265f0a12f3af987e603263da20d1a7d487cffb3",
-    "status_hud_restart.jpg": "dcced8c771be97610690e6dbd74650515a52de84b1bfb1dc33979c79ad4b7d2a",
-    "status_hud_disconnected.jpg": "a830dc609350809295f6acb986292b38f8cabb7f4d68be81349a53ce4037466a",
+    "status_hud_locked.png": "5878fb247cb7f0fa7726742966c262ffde2427de32ad00b7285bd8351029e372",
+    "status_hud_idle.png": "52f6239e4db623e6681e50b2209c2fa10d88096b15903a052cc977a3693864fb",
+    "status_hud_standby.png": "7547d9b939d311be39bacb82d3a0df88092087e01b5a1672ce2567587b504863",
+    "status_hud_shutdown.png": "4122dd6b8c2ecf5282b9e85d02bfab2488e5246ac00de39a198f8cca37e0545c",
+    "status_hud_restart.png": "a12b5af10ef2c7bd491337ac1b2578b704232d926172d4b5f62572a6f7fad5b0",
+    "status_hud_disconnected.png": "6f185823e4ff02c5591a86ad242bf7119483f232760fbf0b14811b19175f5cd0",
 }
 
 _STATE_ASSETS = {
-    SystemState.LOCKED: "status_hud_locked.jpg",
-    SystemState.IDLE: "status_hud_idle.jpg",
-    SystemState.SUSPENDING: "status_hud_standby.jpg",
-    SystemState.SHUTTING_DOWN: "status_hud_shutdown.jpg",
-    SystemState.RESTARTING: "status_hud_restart.jpg",
+    SystemState.LOCKED: "status_hud_locked.png",
+    SystemState.IDLE: "status_hud_idle.png",
+    SystemState.SUSPENDING: "status_hud_standby.png",
+    SystemState.SHUTTING_DOWN: "status_hud_shutdown.png",
+    SystemState.RESTARTING: "status_hud_restart.png",
 }
 
-# Stable points avoid the areas intentionally repainted for dynamic copy,
-# symbol, clock/date and animation. They still hit rails/rings/floor so a
-# wrong state artwork or simplified renderer cannot pass unnoticed.
+# Points intentionally avoid the live clock/date/footer panel and the animated
+# arc. They still cover top logo/frame, side rails, state art and bottom floor.
 _APPROVED_STABLE_POINTS = [
     (44, 50),
     (436, 50),
     (240, 150),
-    (240, 280),
-    (82, 455),
-    (398, 455),
-    (95, 610),
-    (385, 610),
-    (72, 835),
-    (408, 835),
-    (45, 900),
-    (435, 900),
-    (140, 1725),
-    (240, 1725),
-    (340, 1725),
-    (120, 1830),
-    (360, 1830),
+    (240, 230),
+    (34, 420),
+    (446, 420),
+    (45, 760),
+    (435, 760),
+    (45, 980),
+    (435, 980),
+    (45, 1280),
+    (435, 1280),
+    (140, 1580),
+    (240, 1580),
+    (340, 1580),
+    (120, 1810),
+    (360, 1810),
 ]
 
 
@@ -88,13 +89,25 @@ def _assert_preserves_stable_artwork(frame, filename: str):
         assert abs(actual.blue() - blue) <= 1
 
 
-def test_all_six_approved_hud_assets_are_exact_and_packaged():
+def test_all_six_approved_hud_assets_are_exact_pngs_and_packaged():
     for filename, expected_sha in _APPROVED_ASSETS.items():
-        data = files("owndash").joinpath("assets", filename).read_bytes()
+        resource = files("owndash").joinpath("assets", filename)
+        data = resource.read_bytes()
         assert sha256(data).hexdigest() == expected_sha
 
+        with as_file(resource) as path:
+            with Image.open(path) as source:
+                assert source.format == "PNG"
+                assert source.size == (480, 1920)
 
-def test_each_system_state_preserves_its_approved_artwork():
+
+def test_old_stretched_state_jpegs_are_not_packaged():
+    for filename in _APPROVED_ASSETS:
+        old_name = filename.removesuffix(".png") + ".jpg"
+        assert not files("owndash").joinpath("assets", old_name).is_file()
+
+
+def test_each_system_state_preserves_its_fresh_artwork_outside_runtime_overlays():
     for state, filename in _STATE_ASSETS.items():
         frame = render_system_state_image(
             480,
@@ -103,14 +116,14 @@ def test_each_system_state_preserves_its_approved_artwork():
             "owndash",
             QIcon(),
             STRINGS,
-            clock_text="18:35",
-            date_text="27.09.2026",
+            clock_text="21:33",
+            date_text="28.09.2026",
             animation_phase=0.0,
         )
         _assert_preserves_stable_artwork(frame, filename)
 
 
-def test_disconnected_preserves_its_approved_artwork():
+def test_disconnected_preserves_its_fresh_artwork_outside_runtime_overlays():
     frame = render_disconnected_status_image(
         480,
         1920,
@@ -119,19 +132,57 @@ def test_disconnected_preserves_its_approved_artwork():
         detail="Keine aktive Verbindung zu OwnDash",
         farewell="",
         theme="owndash",
+        clock_text="21:33",
+        date_text="28.09.2026",
+    )
+    _assert_preserves_stable_artwork(frame, "status_hud_disconnected.png")
+
+
+def test_runtime_clock_and_date_are_drawn_dynamically():
+    frame_a = render_system_state_image(
+        480,
+        1920,
+        SystemState.LOCKED,
+        "owndash",
+        QIcon(),
+        STRINGS,
         clock_text="18:35",
         date_text="27.09.2026",
+        animation_phase=0.0,
     )
-    _assert_preserves_stable_artwork(frame, "status_hud_disconnected.jpg")
+    frame_b = render_system_state_image(
+        480,
+        1920,
+        SystemState.LOCKED,
+        "owndash",
+        QIcon(),
+        STRINGS,
+        clock_text="21:33",
+        date_text="28.09.2026",
+        animation_phase=0.0,
+    )
+    assert _digest(frame_a) != _digest(frame_b)
 
 
-def test_system_state_renderer_uses_exact_state_assets_without_recolor_fallback():
+def test_renderer_has_no_baked_demo_clock_date_or_footer_contract():
+    source = Path(render_system_state_image.__code__.co_filename).read_text(encoding="utf-8")
+    assert "_REFERENCE_CLOCK" not in source
+    assert "_REFERENCE_DATE" not in source
+    assert "_REFERENCE_FOOTER" not in source
+
+
+def test_system_state_renderer_uses_exact_png_state_assets_without_recolor_fallback():
     gui_dir = Path(__file__).resolve().parents[1] / "src" / "owndash" / "gui"
     source = (gui_dir / "system_state_frame.py").read_text(encoding="utf-8")
 
     for filename in _APPROVED_ASSETS:
         assert filename in source
-    assert "status_hud_master.jpg" not in source
+    assert "status_hud_locked.jpg" not in source
+    assert "status_hud_idle.jpg" not in source
+    assert "status_hud_standby.jpg" not in source
+    assert "status_hud_shutdown.jpg" not in source
+    assert "status_hud_restart.jpg" not in source
+    assert "status_hud_disconnected.jpg" not in source
     assert "_tint_master" not in source
     assert "_master_variant" not in source
     assert "status_master" not in source
@@ -172,7 +223,11 @@ def test_persistent_ring_animation_changes_locked_and_idle_frames():
 
 
 def test_terminal_frames_remain_static_for_lifecycle_safety():
-    for state in (SystemState.SUSPENDING, SystemState.SHUTTING_DOWN, SystemState.RESTARTING):
+    for state in (
+        SystemState.SUSPENDING,
+        SystemState.SHUTTING_DOWN,
+        SystemState.RESTARTING,
+    ):
         frame_a = render_system_state_image(
             480,
             1920,
