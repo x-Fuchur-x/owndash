@@ -21,16 +21,16 @@ STRINGS = {
     "idle": "Leerlauf",
 }
 
-# These are the six 480x1920 designs approved in chat on 2026-09-27.
+# These are the six canonical 480x1920 state artworks approved for OwnDash.
 # Their hashes are the visual contract: production may add only the explicit
-# dynamic overlays (localized copy, clock/date and the restrained live sweep).
+# dynamic overlays (clock/date, runtime footer and the restrained live sweep).
 _APPROVED_ASSETS = {
-    "status_hud_locked.jpg": "42f952fec87e0294e36b444153a5b3bd087b68ec5b7357a2d12fbb759ea22335",
-    "status_hud_idle.jpg": "367963a02d0de29dced91fe11357bd88da6b13ff147ea9f33150529c0580a94c",
-    "status_hud_standby.jpg": "886a0bd2e1df06ff4f7f6ce56f9955eec852a0fea9ef51ab0a06cfc182ba8eb7",
-    "status_hud_shutdown.jpg": "2fab18722fef30caf61bac292265f0a12f3af987e603263da20d1a7d487cffb3",
-    "status_hud_restart.jpg": "dcced8c771be97610690e6dbd74650515a52de84b1bfb1dc33979c79ad4b7d2a",
-    "status_hud_disconnected.jpg": "a830dc609350809295f6acb986292b38f8cabb7f4d68be81349a53ce4037466a",
+    "status_hud_locked.jpg": "320bd7eb1b775df989152afa6fcdd05e54f6ebf5b83ba75e02c8843453144ad6",
+    "status_hud_idle.jpg": "99fe0da1db9d612f4082a826a0a3b8495fa18c7f41a0d95991b666f9c79988f3",
+    "status_hud_standby.jpg": "626f846abd0bb0a8070b3571bdee51b7666b5962fb43e70edcaaf02b48a54734",
+    "status_hud_shutdown.jpg": "fe4f0c72640be78c5cd39b5eea8e52d80c6d92eb00a3cab33f69f2eeff84245e",
+    "status_hud_restart.jpg": "ed1ce9bb2d5acaeaf1c30bc4e8005b4a50b42ccf31c4a351b6a70f89b7d6d389",
+    "status_hud_disconnected.jpg": "d08a19c31a8de9f3bf9776d594b144640ba767d4972eb026d37f10a4d583c92b",
 }
 
 _STATE_ASSETS = {
