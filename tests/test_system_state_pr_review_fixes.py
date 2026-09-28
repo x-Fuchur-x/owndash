@@ -7,7 +7,10 @@ from PySide6.QtGui import QColor, QIcon
 
 from owndash.core.preferences import AppPreferences
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import render_system_state_image
+from owndash.gui.system_state_frame import (
+    render_disconnected_status_image,
+    render_system_state_image,
+)
 from owndash.gui.system_state_settings import SystemStateSettingsWidget
 
 
@@ -61,6 +64,23 @@ def test_state_copy_is_rendered_from_localized_strings():
     )
 
     assert _digest(german) != _digest(english)
+
+
+def test_disconnected_copy_mask_covers_baked_detail_edge():
+    image = render_disconnected_status_image(
+        480,
+        1920,
+        QIcon(),
+        status="GETRENNT",
+        detail="Offline",
+        clock_text="21:33",
+        date_text="28.09.2026",
+    )
+
+    # The original generated subtitle reached this pixel. Runtime copy must
+    # cover it completely instead of leaving a white glyph fragment behind.
+    edge = image.pixelColor(426, 842)
+    assert max(edge.red(), edge.green(), edge.blue()) < 100
 
 
 def test_landscape_contains_portrait_artwork_without_stretching():
