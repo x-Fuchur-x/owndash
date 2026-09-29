@@ -34,11 +34,15 @@ For the current ArtInChip / VSDISPLAY `33C3:0E02` path, hardware brightness, Exp
 
 ## USB and diagnostic information
 
-For compatible direct-USB hardware, Device Information can show passive evidence such as VID:PID, device detection, access state, device node, OwnDash udev-rule state and the sysfs USB interface/endpoint inventory.
+For compatible direct-USB hardware, Device Information can show passive evidence such as the verified USB profile, VID:PID, number of exact compatible matches, ambiguity state, device detection, access state, device node, OwnDash udev-rule state and the sysfs USB interface/endpoint inventory.
 
-Refreshing this information is read-only. The Device Center does not connect or reconnect the display, claim interfaces, authenticate, send frames, issue hardware-control writes, flash firmware or modify persistent device storage.
+OwnDash keeps one central registry of USB identities that have actually been verified. The current registry contains exactly the ArtInChip / VSDISPLAY `33C3:0E02` profile. A different product ID from the same vendor is **not** treated as compatible automatically. New IDs should be added only after the transport has been verified and covered by tests.
 
-The **Copy diagnostic report** action produces a sanitized support report. Usernames, home-directory paths, environment dumps, logs and secrets are not intentionally included.
+When more than one exact compatible direct-USB display is connected, Device Information reports the match count and marks the result as ambiguous. The streaming backend deliberately refuses to pick an arbitrary display before claiming an interface or sending any USB command. A future explicit device selector can build on this state safely instead of relying on USB enumeration order.
+
+Refreshing diagnostic information is read-only. The Device Center does not connect or reconnect the display, claim interfaces, authenticate, send frames, issue hardware-control writes, flash firmware or modify persistent device storage.
+
+The **Copy diagnostic report** action produces a sanitized support report. It includes the verified profile and match/ambiguity state but does not intentionally collect USB serial numbers, usernames, home-directory paths, environment dumps, logs or secrets.
 
 ## Software dimming
 
