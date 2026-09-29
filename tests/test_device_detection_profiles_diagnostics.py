@@ -74,7 +74,7 @@ def test_diagnostic_report_includes_profile_and_ambiguity_without_serial_identit
     assert "serial" not in report.lower()
 
 
-def test_device_center_shows_profile_match_count_and_ambiguity(qapp):
+def test_device_center_shows_profile_match_count_and_ambiguity(qapplication):
     snapshot = _snapshot(_service())
     controls = DeviceCenterWidget(
         snapshot,
