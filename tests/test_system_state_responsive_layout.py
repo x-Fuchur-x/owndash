@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import pytest
+from PySide6.QtCore import QRectF
+from PySide6.QtGui import QImage
 
+from owndash.gui.system_state_frame import _fit_detail_text
 from owndash.gui.system_state_layout import LayoutClass, classify_layout, layout_for_size
 
 
@@ -99,3 +102,15 @@ def test_ultra_portrait_preserves_reference_ordering():
     layout = layout_for_size(480, 1920)
     assert layout.layout_class is LayoutClass.ULTRA_PORTRAIT
     assert layout.art.top() < layout.title.top() < layout.clock.top() < layout.footer.top()
+
+
+def test_detail_text_wraps_to_at_most_two_lines_without_dropping_words():
+    image = QImage(500, 200, QImage.Format_RGB32)
+    rect = QRectF(0, 0, 250, 70)
+    text = "OwnDash is ending the current Linux desktop session safely"
+
+    _font, wrapped = _fit_detail_text(image, text, rect, 24)
+
+    assert "\n" in wrapped
+    assert wrapped.count("\n") <= 1
+    assert wrapped.replace("\n", " ") == text
