@@ -16,8 +16,20 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
       - run: python -m pip install pytest .
-      - run: python -m compileall -q src tests
+      - run: python -m compileall -q src tests tools
       - run: pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
+      - name: Render real 480x1920 system-state previews
+        if: always()
+        run: python tools/render_system_state_previews.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Upload real system-state previews
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: OwnDash-System-State-Previews
+          path: preview/system-state/*.png
+          if-no-files-found: error
       - run: bash -n run-owndash.sh

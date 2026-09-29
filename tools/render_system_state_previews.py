@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from pathlib import Path
+import sys
+
+from PySide6.QtGui import QGuiApplication, QIcon
+
+from owndash.core.system_state import SystemState
+from owndash.gui.system_state_frame import (
+    render_disconnected_status_image,
+    render_system_state_image,
+)
+
+
+STRINGS = {
+    "standby": "Standby",
+    "entering_standby": "Standby wird vorbereitet",
+    "system_locked": "System gesperrt",
+    "shutting_down": "Herunterfahren",
+    "restarting": "Neustart",
+    "system_transition": "Systemwechsel",
+    "ending_session": "Aktuelle Sitzung wird beendet",
+    "idle": "Leerlauf",
+}
+
+
+def main() -> int:
+    app = QGuiApplication.instance() or QGuiApplication(sys.argv[:1])
+    out = Path("preview/system-state")
+    out.mkdir(parents=True, exist_ok=True)
+    icon = QIcon()
+
+    common = {
+        "width": 480,
+        "height": 1920,
+        "theme": "owndash",
+        "icon": icon,
+        "strings": STRINGS,
+        "animation_phase": 0.0,
+    }
+
+    previews = {
+        "locked": (
+            SystemState.LOCKED,
+            {"clock_text": "21:33", "date_text": "28.09.2026"},
+        ),
+        "idle": (
+            SystemState.IDLE,
+            {"clock_text": "21:33", "date_text": None},
+        ),
+        "standby": (
+            SystemState.SUSPENDING,
+            {"clock_text": None, "date_text": None},
+        ),
+        "shutdown": (
+            SystemState.SHUTTING_DOWN,
+            {"clock_text": None, "date_text": None},
+        ),
+        "restart": (
+            SystemState.RESTARTING,
+            {"clock_text": None, "date_text": None},
+        ),
+    }
+
+    for name, (state, runtime) in previews.items():
+        image = render_system_state_image(
+            state=state,
+            **common,
+            **runtime,
+        )
+        if not image.save(str(out / f"{name}.png"), "PNG"):
+            raise RuntimeError(f"failed to save preview for {name}")
+
+    disconnected = render_disconnected_status_image(
+        480,
+        1920,
+        icon,
+        status="GETRENNT",
+        detail="Keine aktive Verbindung zu OwnDash",
+        farewell="",
+        theme="owndash",
+        clock_text="21:33",
+        date_text="28.09.2026",
+    )
+    if not disconnected.save(str(out / "disconnected.png"), "PNG"):
+        raise RuntimeError("failed to save disconnected preview")
+
+    _ = app
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
