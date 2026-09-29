@@ -19,7 +19,9 @@
 - Rebuilt the system-state visuals as one approved lossless HUD asset family with state-specific symbols, localized runtime wording, live clock/date/version overlays and a matching disconnected/closed screen.
 - Removed the retired embedded portrait-master artwork, loader and data chunks so obsolete artwork can no longer reappear through a hidden fallback path.
 - Persistent idle and lock screens use a dedicated low-rate ring animation while normal dashboard/sensor timers remain paused; standby, shutdown and restart frames remain static for lifecycle safety.
-- The 480×1920 HUD is the primary portrait reference; other aspect ratios contain and center that artwork proportionally instead of stretching it.
+- Added a responsive system-state compositor with aspect-ratio classes for ultra-portrait, portrait, near-square and landscape displays. The physically accepted 480×1920 layout remains protected while other sizes use target-relative HUD, copy, clock/date and footer zones instead of a narrow centered 1:4 strip.
+- System-state status text, language, clock/date and the `OwnDash {version}` footer remain runtime-owned so future Beta, RC and stable version labels require no artwork edits.
+- CI now renders a 48-image system-state preview matrix across eight representative display sizes and all six visual states for community-oriented regression review.
 - Removed the no-op system-state theme selector while preserving existing saved theme preference values for configuration compatibility.
 - AppImage CI now also builds `feat/**` branches so feature work can be validated with the same Debian 12 / GLIBC baseline before integration.
 
