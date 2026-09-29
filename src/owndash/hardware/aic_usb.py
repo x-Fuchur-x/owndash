@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 
 from owndash.core.display import (
+    DisplayAmbiguousError,
     DisplayBackend,
     DisplayBusyError,
     DisplayCapabilities,
@@ -30,9 +31,11 @@ from .aic_protocol import (
     make_command_header,
     parse_display_parameters,
 )
+from .usb_device_profiles import AIC_33C3_0E02
 
-USB_VENDOR_ID = 0x33C3
-USB_PRODUCT_ID = 0x0E02
+# Compatibility aliases; the verified device profile owns the actual identity.
+USB_VENDOR_ID = AIC_33C3_0E02.vendor_id
+USB_PRODUCT_ID = AIC_33C3_0E02.product_id
 EP_OUT = 0x01
 EP_IN = 0x81
 MAX_TRANSFER = 256 * 1024
@@ -107,9 +110,20 @@ class AicUsbDisplayBackend(DisplayBackend):
 
         usb_core, usb_util = self._load_usb()
         self._usb_core, self._usb_util = usb_core, usb_util
-        dev = usb_core.find(idVendor=USB_VENDOR_ID, idProduct=USB_PRODUCT_ID)
-        if dev is None:
+        found = usb_core.find(
+            find_all=True,
+            idVendor=AIC_33C3_0E02.vendor_id,
+            idProduct=AIC_33C3_0E02.product_id,
+        )
+        matches = tuple(found or ())
+        if not matches:
             raise DisplayNotFoundError("Kein kompatibles USB-Display gefunden.")
+        if len(matches) > 1:
+            raise DisplayAmbiguousError(
+                "Mehrere kompatible USB-Displays wurden gefunden. "
+                "OwnDash kann noch nicht sicher auswählen, welches Display verwendet werden soll."
+            )
+        dev = matches[0]
 
         try:
             try:

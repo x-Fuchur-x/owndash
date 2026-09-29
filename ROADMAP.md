@@ -50,6 +50,9 @@ The current 0.15 slices implement:
 
 - Always-available **Display & Device** Device Center, including when no display is connected
 - Passive ArtInChip / VSDISPLAY presence, USB-access, device-node and OwnDash-udev diagnostics
+- A central registry of verified direct-USB device profiles, with exact VID/PID matching instead of duplicated or vendor-wide assumptions
+- Deterministic multi-device diagnostics that report compatible match counts and ambiguity explicitly
+- Direct-USB safety that refuses to choose an arbitrary compatible display when multiple exact matches are connected
 - Current and session-only last-known device state, connection times and categorized display errors
 - Explicit capability states that distinguish **available**, **unsupported**, and **not yet verified**
 - Sanitized, copyable diagnostic reports intended for GitHub issues and support
@@ -63,7 +66,7 @@ The current 0.15 slices implement:
 
 Remaining 0.15 work:
 
-- Further device-detection improvements based on real beta hardware feedback
+- Add further direct-USB device profiles only after exact hardware/transport verification and beta evidence
 - Hardware brightness control only where the selected backend and real hardware expose a verified mechanism
 - Expansion Screen Mode only after the connected device and transport have been verified safely
 - Persistent startup-image support only after a separate real-hardware verification phase

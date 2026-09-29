@@ -16,6 +16,10 @@ class DisplayBusyError(DisplayError):
     """Raised when another service currently owns the display."""
 
 
+class DisplayAmbiguousError(DisplayError):
+    """Raised when multiple compatible devices exist but no safe selector is available."""
+
+
 class DisplayProtocolError(DisplayError):
     """Raised for authentication or USB protocol failures."""
 

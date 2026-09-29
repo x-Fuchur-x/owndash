@@ -148,12 +148,18 @@ class DeviceCenterWidget(QWidget):
         self.usb_section = QGroupBox(self._t("USB-Zugriff"), self)
         self.usb_section.setObjectName("deviceCenterUsbSection")
         self.usb_form = QFormLayout(self.usb_section)
+        self.usb_profile_label = self._value_label("deviceCenterUsbProfile")
         self.vid_pid_label = self._value_label("deviceCenterUsbId")
+        self.usb_match_count_label = self._value_label("deviceCenterUsbMatchCount")
+        self.usb_ambiguous_label = self._value_label("deviceCenterUsbAmbiguous")
         self.detected_label = self._value_label("deviceCenterUsbDetected")
         self.access_label = self._value_label("deviceCenterUsbAccess")
         self.device_node_label = self._value_label("deviceCenterDeviceNode")
         self.udev_label = self._value_label("deviceCenterUdevState")
+        self.usb_form.addRow(self._t("USB-Profil"), self.usb_profile_label)
         self.usb_form.addRow("VID:PID", self.vid_pid_label)
+        self.usb_form.addRow(self._t("Kompatible Geräte"), self.usb_match_count_label)
+        self.usb_form.addRow(self._t("Mehrdeutig"), self.usb_ambiguous_label)
         self.usb_form.addRow(self._t("Erkannt"), self.detected_label)
         self.usb_form.addRow(self._t("Zugriff"), self.access_label)
         self.usb_form.addRow(self._t("Device-Node"), self.device_node_label)
@@ -247,7 +253,12 @@ class DeviceCenterWidget(QWidget):
             f"{snapshot.rotation}°" if snapshot.rotation is not None else "—"
         )
 
+        self.usb_profile_label.setText(snapshot.usb_profile_name or "—")
         self.vid_pid_label.setText(snapshot.usb_vid_pid or "—")
+        self.usb_match_count_label.setText(
+            str(snapshot.usb_match_count) if snapshot.usb_match_count is not None else "—"
+        )
+        self.usb_ambiguous_label.setText(_yes_no_unknown(snapshot.usb_ambiguous, self._t))
         self.detected_label.setText(_yes_no_unknown(snapshot.device_detected, self._t))
         self.access_label.setText(_yes_no_unknown(snapshot.accessible, self._t))
         self.device_node_label.setText(snapshot.device_node or "—")
