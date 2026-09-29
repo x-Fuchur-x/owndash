@@ -6,19 +6,47 @@ OwnDash can replace the normal dashboard with a lightweight status view when the
 
 The lifecycle behavior is functionally implemented for idle, lock, suspend/standby, shutdown and restart. State detection, priority handling, timer pausing/restoration and bounded direct-USB resume recovery are covered by automated tests and have been exercised on the project's Bazzite/KDE + VSDISPLAY development setup.
 
-The visual renderer uses one approved family of lossless state PNGs plus runtime overlays for localized state wording, clock/date and the current OwnDash version. The disconnected/closed OwnDash screen delegates to the same renderer family instead of maintaining a separate visual implementation.
+The visual renderer uses one approved family of lossless state PNG source sheets plus runtime-owned localized state wording, clock/date and the current OwnDash version. The disconnected/closed OwnDash screen delegates to the same renderer family instead of maintaining a separate visual implementation.
 
-The primary visual reference is the project's 480×1920 portrait VSDISPLAY. That portrait artwork is never stretched. If a different aspect ratio is requested, OwnDash scales the complete 1:4 artwork proportionally, centers it on a matching dark canvas and maps all runtime overlays into the same contained geometry.
+The project's physically accepted 480×1920 VSDISPLAY remains the protected visual reference. That exact target keeps its approved composition. Other dimensions are composed responsively from target-relative zones instead of containing a narrow 1:4 screen inside unused space.
 
 ## Renderer architecture rule
 
 System-state output has exactly **one production renderer path**. Visual work must refine that path rather than adding another renderer generation alongside it.
 
-Allowed variation belongs behind explicit state or orientation handling within the current renderer. The project must not reintroduce versioned renderer implementations, hidden package-level monkeypatches, duplicate fallback renderers or separate experimental production paths.
+Allowed variation belongs behind explicit state or responsive-layout handling within the current renderer. The project must not reintroduce versioned renderer implementations, hidden package-level monkeypatches, duplicate fallback renderers or separate experimental production paths.
 
 The former embedded status-master loader, master asset and obsolete data chunks have been removed. There is deliberately no fallback to the retired artwork: a renderer regression should fail visibly in tests rather than silently showing an obsolete design.
 
 Visual experiments are fine during development, but before integration they must either be folded into the single current renderer or removed. Regression tests describe current intended geometry and behavior rather than preserving obsolete design generations.
+
+## Responsive layout model
+
+The renderer classifies the requested logical output size from its aspect ratio. It does not maintain a list of known display resolutions.
+
+- `ultra_portrait`: aspect ratio below 0.38
+- `portrait`: 0.38 up to, but not including, 0.78
+- `near_square`: 0.78 through 1.25
+- `landscape`: above 1.25
+
+Each class provides target-relative safe zones for the HUD artwork, state title, detail text, optional clock/date, accent and version footer. The resulting image always has the exact dimensions requested by the caller.
+
+The protected 480×1920 reference stays vertically stacked. Ordinary portrait layouts use their additional width, near-square layouts balance artwork and information, and landscape layouts use a horizontal composition with the HUD on the left and information on the right. Extremely wide or tall valid sizes still go through the same threshold model and safe-zone constraints rather than receiving device-specific exceptions.
+
+## Runtime-owned content
+
+Mutable content is owned by OwnDash at runtime:
+
+- localized state title and optional detail text
+- clock and date
+- `OwnDash {__version__}` footer
+- animation phase for the states that support it
+
+Changing from Beta 4 to Beta 5, an RC, a stable release or a later version therefore requires no system-state artwork edit. The footer always reads the central OwnDash version at render time.
+
+The approved 480×1920 source sheets predate the strict runtime-only wording rule and contain generated state copy in their full composition. OwnDash never treats that wording as authoritative: the protected reference path masks and redraws it, while responsive layouts use the text-free HUD/symbol region and draw all visible copy themselves. New reusable artwork must not add mutable text, dates, clock values or release numbers.
+
+Detail copy may use at most two lines in responsive layouts. Titles remain single-line when their zone allows it, with font fitting applied inside the assigned safe area. Clock and date are optional modules; when both are absent, no empty clock panel is painted.
 
 ## Visual design language
 
@@ -31,7 +59,7 @@ All states use the same structural HUD language while keeping their own approved
 - restart: violet / magenta
 - disconnected / OwnDash closed: cyan / magenta
 
-The source artwork intentionally leaves clock/date/version areas free. State title/detail text is redrawn at runtime so German and English UI language remain authoritative rather than being locked to wording baked into the source image.
+German and English UI strings remain authoritative and are rendered at runtime rather than being selected from pre-rendered language-specific screens.
 
 ## States and priority
 
@@ -120,6 +148,8 @@ Settings are stored in the normal OwnDash preferences file. Existing Beta 4 pref
 
 ## Compatibility and testing
 
-Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, exact output dimensions, aspect-preserving non-portrait rendering, localized runtime state copy, state-specific visuals, removal of retired master artifacts, persistent HUD animation, static terminal frames, shared disconnected-screen rendering, preference migration, exact D-Bus signal signatures, initial and live `LockedHint` detection, timer pause/restore behavior, localized lifecycle status messages and direct-USB resume recovery.
+Automated tests cover state priority, duplicate-event suppression, lock/suspend/resume ordering, exact output dimensions, responsive aspect-ratio classification, safe-zone containment, localized runtime copy, bounded detail wrapping, state-specific visuals, dynamic version/footer rendering, removal of retired master artifacts, persistent HUD animation, static terminal frames, shared disconnected-screen rendering, preference migration, exact D-Bus signal signatures, initial and live `LockedHint` detection, timer pause/restore behavior, localized lifecycle status messages and direct-USB resume recovery.
 
-Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. Release acceptance therefore includes physical Bazzite/KDE + VSDISPLAY checks in addition to automated CI and AppImage checks. The current HUD is the release-candidate design, but final physical pixel-level review remains separate from automated verification.
+CI also renders a 48-image production preview matrix: six states across 480×1920, 720×1280, 800×1280, 1024×1024, 1024×600, 1280×800, 1920×1080 and 2560×1440. These previews are uploaded as one workflow artifact for visual review.
+
+Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. The 480×1920 layout was physically accepted on the project's Bazzite/KDE + VSDISPLAY setup before the responsive refactor and must be rechecked before integration. Other aspect ratios are accepted through structural tests and visual review of the production preview matrix, with community hardware reports remaining valuable follow-up evidence.
