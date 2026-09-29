@@ -7,21 +7,30 @@ def _write(path: Path, value: str) -> None:
     path.write_text(value, encoding="utf-8")
 
 
+def _make_supported_device(root: Path, name: str, *, bus: int | None = None, dev: int | None = None) -> Path:
+    device = root / name
+    device.mkdir()
+    _write(device / "idVendor", "33c3\n")
+    _write(device / "idProduct", "0e02\n")
+    if bus is not None:
+        _write(device / "busnum", f"{bus}\n")
+    if dev is not None:
+        _write(device / "devnum", f"{dev}\n")
+    return device
+
+
 def test_inventory_reports_absent_when_supported_device_is_not_present(tmp_path):
     snapshot = probe_artinchip_usb_inventory(tmp_path)
 
     assert snapshot.status == "absent"
     assert snapshot.sysfs_name is None
     assert snapshot.interfaces == ()
+    assert snapshot.match_count == 0
+    assert snapshot.ambiguous is False
 
 
 def test_inventory_collects_interfaces_and_endpoints_without_opening_usb(tmp_path):
-    device = tmp_path / "1-2"
-    device.mkdir()
-    _write(device / "idVendor", "33c3\n")
-    _write(device / "idProduct", "0e02\n")
-    _write(device / "busnum", "1\n")
-    _write(device / "devnum", "6\n")
+    device = _make_supported_device(tmp_path, "1-2", bus=1, dev=6)
     _write(device / "bDeviceClass", "00\n")
 
     interface = tmp_path / "1-2:1.0"
@@ -47,6 +56,11 @@ def test_inventory_collects_interfaces_and_endpoints_without_opening_usb(tmp_pat
     snapshot = probe_artinchip_usb_inventory(tmp_path)
 
     assert snapshot.status == "present"
+    assert snapshot.profile_key == "artinchip-33c3-0e02"
+    assert snapshot.profile_name == "ArtInChip / VSDISPLAY 33C3:0E02"
+    assert snapshot.vid_pid == "33C3:0E02"
+    assert snapshot.match_count == 1
+    assert snapshot.ambiguous is False
     assert snapshot.sysfs_name == "1-2"
     assert snapshot.busnum == 1
     assert snapshot.devnum == 6
@@ -72,10 +86,7 @@ def test_inventory_collects_interfaces_and_endpoints_without_opening_usb(tmp_pat
 
 
 def test_endpoint_semantics_decode_interrupt_and_isochronous_types(tmp_path):
-    device = tmp_path / "3-1"
-    device.mkdir()
-    _write(device / "idVendor", "33c3\n")
-    _write(device / "idProduct", "0e02\n")
+    _make_supported_device(tmp_path, "3-1")
 
     interface = tmp_path / "3-1:1.0"
     interface.mkdir()
@@ -93,10 +104,7 @@ def test_endpoint_semantics_decode_interrupt_and_isochronous_types(tmp_path):
 
 
 def test_invalid_endpoint_descriptor_values_degrade_to_unknown(tmp_path):
-    device = tmp_path / "4-1"
-    device.mkdir()
-    _write(device / "idVendor", "33c3\n")
-    _write(device / "idProduct", "0e02\n")
+    _make_supported_device(tmp_path, "4-1")
 
     interface = tmp_path / "4-1:1.0"
     interface.mkdir()
@@ -118,18 +126,41 @@ def test_inventory_prefers_exact_33c3_0e02_match(tmp_path):
     _write(other / "idVendor", "33c3\n")
     _write(other / "idProduct", "0e01\n")
 
-    supported = tmp_path / "2-3"
-    supported.mkdir()
-    _write(supported / "idVendor", "33c3\n")
-    _write(supported / "idProduct", "0e02\n")
-    _write(supported / "busnum", "2\n")
-    _write(supported / "devnum", "9\n")
+    _make_supported_device(tmp_path, "2-3", bus=2, dev=9)
 
     snapshot = probe_artinchip_usb_inventory(tmp_path)
 
     assert snapshot.status == "present"
     assert snapshot.sysfs_name == "2-3"
     assert snapshot.device_node == "/dev/bus/usb/002/009"
+    assert snapshot.match_count == 1
+
+
+def test_inventory_reports_multiple_exact_matches_and_selects_representative_deterministically(tmp_path):
+    _make_supported_device(tmp_path, "9-9", bus=9, dev=9)
+    _make_supported_device(tmp_path, "2-1", bus=2, dev=4)
+
+    snapshot = probe_artinchip_usb_inventory(tmp_path)
+
+    assert snapshot.status == "present"
+    assert snapshot.match_count == 2
+    assert snapshot.ambiguous is True
+    assert snapshot.sysfs_name == "2-1"
+    assert snapshot.device_node == "/dev/bus/usb/002/004"
+
+
+def test_inventory_does_not_count_unverified_same_vendor_products(tmp_path):
+    _make_supported_device(tmp_path, "2-1", bus=2, dev=4)
+    other = tmp_path / "1-1"
+    other.mkdir()
+    _write(other / "idVendor", "33c3\n")
+    _write(other / "idProduct", "0e01\n")
+
+    snapshot = probe_artinchip_usb_inventory(tmp_path)
+
+    assert snapshot.match_count == 1
+    assert snapshot.ambiguous is False
+    assert snapshot.sysfs_name == "2-1"
 
 
 def test_inventory_degrades_sysfs_inspection_errors_to_unknown():
@@ -144,3 +175,5 @@ def test_inventory_degrades_sysfs_inspection_errors_to_unknown():
 
     assert snapshot.status == "unknown"
     assert snapshot.interfaces == ()
+    assert snapshot.match_count == 0
+    assert snapshot.ambiguous is False
