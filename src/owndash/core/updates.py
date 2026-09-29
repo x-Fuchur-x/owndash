@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 import json
 import re
 from typing import Callable
@@ -25,6 +26,18 @@ class ReleaseInfo:
     tag: str
     url: str
     prerelease: bool
+
+
+class UpdateCheckStatus(StrEnum):
+    UPDATE_AVAILABLE = "update_available"
+    UP_TO_DATE = "up_to_date"
+    ERROR = "error"
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateCheckResult:
+    status: UpdateCheckStatus
+    release: ReleaseInfo | None = None
 
 
 def normalize_version(value: str) -> VersionTuple | None:
@@ -105,18 +118,8 @@ def select_newer_release(current_version: str, releases: list[object]) -> Releas
     return max(candidates, key=lambda item: item[0])[1]
 
 
-def fetch_available_update(
-    current_version: str,
-    *,
-    opener: Callable[..., object] = urlopen,
-    timeout: float = 4.0,
-) -> ReleaseInfo | None:
-    """Fetch official GitHub release metadata and select an available update.
-
-    Expected transport and response failures are deliberately silent because
-    update checks must never interrupt OwnDash startup or display output.
-    """
-    request = Request(
+def _release_request(current_version: str) -> Request:
+    return Request(
         GITHUB_RELEASES_API_URL,
         headers={
             "Accept": "application/vnd.github+json",
@@ -124,12 +127,56 @@ def fetch_available_update(
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
+
+
+def check_for_updates(
+    current_version: str,
+    *,
+    opener: Callable[..., object] = urlopen,
+    timeout: float = 4.0,
+) -> UpdateCheckResult:
+    """Check official release metadata and preserve the outcome category.
+
+    This richer result is used by user-initiated checks so OwnDash can explain
+    the difference between an up-to-date installation and a temporary network
+    or GitHub failure. The automatic background path remains free to ignore
+    ``ERROR`` results and stay silent.
+    """
+    request = _release_request(current_version)
     try:
         with opener(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError):
-        return None
+    except (
+        HTTPError,
+        URLError,
+        TimeoutError,
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+    ):
+        return UpdateCheckResult(UpdateCheckStatus.ERROR)
 
     if not isinstance(payload, list):
-        return None
-    return select_newer_release(current_version, payload)
+        return UpdateCheckResult(UpdateCheckStatus.ERROR)
+
+    release = select_newer_release(current_version, payload)
+    if release is None:
+        return UpdateCheckResult(UpdateCheckStatus.UP_TO_DATE)
+    return UpdateCheckResult(UpdateCheckStatus.UPDATE_AVAILABLE, release)
+
+
+def fetch_available_update(
+    current_version: str,
+    *,
+    opener: Callable[..., object] = urlopen,
+    timeout: float = 4.0,
+) -> ReleaseInfo | None:
+    """Compatibility wrapper for the original silent background-check API."""
+    result = check_for_updates(
+        current_version,
+        opener=opener,
+        timeout=timeout,
+    )
+    return result.release if result.status is UpdateCheckStatus.UPDATE_AVAILABLE else None

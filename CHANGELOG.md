@@ -27,6 +27,9 @@
 - CI now renders a 48-image system-state preview matrix across eight representative display sizes and all six visual states for community-oriented regression review.
 - Removed the no-op system-state theme selector while preserving existing saved theme preference values for configuration compatibility.
 - AppImage CI now also builds `feat/**` branches so feature work can be validated with the same Debian 12 / GLIBC baseline before integration.
+- Added a manual **Check for updates / Auf Updates prüfen** action in the Help menu that works even when automatic update checks are disabled.
+- Manual update checks now distinguish **up to date**, **update available**, and temporary network/GitHub failure states, while automatic background failures remain silent.
+- Update checks share one in-flight guard to avoid duplicate concurrent requests; OwnDash still never downloads, installs, or replaces the AppImage automatically.
 
 ## 0.14.0 Beta 4
 

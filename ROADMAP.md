@@ -63,6 +63,7 @@ The current 0.15 slices implement:
 - A dedicated Display-menu management group for **Device Information** and **Software dimming**
 - A shared read-only key/value layout standard so Device Center and system/sensor information dialogs align labels and current values in consistent vertical columns
 - AppImage CI coverage for `feat/**` branches so feature builds can be tested against the Debian 12 / GLIBC compatibility baseline before integration
+- Update-notification polish with a manual **Check for updates** action, explicit up-to-date/error feedback for user-initiated checks, silent background failures, and no automatic download or installation
 
 Remaining 0.15 work:
 
@@ -70,7 +71,6 @@ Remaining 0.15 work:
 - Hardware brightness control only where the selected backend and real hardware expose a verified mechanism
 - Expansion Screen Mode only after the connected device and transport have been verified safely
 - Persistent startup-image support only after a separate real-hardware verification phase
-- Update-notification polish based on beta feedback, while keeping downloads and installation user-controlled
 
 The current `33C3:0E02` ArtInChip path deliberately keeps hardware brightness, Expansion Screen Mode and startup-media writes disabled until real-device evidence proves a safe transport. Software dimming is intentionally separate: it modifies only OwnDash's rendered image and sends no new hardware-control command. The Device Center reports hardware capability states explicitly instead of implying support that has not been proven. Display-management behavior is documented in [`docs/device-center.md`](docs/device-center.md).
 

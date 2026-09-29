@@ -26,7 +26,12 @@ from owndash.assets import app_icon_path
 from owndash.appearance import apply_appearance
 from owndash.core.preferences import save_preferences
 from owndash.core.system_state import SystemState
-from owndash.core.updates import ReleaseInfo, fetch_available_update
+from owndash.core.updates import (
+    ReleaseInfo,
+    UpdateCheckResult,
+    UpdateCheckStatus,
+    check_for_updates,
+)
 from owndash.hardware.usb_setup import (
     install_udev_rule,
     legacy_udev_rule_installed,
@@ -62,11 +67,36 @@ class SafeShutdownWindow(MainWindow):
         self.display_controls_action = QAction(self._t("Display-Steuerung …"), self)
         self.display_controls_action.setEnabled(False)
         self.display_controls_action.triggered.connect(self._open_display_controls)
+        self.update_action = QAction("Auf Updates prüfen …", self)
+        self.update_action.triggered.connect(self._check_for_updates_manually)
+
         for action in self.menuBar().actions():
             menu = action.menu()
-            if menu is not None and action.text().replace("&", "") == "Display":
+            if menu is None:
+                continue
+            menu_name = action.text().replace("&", "")
+            if menu_name == "Display":
                 menu.insertAction(self.keep_running_action, self.display_controls_action)
-                break
+            elif menu_name == "Hilfe":
+                before = next(
+                    (
+                        item
+                        for item in menu.actions()
+                        if item.text().replace("&", "") == "Über OwnDash …"
+                    ),
+                    None,
+                )
+                if before is None:
+                    menu.addAction(self.update_action)
+                else:
+                    menu.insertAction(before, self.update_action)
+
+    def _retranslate_ui(self) -> None:
+        super()._retranslate_ui()
+        if hasattr(self, "update_action"):
+            self.update_action.setText(
+                "Auf Updates prüfen …" if self.language == "de" else "Check for updates …"
+            )
 
     def __init__(self):
         super().__init__()
@@ -118,7 +148,9 @@ class SafeShutdownWindow(MainWindow):
 
         self._update_bridge = UpdateBridge(self)
         self._update_bridge.completed.connect(self._handle_update_result)
-        self._update_check_started = False
+        self._update_check_in_progress = False
+        self._update_check_manual = False
+        self._automatic_update_check_completed = False
         self._update_dialog: QMessageBox | None = None
         self._schedule_update_check()
 
@@ -344,24 +376,84 @@ class SafeShutdownWindow(MainWindow):
         dialog.exec()
 
     def _schedule_update_check(self) -> None:
-        if not self.preferences.check_updates:
+        if not self.preferences.check_updates or self._automatic_update_check_completed:
             return
         QTimer.singleShot(1500, self._start_update_check)
 
-    def _start_update_check(self) -> None:
-        if not self.preferences.check_updates or self._update_check_started:
+    def _check_for_updates_manually(self) -> None:
+        self._start_update_check(manual=True)
+
+    def _start_update_check(self, manual: bool = False) -> None:
+        if self._update_check_in_progress:
+            if manual:
+                self.statusBar().showMessage(
+                    "Update-Prüfung läuft bereits …"
+                    if self.language == "de"
+                    else "Update check already in progress …",
+                    3000,
+                )
             return
-        self._update_check_started = True
+        if not manual and (
+            not self.preferences.check_updates or self._automatic_update_check_completed
+        ):
+            return
+
+        self._update_check_in_progress = True
+        self._update_check_manual = bool(manual)
+        if not manual:
+            self._automatic_update_check_completed = True
+        else:
+            self.statusBar().showMessage(
+                "Suche nach OwnDash-Updates …"
+                if self.language == "de"
+                else "Checking for OwnDash updates …"
+            )
 
         def check() -> None:
-            release = fetch_available_update(__version__)
-            self._update_bridge.completed.emit(release)
+            result = check_for_updates(__version__)
+            self._update_bridge.completed.emit(result)
 
         Thread(target=check, name="OwnDash-UpdateCheck", daemon=True).start()
 
-    def _handle_update_result(self, release: object) -> None:
-        if isinstance(release, ReleaseInfo):
-            self._show_update_available(release)
+    def _handle_update_result(self, result: object) -> None:
+        manual = self._update_check_manual
+        self._update_check_in_progress = False
+        self._update_check_manual = False
+
+        if not isinstance(result, UpdateCheckResult):
+            return
+        if (
+            result.status is UpdateCheckStatus.UPDATE_AVAILABLE
+            and isinstance(result.release, ReleaseInfo)
+        ):
+            self._show_update_available(result.release)
+            return
+        if manual:
+            self._show_update_check_feedback(result.status)
+
+    def _show_update_check_feedback(self, status: UpdateCheckStatus) -> None:
+        german = self.language == "de"
+        if status is UpdateCheckStatus.UP_TO_DATE:
+            QMessageBox.information(
+                self,
+                "OwnDash-Update" if german else "OwnDash update",
+                (
+                    f"Du verwendest bereits die aktuelle OwnDash-Version ({__version__})."
+                    if german
+                    else f"You are already using the current OwnDash version ({__version__})."
+                ),
+            )
+            return
+        if status is UpdateCheckStatus.ERROR:
+            QMessageBox.warning(
+                self,
+                "Update-Prüfung nicht möglich" if german else "Unable to check for updates",
+                (
+                    "OwnDash konnte GitHub gerade nicht erreichen. Deine aktuelle Installation wurde nicht verändert."
+                    if german
+                    else "OwnDash could not reach GitHub right now. Your current installation was not changed."
+                ),
+            )
 
     def _show_update_available(self, release: ReleaseInfo) -> None:
         if self._update_dialog is not None:
