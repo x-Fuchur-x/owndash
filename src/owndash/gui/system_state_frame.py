@@ -12,7 +12,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QIcon, QImage, QLinearGr
 
 from owndash import __version__
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_layout import SystemStateLayout, layout_for_size
+from owndash.gui.system_state_layout import SystemStateLayout, layout_for_content
 
 _REFERENCE_W = 480
 _REFERENCE_H = 1920
@@ -717,11 +717,17 @@ def _responsive_render(
     date_text: str | None,
     animation_phase: float,
 ) -> QImage:
-    layout = layout_for_size(width, height)
+    has_clock = bool(str(clock_text or "").strip() or str(date_text or "").strip())
+    has_detail = bool(str(detail or "").strip())
+    layout = layout_for_content(
+        width,
+        height,
+        has_clock=has_clock,
+        has_detail=has_detail,
+    )
     image = QImage(width, height, QImage.Format_RGB32)
     image.fill(_CANVAS_BACKGROUND)
     accents = _state_accents(state)
-    has_clock = bool(str(clock_text or "").strip() or str(date_text or "").strip())
 
     _paint_responsive_chrome(image, layout, accents, has_clock=has_clock)
     _paint_responsive_art(image, layout, filename)
