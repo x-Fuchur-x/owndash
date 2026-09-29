@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-USB_VENDOR_ID = "33c3"
-USB_PRODUCT_ID = "0e02"
+from .usb_device_profiles import AIC_33C3_0E02
+
 SYS_USB_DEVICES = Path("/sys/bus/usb/devices")
 
 
@@ -39,6 +39,11 @@ class ArtInChipUsbInventory:
     device_node: str | None = None
     device_class: str | None = None
     interfaces: tuple[UsbInterfaceInventory, ...] = ()
+    profile_key: str | None = None
+    profile_name: str | None = None
+    vid_pid: str | None = None
+    match_count: int = 0
+    ambiguous: bool = False
 
 
 def _read_text(path: Path) -> str | None:
@@ -150,43 +155,61 @@ def _interface_inventory(root: Any, device_name: str) -> tuple[UsbInterfaceInven
     return tuple(interfaces)
 
 
+def _base_inventory(status: str) -> ArtInChipUsbInventory:
+    profile = AIC_33C3_0E02
+    return ArtInChipUsbInventory(
+        status=status,
+        profile_key=profile.key,
+        profile_name=profile.name,
+        vid_pid=profile.vid_pid,
+    )
+
+
 def probe_artinchip_usb_inventory(sys_usb: Any = SYS_USB_DEVICES) -> ArtInChipUsbInventory:
-    """Inspect the supported ArtInChip device through sysfs only.
+    """Inspect the verified ArtInChip profile through sysfs only.
 
     This probe deliberately does not import PyUSB, open the USB device, claim an
     interface, authenticate, send control transfers, or write endpoint data. It
-    is intended to gather hardware evidence before optional device controls are
-    ever enabled.
+    reports ambiguity explicitly when multiple exact verified matches are present.
     """
+    profile = AIC_33C3_0E02
     try:
         if not sys_usb.is_dir():
-            return ArtInChipUsbInventory(status="absent")
+            return _base_inventory("absent")
         entries = sorted(sys_usb.iterdir(), key=lambda path: path.name)
     except OSError:
-        return ArtInChipUsbInventory(status="unknown")
+        return _base_inventory("unknown")
 
+    matches = []
     for device in entries:
         if ":" in device.name:
             continue
         vendor = _read_text(device / "idVendor")
         product = _read_text(device / "idProduct")
-        if vendor != USB_VENDOR_ID or product != USB_PRODUCT_ID:
-            continue
+        if vendor == profile.sysfs_vendor_id and product == profile.sysfs_product_id:
+            matches.append(device)
 
-        busnum = _read_int(device / "busnum")
-        devnum = _read_int(device / "devnum")
-        device_node = None
-        if busnum is not None and devnum is not None:
-            device_node = f"/dev/bus/usb/{busnum:03d}/{devnum:03d}"
+    if not matches:
+        return _base_inventory("absent")
 
-        return ArtInChipUsbInventory(
-            status="present",
-            sysfs_name=device.name,
-            busnum=busnum,
-            devnum=devnum,
-            device_node=device_node,
-            device_class=_read_text(device / "bDeviceClass"),
-            interfaces=_interface_inventory(sys_usb, device.name),
-        )
+    device = matches[0]
+    busnum = _read_int(device / "busnum")
+    devnum = _read_int(device / "devnum")
+    device_node = None
+    if busnum is not None and devnum is not None:
+        device_node = f"/dev/bus/usb/{busnum:03d}/{devnum:03d}"
 
-    return ArtInChipUsbInventory(status="absent")
+    return ArtInChipUsbInventory(
+        status="present",
+        sysfs_name=device.name,
+        busnum=busnum,
+        devnum=devnum,
+        device_node=device_node,
+        device_class=_read_text(device / "bDeviceClass"),
+        interfaces=_interface_inventory(sys_usb, device.name),
+        profile_key=profile.key,
+        profile_name=profile.name,
+        vid_pid=profile.vid_pid,
+        match_count=len(matches),
+        ambiguous=len(matches) > 1,
+    )
