@@ -26,11 +26,13 @@ The current priority is making the public beta increasingly predictable across r
 - Beta bug fixes and regression prevention
 - Event-driven system-state screens for idle, lock, suspend, shutdown and restart are functionally implemented
 - The system-state visuals use the **single production renderer path** with one approved lossless HUD asset family, state-specific symbols, localized runtime wording and a matching disconnected/closed screen
-- The 480×1920 portrait artwork is never stretched; other aspect ratios contain and center it proportionally on a matching dark canvas
+- System-state output now uses responsive aspect-ratio classes for ultra-portrait, portrait, near-square and landscape targets rather than centering a fixed 1:4 composition on every display
+- The physically accepted 480×1920 Bazzite/KDE + VSDISPLAY composition remains the protected visual reference; its post-refactor hardware recheck remains required before integration is considered release-final
+- Mutable state copy, language, clock/date and the OwnDash version footer are runtime-owned, so future release labels do not require artwork edits
+- CI renders a 48-image production preview matrix across eight representative display sizes and all six visual states for regression review
 - The retired embedded portrait-master artwork and its loader/data chunks have been removed; there is no hidden visual fallback to the old design
 - The obsolete no-op system-state theme selector has been removed while existing saved preference values remain compatible
 - Persistent idle/lock screens use a dedicated low-rate HUD ring animation while normal sensor refresh, dashboard rendering and page cycling remain paused; suspend/shutdown/restart frames stay static for lifecycle safety
-- Physical 480×1920 Bazzite/KDE + VSDISPLAY visual acceptance and pixel-level spacing polish remain before the new system-state design is considered release-final
 - Direct-USB suspend/resume recovery already uses a bounded reconnect sequence instead of background polling
 - Continued real-device validation, especially output switching and shutdown/end-state behavior
 - Linux distribution, desktop, sensor, and display compatibility improvements
@@ -111,6 +113,7 @@ Performance and maintainability continue alongside feature development.
 - Improve USB streaming efficiency where measurements show a real benefit
 - Keep display backends isolated behind clear interfaces
 - Keep exactly one production system-state renderer path; state and orientation differences belong inside that renderer, not in separate implementations or versioned renderer branches
+- Keep system-state geometry driven by aspect-ratio layout profiles and runtime data rather than per-resolution or per-device special cases
 - Split oversized GUI responsibilities when related feature work benefits from smaller, testable components
 
 OwnDash will favor targeted refactoring over a rewrite. Existing working behavior should remain protected by automated tests.
