@@ -5,7 +5,12 @@ from PySide6.QtCore import QRectF
 from PySide6.QtGui import QImage
 
 from owndash.gui.system_state_frame import _fit_detail_text
-from owndash.gui.system_state_layout import LayoutClass, classify_layout, layout_for_size
+from owndash.gui.system_state_layout import (
+    LayoutClass,
+    classify_layout,
+    layout_for_content,
+    layout_for_size,
+)
 
 
 @pytest.mark.parametrize(
@@ -102,6 +107,37 @@ def test_ultra_portrait_preserves_reference_ordering():
     layout = layout_for_size(480, 1920)
     assert layout.layout_class is LayoutClass.ULTRA_PORTRAIT
     assert layout.art.top() < layout.title.top() < layout.clock.top() < layout.footer.top()
+
+
+def test_content_layout_keeps_full_layout_when_clock_is_present():
+    base = layout_for_size(1920, 1080)
+    content = layout_for_content(1920, 1080, has_clock=True, has_detail=True)
+
+    assert content.title == base.title
+    assert content.detail == base.detail
+    assert content.accent == base.accent
+
+
+def test_landscape_terminal_title_reclaims_missing_clock_and_detail_space():
+    layout = layout_for_content(1920, 1080, has_clock=False, has_detail=False)
+
+    assert layout.layout_class is LayoutClass.LANDSCAPE
+    assert abs(layout.title.center().y() - layout.art.center().y()) < 108
+    assert layout.accent.top() > layout.title.bottom()
+    assert layout.safe.contains(layout.title)
+    assert layout.safe.contains(layout.accent)
+
+
+def test_portrait_detail_only_state_uses_lower_information_block():
+    base = layout_for_size(800, 1280)
+    layout = layout_for_content(800, 1280, has_clock=False, has_detail=True)
+
+    assert layout.title.top() > base.title.top()
+    assert layout.detail.top() > base.detail.top()
+    assert layout.accent.top() > layout.detail.bottom()
+    assert layout.safe.contains(layout.title)
+    assert layout.safe.contains(layout.detail)
+    assert layout.safe.contains(layout.accent)
 
 
 def test_detail_text_wraps_to_at_most_two_lines_without_dropping_words():
