@@ -117,3 +117,77 @@ def layout_for_size(width: int, height: int) -> SystemStateLayout:
         _relative(width, height, 0.54, 0.49, 0.39, 0.01),
         _relative(width, height, 0.53, 0.90, 0.41, 0.04),
     )
+
+
+def layout_for_content(
+    width: int,
+    height: int,
+    *,
+    has_clock: bool,
+    has_detail: bool,
+) -> SystemStateLayout:
+    """Reflow optional runtime modules without changing the display class.
+
+    The full layout is authoritative whenever clock/date content is present.
+    For terminal states that intentionally omit clock/date, the information
+    group moves into the otherwise-unused space so a landscape or portrait
+    display does not retain a large empty panel merely because those modules
+    are optional.
+    """
+    width, height = _validate_size(width, height)
+    base = layout_for_size(width, height)
+    if has_clock:
+        return base
+
+    if base.layout_class is LayoutClass.LANDSCAPE:
+        if has_detail:
+            title = _relative(width, height, 0.53, 0.30, 0.41, 0.12)
+            detail = _relative(width, height, 0.53, 0.43, 0.41, 0.12)
+            accent = _relative(width, height, 0.54, 0.58, 0.39, 0.01)
+        else:
+            title = _relative(width, height, 0.53, 0.39, 0.41, 0.12)
+            detail = _relative(width, height, 0.53, 0.52, 0.41, 0.02)
+            accent = _relative(width, height, 0.54, 0.56, 0.39, 0.01)
+    elif base.layout_class is LayoutClass.NEAR_SQUARE:
+        if has_detail:
+            title = _relative(width, height, 0.54, 0.30, 0.40, 0.10)
+            detail = _relative(width, height, 0.54, 0.42, 0.40, 0.14)
+            accent = _relative(width, height, 0.54, 0.60, 0.40, 0.01)
+        else:
+            title = _relative(width, height, 0.54, 0.40, 0.40, 0.10)
+            detail = _relative(width, height, 0.54, 0.52, 0.40, 0.02)
+            accent = _relative(width, height, 0.54, 0.56, 0.40, 0.01)
+    elif base.layout_class is LayoutClass.PORTRAIT:
+        if has_detail:
+            title = _relative(width, height, 0.10, 0.52, 0.80, 0.08)
+            detail = _relative(width, height, 0.10, 0.62, 0.80, 0.065)
+            accent = _relative(width, height, 0.15, 0.72, 0.70, 0.008)
+        else:
+            title = _relative(width, height, 0.10, 0.56, 0.80, 0.08)
+            detail = _relative(width, height, 0.10, 0.66, 0.80, 0.02)
+            accent = _relative(width, height, 0.15, 0.70, 0.70, 0.008)
+    else:
+        # Exact 480x1920 is protected by the reference renderer and never
+        # reaches this responsive path. Other ultra-tall targets still reclaim
+        # optional clock space while preserving the same vertical hierarchy.
+        if has_detail:
+            title = _relative(width, height, 55 / 480, 0.44, 370 / 480, 82 / 1920)
+            detail = _relative(width, height, 55 / 480, 0.49, 370 / 480, 48 / 1920)
+            accent = _relative(width, height, 65 / 480, 0.55, 350 / 480, 8 / 1920)
+        else:
+            title = _relative(width, height, 55 / 480, 0.47, 370 / 480, 82 / 1920)
+            detail = _relative(width, height, 55 / 480, 0.525, 370 / 480, 20 / 1920)
+            accent = _relative(width, height, 65 / 480, 0.55, 350 / 480, 8 / 1920)
+
+    return SystemStateLayout(
+        base.layout_class,
+        base.target,
+        base.safe,
+        base.art,
+        title,
+        detail,
+        base.clock,
+        base.date,
+        accent,
+        base.footer,
+    )
