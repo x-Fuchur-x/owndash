@@ -5,6 +5,7 @@ from pathlib import Path
 from PIL import Image
 from PySide6.QtGui import QIcon
 
+import owndash.gui.system_state_frame as system_state_frame_module
 from owndash.core.system_state import SystemState
 from owndash.gui.shutdown_frame import render_shutdown_image
 from owndash.gui.system_state_frame import (
@@ -162,6 +163,35 @@ def test_runtime_clock_and_date_are_drawn_dynamically():
         animation_phase=0.0,
     )
     assert _digest(frame_a) != _digest(frame_b)
+
+
+def test_runtime_footer_tracks_current_owndash_version(monkeypatch):
+    before = render_system_state_image(
+        1024,
+        600,
+        SystemState.LOCKED,
+        "owndash",
+        QIcon(),
+        STRINGS,
+        clock_text="21:33",
+        date_text="28.09.2026",
+        animation_phase=0.0,
+    )
+
+    monkeypatch.setattr(system_state_frame_module, "__version__", "9.9.0 Community Test")
+    after = render_system_state_image(
+        1024,
+        600,
+        SystemState.LOCKED,
+        "owndash",
+        QIcon(),
+        STRINGS,
+        clock_text="21:33",
+        date_text="28.09.2026",
+        animation_phase=0.0,
+    )
+
+    assert _digest(before) != _digest(after)
 
 
 def test_renderer_has_no_baked_demo_clock_date_or_footer_contract():

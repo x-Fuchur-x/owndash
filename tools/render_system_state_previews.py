@@ -12,6 +12,26 @@ from owndash.gui.system_state_frame import (
 )
 
 
+PREVIEW_SIZES = (
+    (480, 1920),
+    (720, 1280),
+    (800, 1280),
+    (1024, 1024),
+    (1024, 600),
+    (1280, 800),
+    (1920, 1080),
+    (2560, 1440),
+)
+
+PREVIEW_STATES = (
+    "locked",
+    "idle",
+    "standby",
+    "shutdown",
+    "restart",
+    "disconnected",
+)
+
 STRINGS = {
     "standby": "Standby",
     "entering_standby": "Standby wird vorbereitet",
@@ -23,67 +43,79 @@ STRINGS = {
     "idle": "Leerlauf",
 }
 
+_STATE_PREVIEWS = {
+    "locked": (
+        SystemState.LOCKED,
+        {"clock_text": "21:33", "date_text": "28.09.2026"},
+    ),
+    "idle": (
+        SystemState.IDLE,
+        {"clock_text": "21:33", "date_text": None},
+    ),
+    "standby": (
+        SystemState.SUSPENDING,
+        {"clock_text": None, "date_text": None},
+    ),
+    "shutdown": (
+        SystemState.SHUTTING_DOWN,
+        {"clock_text": None, "date_text": None},
+    ),
+    "restart": (
+        SystemState.RESTARTING,
+        {"clock_text": None, "date_text": None},
+    ),
+}
+
+
+def _save(image, path: Path) -> None:
+    if not image.save(str(path), "PNG"):
+        raise RuntimeError(f"failed to save preview: {path}")
+
 
 def main() -> int:
     app = QGuiApplication.instance() or QGuiApplication(sys.argv[:1])
     out = Path("preview/system-state")
     out.mkdir(parents=True, exist_ok=True)
+    for stale in out.glob("*.png"):
+        stale.unlink()
+
     icon = QIcon()
 
-    common = {
-        "width": 480,
-        "height": 1920,
-        "theme": "owndash",
-        "icon": icon,
-        "strings": STRINGS,
-        "animation_phase": 0.0,
-    }
+    for width, height in PREVIEW_SIZES:
+        common = {
+            "width": width,
+            "height": height,
+            "theme": "owndash",
+            "icon": icon,
+            "strings": STRINGS,
+            "animation_phase": 0.0,
+        }
 
-    previews = {
-        "locked": (
-            SystemState.LOCKED,
-            {"clock_text": "21:33", "date_text": "28.09.2026"},
-        ),
-        "idle": (
-            SystemState.IDLE,
-            {"clock_text": "21:33", "date_text": None},
-        ),
-        "standby": (
-            SystemState.SUSPENDING,
-            {"clock_text": None, "date_text": None},
-        ),
-        "shutdown": (
-            SystemState.SHUTTING_DOWN,
-            {"clock_text": None, "date_text": None},
-        ),
-        "restart": (
-            SystemState.RESTARTING,
-            {"clock_text": None, "date_text": None},
-        ),
-    }
+        for name, (state, runtime) in _STATE_PREVIEWS.items():
+            image = render_system_state_image(
+                state=state,
+                **common,
+                **runtime,
+            )
+            _save(image, out / f"{name}-{width}x{height}.png")
 
-    for name, (state, runtime) in previews.items():
-        image = render_system_state_image(
-            state=state,
-            **common,
-            **runtime,
+        disconnected = render_disconnected_status_image(
+            width,
+            height,
+            icon,
+            status="GETRENNT",
+            detail="Keine aktive Verbindung zu OwnDash",
+            farewell="",
+            theme="owndash",
+            clock_text="21:33",
+            date_text="28.09.2026",
         )
-        if not image.save(str(out / f"{name}.png"), "PNG"):
-            raise RuntimeError(f"failed to save preview for {name}")
+        _save(disconnected, out / f"disconnected-{width}x{height}.png")
 
-    disconnected = render_disconnected_status_image(
-        480,
-        1920,
-        icon,
-        status="GETRENNT",
-        detail="Keine aktive Verbindung zu OwnDash",
-        farewell="",
-        theme="owndash",
-        clock_text="21:33",
-        date_text="28.09.2026",
-    )
-    if not disconnected.save(str(out / "disconnected.png"), "PNG"):
-        raise RuntimeError("failed to save disconnected preview")
+    expected = len(PREVIEW_SIZES) * len(PREVIEW_STATES)
+    generated = len(tuple(out.glob("*.png")))
+    if generated != expected:
+        raise RuntimeError(f"expected {expected} previews, generated {generated}")
 
     _ = app
     return 0

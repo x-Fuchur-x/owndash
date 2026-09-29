@@ -11,6 +11,7 @@ from owndash.gui.system_state_frame import (
     render_disconnected_status_image,
     render_system_state_image,
 )
+from owndash.gui.system_state_layout import LayoutClass, layout_for_size
 from owndash.gui.system_state_settings import SystemStateSettingsWidget
 
 
@@ -83,21 +84,30 @@ def test_disconnected_copy_mask_covers_baked_detail_edge():
     assert max(edge.red(), edge.green(), edge.blue()) < 100
 
 
-def test_landscape_contains_portrait_artwork_without_stretching():
+def test_landscape_uses_responsive_two_region_composition():
     image = render_system_state_image(
         1920,
-        480,
+        1080,
         SystemState.LOCKED,
         "owndash",
         QIcon(),
         EN_STRINGS,
+        clock_text="21:33",
+        date_text="28.09.2026",
     )
+    layout = layout_for_size(1920, 1080)
     background = QColor("#020711")
 
-    # A 480x1920 source contained in 1920x480 is 120 px wide and centered.
-    assert image.pixelColor(890, 240) == background
-    assert image.pixelColor(1030, 240) == background
-    assert image.pixelColor(960, 240) != background
+    assert layout.layout_class is LayoutClass.LANDSCAPE
+    assert image.width() == 1920
+    assert image.height() == 1080
+    assert image.pixelColor(round(layout.art.center().x()), round(layout.art.center().y())) != background
+    assert image.pixelColor(round(layout.title.center().x()), round(layout.title.center().y())) != background
+
+    # The old contain implementation left both of these outer regions as the
+    # untouched canvas because all artwork lived in a narrow strip at center.
+    assert image.pixelColor(480, 540) != background
+    assert image.pixelColor(1440, 540) != background
 
 
 def test_settings_hide_nonfunctional_theme_selector_and_keep_saved_value():

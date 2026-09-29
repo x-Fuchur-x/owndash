@@ -20,12 +20,12 @@ jobs:
       - run: pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
-      - name: Render real 480x1920 system-state previews
+      - name: Render responsive system-state preview matrix
         if: always()
         run: python tools/render_system_state_previews.py
         env:
           QT_QPA_PLATFORM: offscreen
-      - name: Upload real system-state previews
+      - name: Upload responsive system-state previews
         if: always()
         uses: actions/upload-artifact@v7
         with:
