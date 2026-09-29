@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from owndash.hardware.usb_setup import probe_artinchip_usb
+from owndash.hardware.usb_setup import _probe_artinchip_usb
 
 
 def _write(path: Path, value: str) -> None:
@@ -19,7 +19,7 @@ def _device(root: Path, name: str, *, product: str = "0e02", bus: int = 1, dev: 
 def test_access_probe_reports_single_verified_match(tmp_path):
     _device(tmp_path, "3-2", bus=3, dev=7)
 
-    status = probe_artinchip_usb(tmp_path)
+    status = _probe_artinchip_usb(tmp_path)
 
     assert status.connected is True
     assert status.device_node == "/dev/bus/usb/003/007"
@@ -31,7 +31,7 @@ def test_access_probe_reports_multiple_matches_and_uses_sorted_representative(tm
     _device(tmp_path, "9-1", bus=9, dev=3)
     _device(tmp_path, "2-4", bus=2, dev=8)
 
-    status = probe_artinchip_usb(tmp_path)
+    status = _probe_artinchip_usb(tmp_path)
 
     assert status.connected is True
     assert status.device_node == "/dev/bus/usb/002/008"
@@ -43,7 +43,7 @@ def test_access_probe_does_not_count_unverified_same_vendor_product(tmp_path):
     _device(tmp_path, "1-1", product="0e01", bus=1, dev=2)
     _device(tmp_path, "2-4", product="0e02", bus=2, dev=8)
 
-    status = probe_artinchip_usb(tmp_path)
+    status = _probe_artinchip_usb(tmp_path)
 
     assert status.match_count == 1
     assert status.ambiguous is False
