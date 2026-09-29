@@ -6,6 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from owndash.core.display import (
+    DisplayAmbiguousError,
     DisplayBusyError,
     DisplayCapabilities,
     DisplayInfo,
@@ -16,6 +17,7 @@ from owndash.hardware.aic_usb_inventory import (
     ArtInChipUsbInventory,
     probe_artinchip_usb_inventory,
 )
+from owndash.hardware.usb_device_profiles import AIC_33C3_0E02
 from owndash.hardware.usb_setup import (
     UsbAccessStatus,
     probe_artinchip_usb,
@@ -33,6 +35,7 @@ class DeviceErrorCategory(StrEnum):
     NOT_FOUND = "not_found"
     PERMISSION = "permission"
     BUSY = "busy"
+    AMBIGUOUS = "ambiguous"
     PROTOCOL = "protocol"
     DISCONNECTED = "disconnected"
     UNKNOWN = "unknown"
@@ -67,6 +70,10 @@ class DeviceDiagnosticSnapshot:
     last_error_message: str | None
     last_known_info: DisplayInfo | None
     usb_inventory: ArtInChipUsbInventory | None = None
+    usb_profile_key: str | None = None
+    usb_profile_name: str | None = None
+    usb_match_count: int | None = None
+    usb_ambiguous: bool | None = None
 
 
 _CAPABILITY_FIELDS = (
@@ -140,11 +147,18 @@ class DeviceDiagnosticsService:
         accessible: bool | None = None
         device_node: str | None = None
         usb_vid_pid: str | None = None
+        usb_profile_key: str | None = None
+        usb_profile_name: str | None = None
+        usb_match_count: int | None = None
+        usb_ambiguous: bool | None = None
         usb_inventory: ArtInChipUsbInventory | None = None
         udev_state = "unknown"
 
         if backend_key == "aic_usb":
-            usb_vid_pid = "33C3:0E02"
+            profile = AIC_33C3_0E02
+            usb_vid_pid = profile.vid_pid
+            usb_profile_key = profile.key
+            usb_profile_name = profile.name
             try:
                 usb = self._usb_probe()
             except Exception:
@@ -153,6 +167,9 @@ class DeviceDiagnosticsService:
                 detected = bool(usb.connected)
                 accessible = bool(usb.accessible)
                 device_node = usb.device_node
+                raw_count = max(0, int(getattr(usb, "match_count", 0)))
+                usb_match_count = raw_count if raw_count else (1 if usb.connected else 0)
+                usb_ambiguous = bool(getattr(usb, "ambiguous", False))
             try:
                 candidate = self._udev_probe()
                 if candidate in {"ok", "legacy", "missing", "unknown"}:
@@ -162,7 +179,19 @@ class DeviceDiagnosticsService:
             try:
                 usb_inventory = self._inventory_probe()
             except Exception:
-                usb_inventory = ArtInChipUsbInventory(status="unknown")
+                usb_inventory = ArtInChipUsbInventory(
+                    status="unknown",
+                    profile_key=profile.key,
+                    profile_name=profile.name,
+                    vid_pid=profile.vid_pid,
+                )
+            inventory_count = max(0, int(getattr(usb_inventory, "match_count", 0)))
+            if usb_match_count is None:
+                usb_match_count = inventory_count
+            else:
+                usb_match_count = max(usb_match_count, inventory_count)
+            inventory_ambiguous = bool(getattr(usb_inventory, "ambiguous", False))
+            usb_ambiguous = bool(usb_ambiguous or inventory_ambiguous)
 
         live_info = current_info if connected and current_info is not None else None
         return DeviceDiagnosticSnapshot(
@@ -187,6 +216,10 @@ class DeviceDiagnosticsService:
             last_error_message=self._last_error_message,
             last_known_info=self._last_known_info,
             usb_inventory=usb_inventory,
+            usb_profile_key=usb_profile_key,
+            usb_profile_name=usb_profile_name,
+            usb_match_count=usb_match_count,
+            usb_ambiguous=usb_ambiguous,
         )
 
     def _capability_diagnostics(
@@ -206,6 +239,9 @@ class DeviceDiagnosticsService:
         return tuple(result)
 
     def _classify_error(self, error: object) -> DeviceErrorCategory:
+        if isinstance(error, DisplayAmbiguousError):
+            return DeviceErrorCategory.AMBIGUOUS
+
         try:
             usb = self._usb_probe()
         except Exception:
@@ -298,6 +334,10 @@ def format_diagnostic_report(
                 "",
                 "USB:",
                 f"VID:PID: {snapshot.usb_vid_pid}",
+                f"Profile key: {snapshot.usb_profile_key or '—'}",
+                f"Profile: {snapshot.usb_profile_name or '—'}",
+                f"Matching devices: {snapshot.usb_match_count if snapshot.usb_match_count is not None else 'unknown'}",
+                f"Ambiguous: {_report_bool(snapshot.usb_ambiguous)}",
                 f"Detected: {_report_bool(snapshot.device_detected)}",
                 f"Access: {_report_bool(snapshot.accessible)}",
                 f"Device node: {snapshot.device_node or '—'}",
