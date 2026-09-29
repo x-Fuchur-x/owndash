@@ -60,14 +60,8 @@ def probe_owndash_udev_state() -> str:
     return "missing"
 
 
-def probe_artinchip_usb(sys_usb: Path = SYS_USB_DEVICES) -> UsbAccessStatus:
-    """Detect exact verified ArtInChip matches without requiring PyUSB access.
-
-    A legacy 99-* OwnDash uaccess rule is treated as not ready even when the
-    current device node happens to be accessible. Multiple exact compatible
-    devices are reported explicitly instead of being silently collapsed into a
-    single unambiguous result.
-    """
+def _probe_artinchip_usb(sys_usb: Path) -> UsbAccessStatus:
+    """Detect exact verified ArtInChip matches from a supplied sysfs root."""
     profile = AIC_33C3_0E02
     try:
         if not sys_usb.is_dir():
@@ -109,6 +103,17 @@ def probe_artinchip_usb(sys_usb: Path = SYS_USB_DEVICES) -> UsbAccessStatus:
         match_count=count,
         ambiguous=count > 1,
     )
+
+
+def probe_artinchip_usb() -> UsbAccessStatus:
+    """Detect exact verified ArtInChip matches without requiring PyUSB access.
+
+    A legacy 99-* OwnDash uaccess rule is treated as not ready even when the
+    current device node happens to be accessible. Multiple exact compatible
+    devices are reported explicitly instead of being silently collapsed into a
+    single unambiguous result.
+    """
+    return _probe_artinchip_usb(SYS_USB_DEVICES)
 
 
 def can_offer_graphical_setup() -> bool:
