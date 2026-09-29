@@ -8,11 +8,16 @@ import shutil
 import subprocess
 import tempfile
 import time
+
 from owndash.core.subprocess_env import system_subprocess_env
+from owndash.hardware.usb_device_profiles import AIC_33C3_0E02
 
 
-USB_VENDOR_ID = "33c3"
-USB_PRODUCT_ID = "0e02"
+# Compatibility aliases for existing setup/tests; the verified profile is the
+# authoritative source of the actual USB identity.
+USB_VENDOR_ID = AIC_33C3_0E02.sysfs_vendor_id
+USB_PRODUCT_ID = AIC_33C3_0E02.sysfs_product_id
+SYS_USB_DEVICES = Path("/sys/bus/usb/devices")
 RULE_NAME = "70-owndash-usb.rules"
 LEGACY_RULE_NAME = "99-owndash-usb.rules"
 UDEV_RULE_DIR = Path("/etc/udev/rules.d")
@@ -23,6 +28,8 @@ class UsbAccessStatus:
     connected: bool
     accessible: bool
     device_node: str | None = None
+    match_count: int = 0
+    ambiguous: bool = False
 
 
 def _read(path: Path) -> str:
@@ -53,40 +60,55 @@ def probe_owndash_udev_state() -> str:
     return "missing"
 
 
-def probe_artinchip_usb() -> UsbAccessStatus:
-    """Detect the supported USB controller without requiring PyUSB access.
+def probe_artinchip_usb(sys_usb: Path = SYS_USB_DEVICES) -> UsbAccessStatus:
+    """Detect exact verified ArtInChip matches without requiring PyUSB access.
 
     A legacy 99-* OwnDash uaccess rule is treated as not ready even when the
-    current device node happens to be accessible. That rule is too late in the
-    udev chain for reliable logind seat ACLs after USB re-enumeration, so the
-    setup assistant should proactively offer the one-click migration before a
-    suspend/resume cycle exposes the problem.
+    current device node happens to be accessible. Multiple exact compatible
+    devices are reported explicitly instead of being silently collapsed into a
+    single unambiguous result.
     """
-    sys_usb = Path("/sys/bus/usb/devices")
-    if not sys_usb.is_dir():
+    profile = AIC_33C3_0E02
+    try:
+        if not sys_usb.is_dir():
+            return UsbAccessStatus(False, False, None)
+        entries = sorted(sys_usb.iterdir(), key=lambda path: path.name)
+    except OSError:
         return UsbAccessStatus(False, False, None)
 
-    for device in sys_usb.iterdir():
+    matches: list[Path] = []
+    for device in entries:
+        if ":" in device.name:
+            continue
         vendor = _read(device / "idVendor").lower()
         product = _read(device / "idProduct").lower()
-        if vendor != USB_VENDOR_ID or product != USB_PRODUCT_ID:
-            continue
+        if vendor == profile.sysfs_vendor_id and product == profile.sysfs_product_id:
+            matches.append(device)
 
-        try:
-            bus = int(_read(device / "busnum"))
-            dev = int(_read(device / "devnum"))
-        except ValueError:
-            return UsbAccessStatus(True, False, None)
+    if not matches:
+        return UsbAccessStatus(False, False, None)
 
-        node = Path(f"/dev/bus/usb/{bus:03d}/{dev:03d}")
-        accessible = (
-            node.exists()
-            and os.access(node, os.R_OK | os.W_OK)
-            and not legacy_udev_rule_installed()
-        )
-        return UsbAccessStatus(True, accessible, str(node))
+    device = matches[0]
+    count = len(matches)
+    try:
+        bus = int(_read(device / "busnum"))
+        dev = int(_read(device / "devnum"))
+    except ValueError:
+        return UsbAccessStatus(True, False, None, match_count=count, ambiguous=count > 1)
 
-    return UsbAccessStatus(False, False, None)
+    node = Path(f"/dev/bus/usb/{bus:03d}/{dev:03d}")
+    accessible = (
+        node.exists()
+        and os.access(node, os.R_OK | os.W_OK)
+        and not legacy_udev_rule_installed()
+    )
+    return UsbAccessStatus(
+        True,
+        accessible,
+        str(node),
+        match_count=count,
+        ambiguous=count > 1,
+    )
 
 
 def can_offer_graphical_setup() -> bool:
@@ -138,8 +160,8 @@ def install_udev_rule() -> tuple[bool, str]:
                     "udevadm control --reload-rules",
                     (
                         "udevadm trigger --subsystem-match=usb "
-                        f"--attr-match=idVendor={USB_VENDOR_ID} "
-                        f"--attr-match=idProduct={USB_PRODUCT_ID}"
+                        f"--attr-match=idVendor={AIC_33C3_0E02.sysfs_vendor_id} "
+                        f"--attr-match=idProduct={AIC_33C3_0E02.sysfs_product_id}"
                     ),
                 ]
             )
