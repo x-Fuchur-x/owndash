@@ -1,7 +1,10 @@
 from PySide6.QtGui import QIcon, QImage
 
 from owndash.core.system_state import SystemState
-from owndash.gui.system_state_frame import render_system_state_image
+from owndash.gui.system_state_frame import (
+    render_disconnected_status_image,
+    render_system_state_image,
+)
 
 
 STRINGS = {
@@ -117,6 +120,36 @@ def test_terminal_states_ignore_animation_phase_for_stable_final_frame():
         phase_a = render(480, 1920, state, animation_phase=0.0)
         phase_b = render(480, 1920, state, animation_phase=0.75)
         assert image_digest(phase_a) == image_digest(phase_b)
+
+
+def test_static_system_states_ignore_clock_and_date_context():
+    for state in (
+        SystemState.SUSPENDING,
+        SystemState.TRANSITIONING,
+        SystemState.SHUTTING_DOWN,
+        SystemState.RESTARTING,
+    ):
+        baseline = render(800, 1280, state)
+        with_stale_time = render(
+            800,
+            1280,
+            state,
+            clock_text="00:00",
+            date_text="01.01.1900",
+        )
+        assert image_digest(baseline) == image_digest(with_stale_time)
+
+
+def test_disconnected_screen_never_displays_clock_or_date():
+    baseline = render_disconnected_status_image(800, 1280, QIcon())
+    with_stale_time = render_disconnected_status_image(
+        800,
+        1280,
+        QIcon(),
+        clock_text="00:00",
+        date_text="01.01.1900",
+    )
+    assert image_digest(baseline) == image_digest(with_stale_time)
 
 
 def test_locked_hud_keeps_reference_rails_and_lower_neon_geometry():
