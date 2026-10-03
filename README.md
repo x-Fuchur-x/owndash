@@ -68,6 +68,18 @@ OwnDash is built for people who want a dedicated system display without turning 
   </tr>
 </table>
 
+## Six screens for the moments between dashboards
+
+![OwnDash system-state screens: locked, idle, standby, shutdown, restart and disconnected](docs/images/owndash-system-states.jpg)
+
+OwnDash gives your display a matching HUD-style screen for **Locked, Idle, Standby, Shutdown, Restart and Disconnected / OwnDash closed**. Each state has its own symbol and accent colours; layouts adapt to tall, portrait, square and landscape displays.
+
+Lock and idle can use subtle, low-rate HUD animation. Standby, shutdown, restart and disconnected output stays static, with no frozen clock. Unnecessary dashboard rendering and sensor refresh pause during system-state views.
+
+*Shown above: actual Beta 5 renderer output at the 480×1920 reference size, with German labels and sample time/date. English labels are also supported. Final transition frames are best-effort; continued visibility depends on display power and hardware behaviour.*
+
+[Read about system-state behaviour and compatibility](docs/system-state-screens.md).
+
 ## Display support
 
 OwnDash currently supports two display paths:

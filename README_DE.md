@@ -68,6 +68,18 @@ OwnDash richtet sich an alle, die ein eigenes Systemdisplay möchten, ohne dass 
   </tr>
 </table>
 
+## Sechs Screens für die Momente zwischen den Dashboards
+
+![OwnDash-Statusscreens: Gesperrt, Leerlauf, Standby, Herunterfahren, Neustart und Getrennt](docs/images/owndash-system-states.jpg)
+
+OwnDash zeigt passende HUD-Statusscreens für **Gesperrt, Leerlauf, Standby, Herunterfahren, Neustart und Getrennt / OwnDash beendet**. Jeder Zustand besitzt ein eigenes Symbol und eigene Akzentfarben. Die Layouts passen sich an sehr schmale, hochformatige, quadratische und querformatige Displays an.
+
+Sperr- und Leerlaufansicht können eine dezente HUD-Animation mit niedriger Aktualisierungsrate anzeigen. Standby, Herunterfahren, Neustart und Getrennt bleiben statisch – ohne eingefrorene Uhr. Unnötiges Dashboard-Rendering und Sensorabfragen pausieren während der Statusansicht.
+
+*Oben zu sehen: echte Ausgabe des Beta-5-Renderers in der Referenzgröße 480×1920, mit deutschen Beschriftungen und beispielhafter Uhrzeit/Datum. Englische Beschriftungen werden ebenfalls unterstützt. Letzte Statusbilder bei Systemübergängen werden nach Möglichkeit übertragen; ob sie sichtbar bleiben, hängt von Display-Stromversorgung und Hardwareverhalten ab.*
+
+[Details zu Verhalten und Kompatibilität der Statusscreens](docs/system-state-screens.md).
+
 ## Display-Unterstützung
 
 OwnDash bietet aktuell zwei Ausgabewege:
