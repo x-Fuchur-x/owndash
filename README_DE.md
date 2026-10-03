@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%204-5577FF?style=for-the-badge"></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%205-5577FF?style=for-the-badge"></a>
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x86__64-0B0E15?style=for-the-badge&logo=linux&logoColor=white">
   <img alt="AppImage" src="https://img.shields.io/badge/AppImage-ready-1593FF?style=for-the-badge&logo=appimage&logoColor=white">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
@@ -20,11 +20,11 @@
 
 OwnDash ist ein visueller Open-Source-Dashboard-Editor für Linux. Erstelle Hardware-Monitoring-Dashboards per Drag & Drop, verbinde Live-Systemsensoren und gib das Ergebnis auf einem kompatiblen USB-Display oder jedem von Linux erkannten Monitor aus — ohne dich mit Python, `hwmon`, USB-Protokollen oder Linux-Interna beschäftigen zu müssen.
 
-> **Aktuelle Version: OwnDash 0.14.0 Beta 4**  
+> **Aktuelle Version: OwnDash 0.14.0 Beta 5**<br>
 > Startfertiges x86-64-AppImage · Debian-12-/GLIBC-2.36-Kompatibilitätsbasis · direkte ArtInChip-/VSDISPLAY-USB-Ausgabe auf echter Hardware verifiziert.
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4"><strong>OwnDash 0.14.0 Beta 4 herunterladen</strong></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5"><strong>OwnDash 0.14.0 Beta 5 herunterladen</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/x-Fuchur-x/owndash/releases">Alle Releases</a>
   &nbsp;·&nbsp;
@@ -102,7 +102,7 @@ Andere proprietäre USB-only-Displays benötigen ein eigenes Backend und Protoko
 
 OwnDash bietet bereits ereignisgesteuerte Statusanzeigen für **Leerlauf, Sperre, Standby/Suspend, Herunterfahren und Neustart**. Solange ein solcher statischer Statusbildschirm sichtbar ist, werden unnötige Live-Sensoraktualisierung, Dashboard-Rendering und automatischer Seitenwechsel pausiert und nach Rückkehr in den aktiven Zustand wiederhergestellt. Für direkte USB-Ausgabe gibt es nach Suspend zusätzlich eine begrenzte einmalige Wiederverbindung statt einer Endlosschleife.
 
-Die zugrunde liegende Zustandslogik ist funktional umgesetzt und getestet. Das visuelle Layout, Abstände, Grafiken und Formulierungen werden auf echter Hardware noch weiter verfeinert und gelten noch nicht als final. Technische Details und aktuelle Grenzen sind unter [System state screens](docs/system-state-screens.md) dokumentiert.
+Die Zustandslogik und die geschützte 480×1920-VSDISPLAY-Referenz wurden auf dem Bazzite/KDE-Testsystem des Projekts praktisch geprüft. Andere Seitenverhältnisse verwenden den responsiven Compositor und werden durch die 48-Bilder-CI-Vorschaumatrix abgedeckt. Zeit wird nur in Zuständen angezeigt, in denen OwnDash sie zuverlässig aktuell halten kann: Sperre zeigt Uhr/Datum, Leerlauf die laufende Uhr; Standby, Herunterfahren, Neustart und Getrennt zeigen bewusst keine stehengebliebene Zeit. Technische Details und aktuelle Grenzen sind unter [System state screens](docs/system-state-screens.md) dokumentiert.
 
 ## Download & Schnellstart
 
@@ -110,9 +110,9 @@ Die zugrunde liegende Zustandslogik ist funktional umgesetzt und getestet. Das v
 
 Die offizielle Version wird als eigenständiges **x86-64-AppImage** bereitgestellt. Bei Verwendung des offiziellen AppImages sind weder Python-Kenntnisse noch eine separate Installation von Python oder PySide6 erforderlich.
 
-**Aktuelles Release-Asset:** `OwnDash-0.14.0-Beta-4-x86_64.AppImage`
+**Aktuelles Release-Asset:** `OwnDash-0.14.0-Beta-5-x86_64.AppImage`
 
-1. AppImage vom [OwnDash-0.14.0-Beta-4-Release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4) herunterladen.
+1. AppImage vom [OwnDash-0.14.0-Beta-5-Release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5) herunterladen.
 2. Falls erforderlich, die Datei ausführbar machen.
 3. OwnDash per Doppelklick starten.
 4. Den Ersteinrichtungs- und Kompatibilitäts-Assistenten durchlaufen.
@@ -143,7 +143,7 @@ GitHub CI baut das offizielle AppImage auf Debian 12, prüft die GLIBC-Kompatibi
 
 ## Getestete Hardware & Plattform
 
-OwnDash 0.14.0 Beta 4 wurde praktisch getestet mit:
+OwnDash 0.14.0 Beta 5 wurde praktisch getestet mit:
 
 - Bazzite Linux
 - KDE Plasma

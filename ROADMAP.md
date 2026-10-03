@@ -4,6 +4,21 @@ OwnDash is evolving from a Linux dashboard editor with direct ArtInChip / VSDISP
 
 This roadmap describes direction rather than fixed delivery dates. Priorities may change as hardware testing, community feedback, and technical constraints uncover better paths.
 
+## Completed in 0.14.0 Beta 5
+
+Beta 5 concentrates on safer display behavior, clearer diagnostics and release-quality lifecycle handling:
+
+- Always-available Display & Device Center with passive, sanitized diagnostics and explicit capability states
+- Central verified direct-USB device profiles and deterministic refusal to select an arbitrary device when multiple compatible displays are present
+- Software dimming that affects only OwnDash output and never pretends to be hardware backlight control
+- Clear selected-output versus active-output state across direct USB and standard-monitor paths
+- Responsive system-state rendering across ultra-portrait, portrait, near-square and landscape targets, with the 480×1920 VSDISPLAY as the protected physical reference
+- Runtime-owned localized state text and version footer, plus a 48-image CI preview matrix
+- State-aware time policy: live time only on lock/idle; no stale clock/date on standby, shutdown, restart or disconnected final frames
+- Manual update checks with explicit user-initiated feedback while background failures remain silent and OwnDash never auto-installs updates
+
+Released features and full details remain documented in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Completed in 0.14.0 Beta 4
 
 Beta 4 closed several items that were previously listed as upcoming work:
@@ -24,21 +39,13 @@ Released features and full historical details remain documented in [`CHANGELOG.m
 The current priority is making the public beta increasingly predictable across real Linux systems and supported display paths.
 
 - Beta bug fixes and regression prevention
-- Event-driven system-state screens for idle, lock, suspend, shutdown and restart are functionally implemented
-- The system-state visuals use the **single production renderer path** with one approved lossless HUD asset family, state-specific symbols, localized runtime wording and a matching disconnected/closed screen
-- System-state output now uses responsive aspect-ratio classes for ultra-portrait, portrait, near-square and landscape targets rather than centering a fixed 1:4 composition on every display
-- The physically accepted 480×1920 Bazzite/KDE + VSDISPLAY composition remains the protected visual reference; its post-refactor hardware recheck remains required before integration is considered release-final
-- Mutable state copy, language, clock/date and the OwnDash version footer are runtime-owned, so future release labels do not require artwork edits
-- CI renders a 48-image production preview matrix across eight representative display sizes and all six visual states for regression review
-- The retired embedded portrait-master artwork and its loader/data chunks have been removed; there is no hidden visual fallback to the old design
-- The obsolete no-op system-state theme selector has been removed while existing saved preference values remain compatible
-- Persistent idle/lock screens use a dedicated low-rate HUD ring animation while normal sensor refresh, dashboard rendering and page cycling remain paused; suspend/shutdown/restart frames stay static for lifecycle safety
-- Direct-USB suspend/resume recovery already uses a bounded reconnect sequence instead of background polling
-- Continued real-device validation, especially output switching and shutdown/end-state behavior
-- Linux distribution, desktop, sensor, and display compatibility improvements
-- AppImage packaging and release reliability
-- Diagnostics and setup polish where beta feedback shows friction
+- Continued real-device validation across additional Linux distributions, desktops, compositors and display hardware
 - Validation of mixed-DPI and compositor-specific fullscreen behavior on additional real systems
+- AppImage packaging, clean-user testing and release reliability
+- Diagnostics and setup polish where community feedback shows real friction
+- Preserve the single responsive system-state renderer and its protected 480×1920 hardware reference while expanding community evidence for other aspect ratios
+
+The project's Bazzite/KDE + VSDISPLAY lifecycle path has been rechecked after the responsive renderer work. Beta 5's final release-candidate smoke test includes the state-aware static-time policy before publication.
 
 The system-state implementation, unified renderer architecture and resource behavior are documented in [`docs/system-state-screens.md`](docs/system-state-screens.md).
 
@@ -46,7 +53,7 @@ The system-state implementation, unified renderer architecture and resource beha
 
 Make connected displays easier to understand and control without exposing unsupported hardware functions.
 
-The current 0.15 slices implement:
+Foundational 0.15-oriented work already landed during the 0.14.x beta stabilization cycle:
 
 - Always-available **Display & Device** Device Center, including when no display is connected
 - Passive ArtInChip / VSDISPLAY presence, USB-access, device-node and OwnDash-udev diagnostics
