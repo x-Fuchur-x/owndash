@@ -57,6 +57,11 @@ def test_appimage_build_is_scripted():
     assert "APPIMAGE_EXTRACT_AND_RUN=1" in APPIMAGE
 
 
+def test_appimage_bundles_desktop_file_for_appstream_validation():
+    assert 'usr/share/applications' in APPIMAGE
+    assert 'org.owndash.OwnDash.desktop' in APPIMAGE
+
+
 def test_libusb_discovery_does_not_trigger_pipefail_sigpipe():
     assert '{ print $NF; exit }' not in APPIMAGE
 
