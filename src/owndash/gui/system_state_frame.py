@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from functools import lru_cache
 from importlib.resources import as_file, files
 
@@ -805,6 +804,11 @@ def render_system_state_image(
     except KeyError as exc:
         raise ValueError(f"unsupported system state: {state}") from exc
     phase = float(animation_phase) if state in _ANIMATION_COLORS else 0.0
+    if state is SystemState.IDLE:
+        date_text = None
+    elif state not in _ANIMATION_COLORS:
+        clock_text = None
+        date_text = None
     return _render_asset(
         width,
         height,
@@ -830,8 +834,7 @@ def render_disconnected_status_image(
     clock_text: str | None = None,
     date_text: str | None = None,
 ) -> QImage:
-    del icon, farewell, theme
-    now = datetime.now()
+    del icon, farewell, theme, clock_text, date_text
     return _render_asset(
         width,
         height,
@@ -839,7 +842,7 @@ def render_disconnected_status_image(
         state=None,
         title=_headline_for_state(None, str(status or "OwnDash disconnected")),
         detail=str(detail or ""),
-        clock_text=clock_text or now.strftime("%H:%M"),
-        date_text=date_text or now.strftime("%d.%m.%Y"),
+        clock_text=None,
+        date_text=None,
         animation_phase=0.0,
     )

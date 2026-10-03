@@ -107,8 +107,8 @@ def main() -> int:
             detail="Keine aktive Verbindung zu OwnDash",
             farewell="",
             theme="owndash",
-            clock_text="21:33",
-            date_text="28.09.2026",
+            clock_text=None,
+            date_text=None,
         )
         _save(disconnected, out / f"disconnected-{width}x{height}.png")
 
