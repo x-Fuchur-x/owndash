@@ -23,10 +23,17 @@ def _digest(image) -> bytes:
     return bytes(image.constBits())
 
 
-def _render(state: SystemState, *, clock_text: str | None, date_text: str | None):
+def _render(
+    state: SystemState,
+    *,
+    clock_text: str | None,
+    date_text: str | None,
+    width: int = 1024,
+    height: int = 600,
+):
     return render_system_state_image(
-        1024,
-        600,
+        width,
+        height,
         state,
         "owndash",
         QIcon(),
@@ -38,33 +45,47 @@ def _render(state: SystemState, *, clock_text: str | None, date_text: str | None
 
 
 def test_static_lifecycle_states_ignore_clock_and_date_inputs():
-    for state in (
-        SystemState.SUSPENDING,
-        SystemState.TRANSITIONING,
-        SystemState.SHUTTING_DOWN,
-        SystemState.RESTARTING,
-    ):
-        early = _render(state, clock_text="10:15", date_text="30.09.2026")
-        late = _render(state, clock_text="23:58", date_text="01.10.2026")
-        assert _digest(early) == _digest(late)
+    for width, height in ((480, 1920), (1024, 600)):
+        for state in (
+            SystemState.SUSPENDING,
+            SystemState.TRANSITIONING,
+            SystemState.SHUTTING_DOWN,
+            SystemState.RESTARTING,
+        ):
+            early = _render(
+                state,
+                clock_text="10:15",
+                date_text="30.09.2026",
+                width=width,
+                height=height,
+            )
+            late = _render(
+                state,
+                clock_text="23:58",
+                date_text="01.10.2026",
+                width=width,
+                height=height,
+            )
+            assert _digest(early) == _digest(late)
 
 
 def test_disconnected_screen_never_depends_on_clock_or_date():
-    early = render_disconnected_status_image(
-        1024,
-        600,
-        QIcon(),
-        clock_text="10:15",
-        date_text="30.09.2026",
-    )
-    late = render_disconnected_status_image(
-        1024,
-        600,
-        QIcon(),
-        clock_text="23:58",
-        date_text="01.10.2026",
-    )
-    assert _digest(early) == _digest(late)
+    for width, height in ((480, 1920), (1024, 600)):
+        early = render_disconnected_status_image(
+            width,
+            height,
+            QIcon(),
+            clock_text="10:15",
+            date_text="30.09.2026",
+        )
+        late = render_disconnected_status_image(
+            width,
+            height,
+            QIcon(),
+            clock_text="23:58",
+            date_text="01.10.2026",
+        )
+        assert _digest(early) == _digest(late)
 
 
 def test_idle_keeps_live_clock_but_ignores_date():
