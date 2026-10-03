@@ -40,7 +40,11 @@ cp -a "$PYI/OwnDash/." "$APPDIR/usr/bin/owndash/"
 # Bundle the Debian 12 libusb runtime explicitly so direct USB display
 # support also works when the host does not provide a compatible library
 # through the AppImage runtime environment.
-LIBUSB="$(ldconfig -p 2>/dev/null | awk '/libusb-1\.0\.so\.0 .*x86-64/ { print $NF; exit }')"
+#
+# Consume the complete ldconfig output instead of exiting awk early. With
+# `set -o pipefail`, an early awk exit can SIGPIPE ldconfig on distributions
+# with a larger cache (for example Bazzite) and abort an otherwise valid build.
+LIBUSB="$(ldconfig -p 2>/dev/null | awk '/libusb-1\.0\.so\.0 .*x86-64/ && !path { path=$NF } END { if (path) print path }')"
 
 if [[ -z "$LIBUSB" || ! -e "$LIBUSB" ]]; then
   # Debian multiarch fallback.
@@ -102,5 +106,4 @@ APPIMAGE_EXTRACT_AND_RUN=1 \
   "$APPIMAGETOOL" "$APPDIR" "$OUT"
 
 chmod +x "$OUT"
-
 echo "$OUT"
