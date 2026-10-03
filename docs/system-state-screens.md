@@ -38,7 +38,7 @@ The protected 480×1920 reference stays vertically stacked. Ordinary portrait la
 Mutable content is owned by OwnDash at runtime:
 
 - localized state title and optional detail text
-- clock and date
+- clock/date only where the state can be actively refreshed
 - `OwnDash {__version__}` footer
 - animation phase for the states that support it
 
@@ -47,6 +47,8 @@ Changing from Beta 4 to Beta 5, an RC, a stable release or a later version there
 The approved 480×1920 source sheets predate the strict runtime-only wording rule and contain generated state copy in their full composition. OwnDash never treats that wording as authoritative: the protected reference path masks and redraws it, while responsive layouts use the text-free HUD/symbol region and draw all visible copy themselves. New reusable artwork must not add mutable text, dates, clock values or release numbers.
 
 Detail copy may use at most two lines in responsive layouts. Titles remain single-line when their zone allows it, with font fitting applied inside the assigned safe area. Clock and date are optional modules; when both are absent, no empty clock panel is painted.
+
+The time policy is deliberately state-aware: `LOCKED` may show live clock and date, `IDLE` may show the live clock without a date, and suspend/standby, transition, shutdown, restart and disconnected/closed screens show neither. This prevents a static final frame from presenting a clock that can no longer be updated.
 
 ## Visual design language
 
@@ -152,4 +154,4 @@ Automated tests cover state priority, duplicate-event suppression, lock/suspend/
 
 CI also renders a 48-image production preview matrix: six states across 480×1920, 720×1280, 800×1280, 1024×1024, 1024×600, 1280×800, 1920×1080 and 2560×1440. These previews are uploaded as one workflow artifact for visual review.
 
-Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. The 480×1920 layout was physically accepted on the project's Bazzite/KDE + VSDISPLAY setup before the responsive refactor and must be rechecked before integration. Other aspect ratios are accepted through structural tests and visual review of the production preview matrix, with community hardware reports remaining valuable follow-up evidence.
+Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. The responsive-refactor lifecycle was rechecked on the project's 480×1920 Bazzite/KDE + VSDISPLAY setup; the Beta 5 release-candidate smoke test also covers the final static-time policy. Other aspect ratios are accepted through structural tests and visual review of the production preview matrix, with community hardware reports remaining valuable follow-up evidence.

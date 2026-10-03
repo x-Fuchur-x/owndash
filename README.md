@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%204-5577FF?style=for-the-badge"></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%205-5577FF?style=for-the-badge"></a>
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x86__64-0B0E15?style=for-the-badge&logo=linux&logoColor=white">
   <img alt="AppImage" src="https://img.shields.io/badge/AppImage-ready-1593FF?style=for-the-badge&logo=appimage&logoColor=white">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
@@ -20,11 +20,11 @@
 
 OwnDash is an open-source visual dashboard editor for Linux. Build hardware-monitoring dashboards with drag & drop, connect live system sensors, and send the result to a compatible USB display or any monitor Linux recognizes — without having to understand Python, `hwmon`, USB protocols, or Linux internals.
 
-> **Current release: OwnDash 0.14.0 Beta 4**  
+> **Current release: OwnDash 0.14.0 Beta 5**<br>
 > Ready-to-run x86-64 AppImage · Debian 12 / GLIBC 2.36 compatibility baseline · direct ArtInChip / VSDISPLAY USB output verified on real hardware.
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4"><strong>Download OwnDash 0.14.0 Beta 4</strong></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5"><strong>Download OwnDash 0.14.0 Beta 5</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/x-Fuchur-x/owndash/releases">All releases</a>
   &nbsp;·&nbsp;
@@ -102,7 +102,7 @@ Other proprietary USB-only display families need their own backend and protocol 
 
 OwnDash already provides event-driven status screens for **idle, lock, standby/suspend, shutdown and restart**. When such a static state screen is visible, unnecessary live sensor refresh, dashboard rendering and automatic page cycling are paused and restored when the system returns to the active state. Direct USB output also has bounded one-shot recovery after suspend instead of an endless reconnect loop.
 
-The lifecycle behavior is functionally implemented and tested. The visual layout, spacing, artwork and wording are still being refined on real hardware before they are considered final. Technical behavior and current limitations are documented in [System state screens](docs/system-state-screens.md).
+The lifecycle behavior and the protected 480×1920 VSDISPLAY reference have been exercised on the project's Bazzite/KDE hardware. Other aspect ratios use the responsive compositor and are covered by the 48-image CI preview matrix. Time is shown only on states OwnDash can keep live: lock shows clock/date, idle shows the live clock, while standby, shutdown, restart and disconnected screens deliberately show no stale time. Technical behavior and current limitations are documented in [System state screens](docs/system-state-screens.md).
 
 ## Easy first start
 
@@ -110,9 +110,9 @@ The lifecycle behavior is functionally implemented and tested. The visual layout
 
 The official release is a **self-contained x86-64 AppImage**. Python knowledge is not required, and no separate installation of Python or PySide6 is required when using the official AppImage.
 
-**Current release asset:** `OwnDash-0.14.0-Beta-4-x86_64.AppImage`
+**Current release asset:** `OwnDash-0.14.0-Beta-5-x86_64.AppImage`
 
-1. Download the AppImage from the [OwnDash 0.14.0 Beta 4 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.4).
+1. Download the AppImage from the [OwnDash 0.14.0 Beta 5 release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5).
 2. Make it executable if your desktop requires it.
 3. Launch OwnDash by double-clicking the AppImage.
 4. Follow the first-run setup and compatibility assistant.
@@ -143,7 +143,7 @@ GitHub CI builds the official AppImage on Debian 12, verifies the GLIBC compatib
 
 ## Tested hardware & platform
 
-OwnDash 0.14.0 Beta 4 has been practically tested with:
+OwnDash 0.14.0 Beta 5 has been practically tested with:
 
 - Bazzite Linux
 - KDE Plasma

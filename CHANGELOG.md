@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.0 Beta 5
+
 - Added an always-available **Display & Device** Device Center that remains useful even when no display is connected.
 - Added passive ArtInChip / VSDISPLAY diagnostics for `33C3:0E02`, USB access, device node and OwnDash udev-rule state.
 - Direct-USB detection now uses a central registry of verified device profiles instead of repeating VID/PID identities across transport and diagnostics code.
@@ -30,6 +32,7 @@
 - Added a manual **Check for updates / Auf Updates prüfen** action in the Help menu that works even when automatic update checks are disabled.
 - Manual update checks now distinguish **up to date**, **update available**, and temporary network/GitHub failure states, while automatic background failures remain silent.
 - Update checks share one in-flight guard to avoid duplicate concurrent requests; OwnDash still never downloads, installs, or replaces the AppImage automatically.
+- Static standby, transition, shutdown, restart and disconnected screens no longer show clock/date values that could become stale; live time remains only on lock and idle states that OwnDash can actively refresh.
 
 ## 0.14.0 Beta 4
 
