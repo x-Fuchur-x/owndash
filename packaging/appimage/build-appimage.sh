@@ -32,6 +32,7 @@ python3 -m venv "$VENV"
 
 mkdir -p "$APPDIR/usr/bin/owndash"
 mkdir -p "$APPDIR/usr/share/metainfo"
+mkdir -p "$APPDIR/usr/share/applications"
 
 cp -a "$PYI/OwnDash/." "$APPDIR/usr/bin/owndash/"
 
@@ -74,6 +75,8 @@ echo "Bundled libusb: $LIBUSB"
 cp "$ROOT/packaging/appimage/AppRun" "$APPDIR/AppRun"
 cp "$ROOT/packaging/org.owndash.OwnDash.desktop" \
   "$APPDIR/org.owndash.OwnDash.desktop"
+cp "$ROOT/packaging/org.owndash.OwnDash.desktop" \
+  "$APPDIR/usr/share/applications/org.owndash.OwnDash.desktop"
 
 # AppStream metadata.
 # appimagetool currently looks for the legacy .appdata.xml filename.
