@@ -57,6 +57,10 @@ def test_appimage_build_is_scripted():
     assert "APPIMAGE_EXTRACT_AND_RUN=1" in APPIMAGE
 
 
+def test_libusb_discovery_does_not_trigger_pipefail_sigpipe():
+    assert '{ print $NF; exit }' not in APPIMAGE
+
+
 def test_github_action_builds_appimage_artifact():
     assert "Build AppImage" in WORKFLOW
     assert "packaging/appimage/build-appimage.sh" in WORKFLOW
