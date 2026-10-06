@@ -11,8 +11,8 @@ WORKFLOW = (ROOT/".github/workflows/appimage.yml").read_text(encoding="utf-8")
 
 
 def test_release_version_metadata():
-    assert '__version__ = "0.14.0 Beta 5"' in INIT
-    assert 'version = "0.14.0b5"' in PROJECT
+    assert '__version__ = "0.14.0 Beta 6"' in INIT
+    assert 'version = "0.14.0b6"' in PROJECT
 
 
 def test_udev_rule_is_bundled():

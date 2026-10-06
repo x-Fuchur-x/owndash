@@ -168,4 +168,4 @@ The Fix 2 hardware test confirmed successful standby-frame delivery and receipt 
 
 Before applying the multiple-display safeguard, the backend now reconciles PyUSB candidates with the current Linux sysfs bus/address pairs. Removed addresses are excluded, and duplicate entries at the same live address count once. Two genuinely different live displays are still rejected without claiming either interface. Missing or incomplete sysfs data preserves the original ambiguity check. Error logs now retain the actual backend failure during quiet resume recovery.
 
-Standby-Fix 3 still requires a real suspend/resume acceptance test on the affected hardware.
+The maintainer confirmed a successful physical suspend/resume cycle with Standby-Fix 3 on 2026-10-06: standby artwork appeared and the live dashboard returned automatically after wake. Beta 6 incorporates this tested fix. Recovery remains delayed on the affected USB controller; earlier traces showed device re-enumeration about 43 seconds after wake, with access permissions becoming ready later.
