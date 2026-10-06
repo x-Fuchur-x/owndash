@@ -161,3 +161,11 @@ Automated tests cover state priority, duplicate-event suppression, lock/suspend/
 CI also renders a 48-image production preview matrix: six states across 480×1920, 720×1280, 800×1280, 1024×1024, 1024×600, 1280×800, 1920×1080 and 2560×1440. These previews are uploaded as one workflow artifact for visual review.
 
 Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. The responsive-refactor lifecycle was rechecked on the project's 480×1920 Bazzite/KDE + VSDISPLAY setup; the Beta 5 release-candidate smoke test also covers the final static-time policy. Other aspect ratios are accepted through structural tests and visual review of the production preview matrix, with community hardware reports remaining valuable follow-up evidence.
+
+## USB enumeration after resume
+
+The Fix 2 hardware test confirmed successful standby-frame delivery and receipt of the resume signal. Linux exposed one live ArtInChip display after re-enumeration, while the long-running application reported multiple compatible devices and refused to reconnect; a fresh process connected successfully.
+
+Before applying the multiple-display safeguard, the backend now reconciles PyUSB candidates with the current Linux sysfs bus/address pairs. Removed addresses are excluded, and duplicate entries at the same live address count once. Two genuinely different live displays are still rejected without claiming either interface. Missing or incomplete sysfs data preserves the original ambiguity check. Error logs now retain the actual backend failure during quiet resume recovery.
+
+Standby-Fix 3 still requires a real suspend/resume acceptance test on the affected hardware.

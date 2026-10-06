@@ -237,6 +237,7 @@ class SafeShutdownWindow(MainWindow):
         super()._stop_display_stream()
 
     def _display_error(self, error: object) -> None:
+        log.warning("Display connection/transfer failed: %s: %s", type(error).__name__, error)
         runtime = getattr(self, "_system_state_runtime", None)
         current_state = runtime.visible_state if runtime is not None else SystemState.ACTIVE
         recoverable_resume_error = (
