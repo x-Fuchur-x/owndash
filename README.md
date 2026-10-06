@@ -76,7 +76,7 @@ OwnDash gives your display a matching HUD-style screen for **Locked, Idle, Stand
 
 Lock and idle can use subtle, low-rate HUD animation. Standby, shutdown, restart and disconnected output stays static, with no frozen clock. Unnecessary dashboard rendering and sensor refresh pause during system-state views.
 
-*Shown above: actual Beta 5 renderer output at the 480×1920 reference size, with German labels and sample time/date. English labels are also supported. Final transition frames are best-effort; continued visibility depends on display power and hardware behaviour.*
+*Shown above: actual renderer output with the post-Beta-5 shared-frame correction at the 480×1920 reference size, with German labels and sample time/date. English labels are also supported. Final transition frames are best-effort; continued visibility depends on display power and hardware behaviour.*
 
 [Read about system-state behaviour and compatibility](docs/system-state-screens.md).
 

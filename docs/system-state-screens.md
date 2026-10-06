@@ -8,7 +8,7 @@ The lifecycle behavior is functionally implemented for idle, lock, suspend/stand
 
 The visual renderer uses one approved family of lossless state PNG source sheets plus runtime-owned localized state wording, clock/date and the current OwnDash version. The disconnected/closed OwnDash screen delegates to the same renderer family instead of maintaining a separate visual implementation.
 
-The project's physically accepted 480×1920 VSDISPLAY remains the protected visual reference. That exact target keeps its approved composition. Other dimensions are composed responsively from target-relative zones instead of containing a narrow 1:4 screen inside unused space.
+The project's physically accepted 480×1920 VSDISPLAY remains the protected visual reference. That target uses the locked screen as the shared spatial template for all six states: side rails, notches, indicator dots, podium, horizon and floor grid now have identical geometry. Accent colours and the original central symbols remain state-specific. The six source PNGs remain unchanged; the renderer caches the unified composition. Other dimensions are composed responsively from target-relative zones instead of containing a narrow 1:4 screen inside unused space.
 
 ## Renderer architecture rule
 
@@ -125,9 +125,13 @@ Some direct USB displays disappear from the USB bus while the machine sleeps. Fo
 
 - the failed stream is released quietly
 - no suspend-time warning-dialog spam is shown
-- after resume, one bounded reconnect sequence is scheduled
+- after resume, one bounded reconnect sequence is scheduled, with retries spanning approximately 100 seconds to accommodate slow USB-controller and hub resets
 - there is no reconnect polling loop or endless retry loop
 - a normal manual display stop cancels pending recovery state
+- timer callbacks carry a recovery-generation token, so an old callback cannot restart output in a later recovery session
+- a new suspend, disabling system-state handling, or application shutdown invalidates queued retries
+
+The post-Beta-5 correction covers a recorded case where the USB display re-enumerated 43 seconds after resume, beyond the previous five-second retry sequence. Regression tests simulate devices returning after 43 and 90 seconds. A new real suspend/resume cycle is still required to validate the correction on the affected hardware.
 
 If reconnect succeeds while the session is still locked or idle, OwnDash sends the appropriate system-state HUD rather than briefly flashing the normal dashboard.
 

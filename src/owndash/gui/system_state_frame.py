@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import as_file, files
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QIcon, QImage, QLinearGradient, QPainter, QPen
 
@@ -111,9 +111,60 @@ def _reference_image(filename: str) -> QImage:
     return image.convertToFormat(QImage.Format_RGB32)
 
 
+@lru_cache(maxsize=8)
+def _unified_reference_image(filename: str) -> QImage:
+    """One spatial template for every state; only HUD art and hue vary.
+
+    Preserve the accepted lock screen's frame, podium and floor pixel geometry.
+    Source sheets remain unchanged and supply only their central HUD region.
+    The cached result avoids recolouring during animation or live clock updates.
+    """
+    canonical = "status_hud_locked.png"
+    if filename == canonical:
+        return _reference_image(canonical)
+    with as_file(_resource(canonical)) as path:
+        chrome = Image.open(path).convert("RGB")
+    state = {value: key for key, value in _STATE_ASSETS.items()}.get(filename)
+    left, right = _state_accents(state)
+    lo = tuple(left.getRgb()[:3])
+    hi = tuple(right.getRgb()[:3])
+    r, g, b = chrome.split()
+    value = ImageChops.lighter(ImageChops.lighter(r, g), b)
+    neutral = ImageChops.darker(ImageChops.darker(r, g), b)
+    chroma = ImageChops.subtract(value, neutral)
+    for x in range(chrome.width):
+        ratio = x / (chrome.width - 1)
+        colour = [a * (1 - ratio) + z * ratio for a, z in zip(lo, hi)]
+        peak = max(colour)
+        strip = chroma.crop((x, 0, x + 1, chrome.height))
+        grey = neutral.crop((x, 0, x + 1, chrome.height))
+        channels = [ImageChops.add(grey, strip.point([round(v * c / peak) for v in range(256)])) for c in colour]
+        chrome.paste(Image.merge("RGB", channels), (x, 0))
+    # Keep the original brand mark unchanged across the family.
+    with as_file(_resource(canonical)) as path:
+        original = Image.open(path).convert("RGB")
+    brand_box = (100, 55, 380, 235)
+    brand = original.crop(brand_box)
+    brand_mask = Image.new("L", brand.size, 0)
+    brand_mask.paste(255, (35, 35, brand.width - 35, brand.height - 20))
+    brand_mask = brand_mask.filter(ImageFilter.GaussianBlur(12))
+    chrome.paste(brand, brand_box[:2], brand_mask)
+    rect = _HUD_SOURCE_RECT
+    box = (round(rect.x()), round(rect.y()), round(rect.right()), round(rect.bottom()))
+    with as_file(_resource(filename)) as path:
+        hud = Image.open(path).convert("RGB").crop(box)
+    # Feather only the dark outer margin, retaining the symbol and ring intact.
+    mask = Image.new("L", hud.size, 0)
+    mask.paste(255, (10, 10, hud.width - 10, hud.height - 10))
+    mask = mask.filter(ImageFilter.GaussianBlur(4))
+    chrome.paste(hud, box[:2], mask)
+    data = chrome.tobytes()
+    return QImage(data, chrome.width, chrome.height, chrome.width * 3, QImage.Format_RGB888).copy().convertToFormat(QImage.Format_RGB32)
+
+
 def _fitted_reference(filename: str, width: int, height: int) -> tuple[QImage, _Placement]:
-    """Contain the protected 1:4 reference artwork without stretching it."""
-    source = _reference_image(filename)
+    """Contain the unified 1:4 reference artwork without stretching it."""
+    source = _unified_reference_image(filename)
     if (width, height) == (_REFERENCE_W, _REFERENCE_H):
         return source.copy(), _Placement(0.0, 0.0, 1.0, 1.0)
 
@@ -794,7 +845,7 @@ def render_system_state_image(
     animation_phase: float = 0.0,
 ) -> QImage:
     # Theme/icon/context parameters stay in the public API for compatibility.
-    # The approved artwork is one theme-independent family and is never recolored.
+    # The frame geometry is shared; state symbols and accent palettes remain distinct.
     del theme, icon, sensor_text
     if state is SystemState.ACTIVE:
         raise ValueError("ACTIVE has no temporary system-state frame")

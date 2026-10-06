@@ -82,7 +82,12 @@ def _assert_preserves_stable_artwork(frame, filename: str):
     approved = _approved_asset_rgb(filename)
     assert frame.width() == 480
     assert frame.height() == 1920
-    for x, y in _APPROVED_STABLE_POINTS:
+    # State symbols remain original. Frames and floors intentionally now use
+    # the locked reference geometry, with state-specific accent colours.
+    points = [(x, y) for x in range(180, 301, 4) for y in range(390, 511, 4)]
+    if filename == "status_hud_locked.png":
+        points += _APPROVED_STABLE_POINTS
+    for x, y in points:
         red, green, blue = approved.getpixel((x, y))
         actual = frame.pixelColor(x, y)
         assert abs(actual.red() - red) <= 1
@@ -108,7 +113,7 @@ def test_old_stretched_state_jpegs_are_not_packaged():
         assert not files("owndash").joinpath("assets", old_name).is_file()
 
 
-def test_each_system_state_preserves_its_fresh_artwork_outside_runtime_overlays():
+def test_each_system_state_preserves_its_original_symbol():
     for state, filename in _STATE_ASSETS.items():
         frame = render_system_state_image(
             480,
@@ -124,7 +129,7 @@ def test_each_system_state_preserves_its_fresh_artwork_outside_runtime_overlays(
         _assert_preserves_stable_artwork(frame, filename)
 
 
-def test_disconnected_preserves_its_fresh_artwork_outside_runtime_overlays():
+def test_disconnected_preserves_its_original_symbol():
     frame = render_disconnected_status_image(
         480,
         1920,
@@ -201,7 +206,7 @@ def test_renderer_has_no_baked_demo_clock_date_or_footer_contract():
     assert "_REFERENCE_FOOTER" not in source
 
 
-def test_system_state_renderer_uses_exact_png_state_assets_without_recolor_fallback():
+def test_system_state_renderer_uses_original_png_symbols_without_retired_fallback():
     gui_dir = Path(__file__).resolve().parents[1] / "src" / "owndash" / "gui"
     source = (gui_dir / "system_state_frame.py").read_text(encoding="utf-8")
 

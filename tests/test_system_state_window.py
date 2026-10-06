@@ -357,3 +357,75 @@ def test_system_state_render_error_uses_active_language(state_window, monkeypatc
     window._send_system_state_frame(SystemState.LOCKED)
 
     assert window.statusBar().currentMessage() == "System state screen could not be rendered: boom"
+
+
+@pytest.mark.parametrize('available_after_ms', [43000, 90000])
+def test_resume_recovers_usb_that_reappears_late(state_window, monkeypatch, available_after_ms):
+    window = state_window
+    window.display_backend_key = 'aic_usb'
+    elapsed = 0
+    scheduled = []
+    starts = []
+    monkeypatch.setattr(QTimer, 'singleShot', staticmethod(lambda delay, callback: scheduled.append((delay, callback))))
+    monkeypatch.setattr(app_window_module, 'probe_artinchip_usb', lambda: SimpleNamespace(connected=elapsed >= available_after_ms, accessible=elapsed >= available_after_ms))
+    def start():
+        starts.append(elapsed)
+        window._resume_reconnect_pending = False
+    monkeypatch.setattr(window, '_start_display_stream', start)
+    window._schedule_usb_resume_reconnect()
+    for _ in range(30):
+        if not scheduled:
+            break
+        delay, callback = scheduled.pop(0)
+        elapsed += delay
+        callback()
+    assert starts, f'gave up at {elapsed}ms before USB returned at {available_after_ms}ms'
+    assert available_after_ms <= starts[0] <= 120000
+
+
+def test_old_resume_callback_cannot_enter_new_recovery_session(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = 'aic_usb'
+    scheduled = []
+    probes = []
+    monkeypatch.setattr(QTimer, 'singleShot', staticmethod(lambda delay, callback: scheduled.append(callback)))
+    monkeypatch.setattr(app_window_module, 'probe_artinchip_usb', lambda: probes.append(True) or SimpleNamespace(connected=False, accessible=False))
+    window._schedule_usb_resume_reconnect()
+    stale = scheduled.pop(0)
+    window._stop_display_stream()
+    window._schedule_usb_resume_reconnect()
+    stale()
+    assert probes == []
+    assert len(scheduled) == 1
+
+
+def test_repeated_resume_errors_queue_only_one_retry(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    scheduled = []
+    monkeypatch.setattr(QTimer, "singleShot", staticmethod(lambda delay, callback: scheduled.append(callback)))
+    window._schedule_usb_resume_reconnect()
+    window._display_error(RuntimeError("USB temporarily unavailable"))
+    window._display_error(RuntimeError("USB temporarily unavailable"))
+    assert len(scheduled) == 1
+    assert window._resume_reconnect_attempt == 1
+
+
+def test_old_arm_expiry_cannot_disarm_later_resume(state_window, monkeypatch):
+    window = state_window
+    window.display_backend_key = "aic_usb"
+    scheduled = []
+    monkeypatch.setattr(QTimer, "singleShot", staticmethod(lambda delay, callback: scheduled.append((delay, callback))))
+    window._handle_system_state_condition(SystemState.SUSPENDING, True)
+    window._system_state_display_was_active = True
+    window._handle_system_state_condition(SystemState.SUSPENDING, False)
+    old_expiry = next(callback for delay, callback in scheduled if delay == 120000)
+    scheduled.clear()
+    window._handle_system_state_condition(SystemState.SUSPENDING, True)
+    window._system_state_display_was_active = True
+    window._handle_system_state_condition(SystemState.SUSPENDING, False)
+    current_expiry = next(callback for delay, callback in scheduled if delay == 120000)
+    old_expiry()
+    assert window._resume_recovery_armed is True
+    current_expiry()
+    assert window._resume_recovery_armed is False

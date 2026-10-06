@@ -76,7 +76,7 @@ OwnDash zeigt passende HUD-Statusscreens für **Gesperrt, Leerlauf, Standby, Her
 
 Sperr- und Leerlaufansicht können eine dezente HUD-Animation mit niedriger Aktualisierungsrate anzeigen. Standby, Herunterfahren, Neustart und Getrennt bleiben statisch – ohne eingefrorene Uhr. Unnötiges Dashboard-Rendering und Sensorabfragen pausieren während der Statusansicht.
 
-*Oben zu sehen: echte Ausgabe des Beta-5-Renderers in der Referenzgröße 480×1920, mit deutschen Beschriftungen und beispielhafter Uhrzeit/Datum. Englische Beschriftungen werden ebenfalls unterstützt. Letzte Statusbilder bei Systemübergängen werden nach Möglichkeit übertragen; ob sie sichtbar bleiben, hängt von Display-Stromversorgung und Hardwareverhalten ab.*
+*Oben zu sehen: echte Renderer-Ausgabe mit der Rahmenvereinheitlichung nach Beta 5 in der Referenzgröße 480×1920, mit deutschen Beschriftungen und beispielhafter Uhrzeit/Datum. Englische Beschriftungen werden ebenfalls unterstützt. Letzte Statusbilder bei Systemübergängen werden nach Möglichkeit übertragen; ob sie sichtbar bleiben, hängt von Display-Stromversorgung und Hardwareverhalten ab.*
 
 [Details zu Verhalten und Kompatibilität der Statusscreens](docs/system-state-screens.md).
 
