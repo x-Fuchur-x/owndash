@@ -113,9 +113,11 @@ On resume or unlock, OwnDash stops the HUD animation, restores the timers that h
 
 ## Suspend and shutdown safety
 
-OwnDash does not acquire a systemd sleep or shutdown inhibitor for this feature.
+For sleep, OwnDash acquires a logind **delay** inhibitor before the prepare signal arrives. It releases the descriptor immediately after the synchronous standby-frame callback finishes, including error paths. An independent watchdog releases it after 750 ms from callback entry even if the Qt event loop is busy; logind's configured `InhibitDelayMaxSec` is the outer bound if the callback cannot run. The delay is reacquired on resume and released when state handling stops. If acquisition is denied, state handling continues best-effort. No blocking inhibitor or shutdown inhibitor is used.
 
-The final terminal state frame is best-effort and uses a short bounded wait (currently 250 ms) for the display sender. A slow or disconnected display must not meaningfully delay system suspend or shutdown.
+This addresses the observed Bazzite sequence where `user.slice` froze about 167 ms after `PrepareForSleep(true)`, while a cold standby render alone took about 150 ms. Listening to the signal without a delay was insufficient to guarantee time for rendering and USB transmission. See [systemd inhibitor semantics](https://systemd.io/INHIBITOR_LOCKS/).
+
+The final terminal state frame uses a short bounded wait (currently 250 ms) for the display sender. A slow or disconnected display must not block system suspend or shutdown indefinitely. The application log records prepare/resume signals, delay acquisition/release and sender completion for hardware diagnosis.
 
 Display-I/O errors during a system transition are contained and do not abort the operating-system lifecycle event.
 

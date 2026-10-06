@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from threading import Lock, Timer
 from typing import Callable, Protocol
 
 from PySide6.QtCore import QObject, Signal, Slot, SLOT
@@ -28,6 +29,31 @@ class SystemStateSource(Protocol):
     def stop(self) -> None: ...
 
 
+class _SleepDelay:
+    """Own one logind delay FD; release even if the Qt thread is busy."""
+
+    def __init__(self, fd: int) -> None:
+        self.fd = fd
+        self._lock = Lock()
+        self._timer: Timer | None = None
+
+    def arm(self) -> None:
+        with self._lock:
+            if self.fd < 0 or self._timer is not None:
+                return
+            self._timer = Timer(0.75, self.release)
+            self._timer.daemon = True
+            self._timer.start()
+
+    def release(self) -> None:
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+            if self.fd >= 0:
+                os.close(self.fd)
+                self.fd = -1
+
+
 class _LogindDbusSource(QObject):
     """Best-effort, low-overhead systemd-logind signal source.
 
@@ -47,6 +73,7 @@ class _LogindDbusSource(QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        self._sleep_delay: _SleepDelay | None = None
         self._callback: SourceCallback | None = None
         self._bus = None
         self._session_path = ""
@@ -118,6 +145,8 @@ class _LogindDbusSource(QObject):
             if not ok:
                 self.stop()
                 return False
+            self._acquire_sleep_delay()
+            log.info("System-state signals connected; session=%s", self._session_path or "unavailable")
             return True
         except Exception:
             log.exception("Unable to subscribe to systemd-logind system-state signals")
@@ -125,6 +154,7 @@ class _LogindDbusSource(QObject):
             return False
 
     def stop(self) -> None:
+        self._release_sleep_delay()
         bus = self._bus
         if bus is not None:
             for service, path, interface, name, slot in self._connections:
@@ -139,6 +169,33 @@ class _LogindDbusSource(QObject):
         self._pending_terminal_kind = None
         self._terminal_active = False
         self._terminal_kind = "terminal_pending"
+
+    def _acquire_sleep_delay(self) -> None:
+        if self._sleep_delay is not None or self._bus is None or QDBusInterface is None:
+            return
+        try:
+            manager = QDBusInterface(
+                self._LOGIN_SERVICE, self._LOGIN_PATH, self._LOGIN_MANAGER, self._bus
+            )
+            if not manager.isValid():
+                return
+            manager.setTimeout(500)
+            reply = manager.call("Inhibit", "sleep", "OwnDash", "Send standby frame to display", "delay")
+            if reply.type() == reply.MessageType.ErrorMessage or not reply.arguments():
+                log.warning("Sleep delay unavailable; standby frame remains best-effort")
+                return
+            descriptor = reply.arguments()[0]
+            # QDBus owns the returned descriptor. Retain our own descriptor
+            # before the reply/variant is destroyed, then release it explicitly.
+            self._sleep_delay = _SleepDelay(os.dup(descriptor.fileDescriptor()))
+            log.info("Sleep delay ready")
+        except Exception:
+            log.warning("Sleep delay unavailable; continuing without it", exc_info=True)
+
+    def _release_sleep_delay(self) -> None:
+        delay, self._sleep_delay = self._sleep_delay, None
+        if delay is not None:
+            delay.release()
 
     def _connect(self, service: str, path: str, interface: str, name: str, slot: str) -> bool:
         assert self._bus is not None
@@ -219,7 +276,19 @@ class _LogindDbusSource(QObject):
 
     @Slot(bool)
     def _on_prepare_for_sleep(self, start: bool) -> None:
-        self._emit("sleep", bool(start))
+        log.info("PrepareForSleep(%s), delay=%s", bool(start), self._sleep_delay is not None)
+        if not start:
+            self._release_sleep_delay()
+            self._acquire_sleep_delay()
+            self._emit("sleep", False)
+            return
+        if self._sleep_delay is not None:
+            self._sleep_delay.arm()
+        try:
+            self._emit("sleep", True)
+        finally:
+            self._release_sleep_delay()
+            log.info("Standby preparation finished; sleep delay released")
 
     @Slot()
     def _on_lock(self) -> None:

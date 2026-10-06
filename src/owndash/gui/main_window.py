@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from owndash import APP_NAME, __version__
+from owndash import APP_NAME, BUILD_LABEL, __version__
 from owndash.project_info import GITHUB_ISSUES_URL, GITHUB_URL
 from owndash.assets import app_icon_path
 from owndash.core.config import default_profile_path, load_profile, save_profile, startup_snapshot_path
@@ -1004,7 +1004,7 @@ class MainWindow(QMainWindow):
             logo.setAlignment(Qt.AlignCenter)
             layout.addWidget(logo)
 
-        title = QLabel(f"<h2>{APP_NAME}</h2><div>{__version__}</div>", dialog)
+        title = QLabel(f"<h2>{APP_NAME}</h2><div>{__version__} · {BUILD_LABEL}</div>", dialog)
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 

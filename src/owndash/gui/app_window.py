@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from threading import Thread
+import logging
 import webbrowser
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Qt, Signal
@@ -48,6 +49,9 @@ from .display_controls import DisplayControlsWidget
 from .main_window import MainWindow
 from .system_state_frame import render_system_state_image
 from .system_state_settings import SystemStateSettingsWidget
+
+
+log = logging.getLogger(__name__)
 
 
 class UpdateBridge(QObject):
@@ -342,6 +346,7 @@ class SafeShutdownWindow(MainWindow):
         if not self._resume_reconnect_pending or self.display_backend_key != "aic_usb":
             return
         status = probe_artinchip_usb()
+        log.info("USB resume attempt %s: connected=%s accessible=%s", self._resume_reconnect_attempt, status.connected, status.accessible)
         if status.connected and status.accessible:
             # Keep the recovery flags armed until _display_connected arrives.
             # If the backend still fails while opening the device, _display_error
@@ -855,10 +860,10 @@ class SafeShutdownWindow(MainWindow):
         self._last_display_payload = payload
         try:
             if final:
-                # Best effort only. OwnDash never takes a systemd sleep/shutdown
-                # inhibitor, and this wait is intentionally short so OS lifecycle
-                # operations are never meaningfully delayed by the display.
-                streamer.submit_final(payload, timeout=0.25)
+                # The logind source holds a bounded sleep delay while this
+                # synchronous callback renders and sends the standby frame.
+                sent = streamer.submit_final(payload, timeout=0.25)
+                log.info("System-state frame %s: sender completed=%s", state.name, bool(sent))
             else:
                 # Slow lock/idle HUD frames use the streamer's normal coalescing
                 # queue and never block the UI thread waiting for USB transfer.

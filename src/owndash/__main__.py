@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+import os
 import sys
 
-from owndash import APP_ID, APP_NAME, __version__
+from owndash import APP_ID, APP_NAME, BUILD_LABEL, __version__
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
+    logging.getLogger(__name__).info("OwnDash %s; %s; executable=%s", __version__, BUILD_LABEL, os.environ.get("APPIMAGE", sys.executable))
     try:
         from PySide6.QtGui import QIcon
         from PySide6.QtWidgets import QApplication
@@ -26,7 +30,7 @@ def main() -> int:
     # the system tray.  Explicit quit actions still terminate the process.
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName(APP_NAME)
-    app.setApplicationDisplayName(f"{APP_NAME} {__version__}")
+    app.setApplicationDisplayName(f"{APP_NAME} {__version__} · {BUILD_LABEL}")
     app.setOrganizationName(APP_NAME)
     app.setDesktopFileName(APP_ID)
 
