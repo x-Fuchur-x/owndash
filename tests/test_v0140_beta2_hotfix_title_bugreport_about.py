@@ -5,7 +5,7 @@ MAIN = (ROOT / "src/owndash/__main__.py").read_text(encoding="utf-8")
 WINDOW = (ROOT / "src/owndash/gui/main_window.py").read_text(encoding="utf-8")
 
 def test_kde_caption_uses_full_application_display_name():
-    assert 'app.setApplicationDisplayName(f"{APP_NAME} {__version__}")' in MAIN
+    assert 'app.setApplicationDisplayName(f"{APP_NAME} {__version__} · {BUILD_LABEL}")' in MAIN
     assert 'self.setWindowTitle("")' in WINDOW
     assert "self.setWindowTitle(__version__)" not in WINDOW
 

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import errno
 import io
+import logging
 import os
 import secrets
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from threading import RLock
 from typing import Any
 
@@ -32,6 +34,50 @@ from .aic_protocol import (
     parse_display_parameters,
 )
 from .usb_device_profiles import AIC_33C3_0E02
+
+log = logging.getLogger(__name__)
+SYS_USB_DEVICES = Path("/sys/bus/usb/devices")
+
+
+def _live_usb_matches(devices, sysfs_root: Path) -> tuple:
+    """Reconcile a long-lived libusb enumeration with Linux's current devices.
+
+    USB reset/re-enumeration can leave old entries in the process's libusb
+    context. Bus/address identifies a physical device at this instant; serials
+    are deliberately not used because different panels can share a serial.
+    If the snapshot is unavailable/incomplete, retain the ambiguity safeguard.
+    """
+    matches = tuple(devices)
+    live = set()
+    try:
+        for entry in sysfs_root.iterdir():
+            if ":" in entry.name:
+                continue
+            vendor = (entry / "idVendor").read_text().strip().lower()
+            product = (entry / "idProduct").read_text().strip().lower()
+            if (vendor, product) == (AIC_33C3_0E02.sysfs_vendor_id, AIC_33C3_0E02.sysfs_product_id):
+                live.add((int((entry / "busnum").read_text()), int((entry / "devnum").read_text())))
+    except (OSError, ValueError):
+        return matches
+
+    if len(live) > 1:
+        raise DisplayAmbiguousError(
+            "Mehrere kompatible USB-Displays wurden gefunden. "
+            "OwnDash kann noch nicht sicher auswählen, welches Display verwendet werden soll."
+        )
+
+    current = []
+    seen = set()
+    for dev in matches:
+        identity = (getattr(dev, "bus", None), getattr(dev, "address", None))
+        if None in identity:
+            current.append(dev)  # Unknown identity must still count as ambiguous.
+        elif identity in live and identity not in seen:
+            seen.add(identity)
+            current.append(dev)
+    log.info("USB enumeration: reported=%s live=%s accepted=%s", len(matches), sorted(live), len(current))
+    return tuple(current)
+
 
 # Compatibility aliases; the verified device profile owns the actual identity.
 USB_VENDOR_ID = AIC_33C3_0E02.vendor_id
@@ -115,7 +161,7 @@ class AicUsbDisplayBackend(DisplayBackend):
             idVendor=AIC_33C3_0E02.vendor_id,
             idProduct=AIC_33C3_0E02.product_id,
         )
-        matches = tuple(found or ())
+        matches = _live_usb_matches(found or (), SYS_USB_DEVICES)
         if not matches:
             raise DisplayNotFoundError("Kein kompatibles USB-Display gefunden.")
         if len(matches) > 1:

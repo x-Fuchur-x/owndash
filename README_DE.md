@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%205-5577FF?style=for-the-badge"></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.6"><img alt="Release" src="https://img.shields.io/badge/release-0.14.0%20Beta%206-5577FF?style=for-the-badge"></a>
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x86__64-0B0E15?style=for-the-badge&logo=linux&logoColor=white">
   <img alt="AppImage" src="https://img.shields.io/badge/AppImage-ready-1593FF?style=for-the-badge&logo=appimage&logoColor=white">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
@@ -20,11 +20,11 @@
 
 OwnDash ist ein visueller Open-Source-Dashboard-Editor für Linux. Erstelle Hardware-Monitoring-Dashboards per Drag & Drop, verbinde Live-Systemsensoren und gib das Ergebnis auf einem kompatiblen USB-Display oder jedem von Linux erkannten Monitor aus — ohne dich mit Python, `hwmon`, USB-Protokollen oder Linux-Interna beschäftigen zu müssen.
 
-> **Aktuelle Version: OwnDash 0.14.0 Beta 5**<br>
+> **Aktuelle Version: OwnDash 0.14.0 Beta 6**<br>
 > Startfertiges x86-64-AppImage · Debian-12-/GLIBC-2.36-Kompatibilitätsbasis · direkte ArtInChip-/VSDISPLAY-USB-Ausgabe auf echter Hardware verifiziert.
 
 <p align="center">
-  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5"><strong>OwnDash 0.14.0 Beta 5 herunterladen</strong></a>
+  <a href="https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.6"><strong>OwnDash 0.14.0 Beta 6 herunterladen</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/x-Fuchur-x/owndash/releases">Alle Releases</a>
   &nbsp;·&nbsp;
@@ -76,7 +76,7 @@ OwnDash zeigt passende HUD-Statusscreens für **Gesperrt, Leerlauf, Standby, Her
 
 Sperr- und Leerlaufansicht können eine dezente HUD-Animation mit niedriger Aktualisierungsrate anzeigen. Standby, Herunterfahren, Neustart und Getrennt bleiben statisch – ohne eingefrorene Uhr. Unnötiges Dashboard-Rendering und Sensorabfragen pausieren während der Statusansicht.
 
-*Oben zu sehen: echte Ausgabe des Beta-5-Renderers in der Referenzgröße 480×1920, mit deutschen Beschriftungen und beispielhafter Uhrzeit/Datum. Englische Beschriftungen werden ebenfalls unterstützt. Letzte Statusbilder bei Systemübergängen werden nach Möglichkeit übertragen; ob sie sichtbar bleiben, hängt von Display-Stromversorgung und Hardwareverhalten ab.*
+*Oben zu sehen: echte Renderer-Ausgabe mit der Rahmenvereinheitlichung nach Beta 5 in der Referenzgröße 480×1920, mit deutschen Beschriftungen und beispielhafter Uhrzeit/Datum. Englische Beschriftungen werden ebenfalls unterstützt. Letzte Statusbilder bei Systemübergängen werden nach Möglichkeit übertragen; ob sie sichtbar bleiben, hängt von Display-Stromversorgung und Hardwareverhalten ab.*
 
 [Details zu Verhalten und Kompatibilität der Statusscreens](docs/system-state-screens.md).
 
@@ -122,9 +122,9 @@ Die Zustandslogik und die geschützte 480×1920-VSDISPLAY-Referenz wurden auf de
 
 Die offizielle Version wird als eigenständiges **x86-64-AppImage** bereitgestellt. Bei Verwendung des offiziellen AppImages sind weder Python-Kenntnisse noch eine separate Installation von Python oder PySide6 erforderlich.
 
-**Aktuelles Release-Asset:** `OwnDash-0.14.0-Beta-5-x86_64.AppImage`
+**Aktuelles Release-Asset:** `OwnDash-0.14.0-Beta-6-x86_64.AppImage`
 
-1. AppImage vom [OwnDash-0.14.0-Beta-5-Release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.5) herunterladen.
+1. AppImage vom [OwnDash-0.14.0-Beta-6-Release](https://github.com/x-Fuchur-x/owndash/releases/tag/v0.14.0-beta.6) herunterladen.
 2. Falls erforderlich, die Datei ausführbar machen.
 3. OwnDash per Doppelklick starten.
 4. Den Ersteinrichtungs- und Kompatibilitäts-Assistenten durchlaufen.
@@ -155,7 +155,7 @@ GitHub CI baut das offizielle AppImage auf Debian 12, prüft die GLIBC-Kompatibi
 
 ## Getestete Hardware & Plattform
 
-OwnDash 0.14.0 Beta 5 wurde praktisch getestet mit:
+OwnDash wurde mit folgender Plattform und Hardware praktisch getestet; die Suspend/Resume-Korrektur für Beta 6 wurde am Bazzite/KDE-System mit direkter USB-Ausgabe bestätigt:
 
 - Bazzite Linux
 - KDE Plasma

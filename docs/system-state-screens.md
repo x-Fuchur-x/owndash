@@ -8,7 +8,7 @@ The lifecycle behavior is functionally implemented for idle, lock, suspend/stand
 
 The visual renderer uses one approved family of lossless state PNG source sheets plus runtime-owned localized state wording, clock/date and the current OwnDash version. The disconnected/closed OwnDash screen delegates to the same renderer family instead of maintaining a separate visual implementation.
 
-The project's physically accepted 480×1920 VSDISPLAY remains the protected visual reference. That exact target keeps its approved composition. Other dimensions are composed responsively from target-relative zones instead of containing a narrow 1:4 screen inside unused space.
+The project's physically accepted 480×1920 VSDISPLAY remains the protected visual reference. That target uses the locked screen as the shared spatial template for all six states: side rails, notches, indicator dots, podium, horizon and floor grid now have identical geometry. Accent colours and the original central symbols remain state-specific. The six source PNGs remain unchanged; the renderer caches the unified composition. Other dimensions are composed responsively from target-relative zones instead of containing a narrow 1:4 screen inside unused space.
 
 ## Renderer architecture rule
 
@@ -113,9 +113,11 @@ On resume or unlock, OwnDash stops the HUD animation, restores the timers that h
 
 ## Suspend and shutdown safety
 
-OwnDash does not acquire a systemd sleep or shutdown inhibitor for this feature.
+For sleep, OwnDash acquires a logind **delay** inhibitor before the prepare signal arrives. It releases the descriptor immediately after the synchronous standby-frame callback finishes, including error paths. An independent watchdog releases it after 750 ms from callback entry even if the Qt event loop is busy; logind's configured `InhibitDelayMaxSec` is the outer bound if the callback cannot run. The delay is reacquired on resume and released when state handling stops. If acquisition is denied, state handling continues best-effort. No blocking inhibitor or shutdown inhibitor is used.
 
-The final terminal state frame is best-effort and uses a short bounded wait (currently 250 ms) for the display sender. A slow or disconnected display must not meaningfully delay system suspend or shutdown.
+This addresses the observed Bazzite sequence where `user.slice` froze about 167 ms after `PrepareForSleep(true)`, while a cold standby render alone took about 150 ms. Listening to the signal without a delay was insufficient to guarantee time for rendering and USB transmission. See [systemd inhibitor semantics](https://systemd.io/INHIBITOR_LOCKS/).
+
+The final terminal state frame uses a short bounded wait (currently 250 ms) for the display sender. A slow or disconnected display must not block system suspend or shutdown indefinitely. The application log records prepare/resume signals, delay acquisition/release and sender completion for hardware diagnosis.
 
 Display-I/O errors during a system transition are contained and do not abort the operating-system lifecycle event.
 
@@ -125,9 +127,13 @@ Some direct USB displays disappear from the USB bus while the machine sleeps. Fo
 
 - the failed stream is released quietly
 - no suspend-time warning-dialog spam is shown
-- after resume, one bounded reconnect sequence is scheduled
+- after resume, one bounded reconnect sequence is scheduled, with retries spanning approximately 100 seconds to accommodate slow USB-controller and hub resets
 - there is no reconnect polling loop or endless retry loop
 - a normal manual display stop cancels pending recovery state
+- timer callbacks carry a recovery-generation token, so an old callback cannot restart output in a later recovery session
+- a new suspend, disabling system-state handling, or application shutdown invalidates queued retries
+
+The post-Beta-5 correction covers a recorded case where the USB display re-enumerated 43 seconds after resume, beyond the previous five-second retry sequence. Regression tests simulate devices returning after 43 and 90 seconds. A new real suspend/resume cycle is still required to validate the correction on the affected hardware.
 
 If reconnect succeeds while the session is still locked or idle, OwnDash sends the appropriate system-state HUD rather than briefly flashing the normal dashboard.
 
@@ -155,3 +161,11 @@ Automated tests cover state priority, duplicate-event suppression, lock/suspend/
 CI also renders a 48-image production preview matrix: six states across 480×1920, 720×1280, 800×1280, 1024×1024, 1024×600, 1280×800, 1920×1080 and 2560×1440. These previews are uploaded as one workflow artifact for visual review.
 
 Real suspend/resume behavior can still vary with firmware, USB controllers, desktop sessions and compositor behavior. The responsive-refactor lifecycle was rechecked on the project's 480×1920 Bazzite/KDE + VSDISPLAY setup; the Beta 5 release-candidate smoke test also covers the final static-time policy. Other aspect ratios are accepted through structural tests and visual review of the production preview matrix, with community hardware reports remaining valuable follow-up evidence.
+
+## USB enumeration after resume
+
+The Fix 2 hardware test confirmed successful standby-frame delivery and receipt of the resume signal. Linux exposed one live ArtInChip display after re-enumeration, while the long-running application reported multiple compatible devices and refused to reconnect; a fresh process connected successfully.
+
+Before applying the multiple-display safeguard, the backend now reconciles PyUSB candidates with the current Linux sysfs bus/address pairs. Removed addresses are excluded, and duplicate entries at the same live address count once. Two genuinely different live displays are still rejected without claiming either interface. Missing or incomplete sysfs data preserves the original ambiguity check. Error logs now retain the actual backend failure during quiet resume recovery.
+
+The maintainer confirmed a successful physical suspend/resume cycle with Standby-Fix 3 on 2026-10-06: standby artwork appeared and the live dashboard returned automatically after wake. Beta 6 incorporates this tested fix. Recovery remains delayed on the affected USB controller; earlier traces showed device re-enumeration about 43 seconds after wake, with access permissions becoming ready later.

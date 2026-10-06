@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from threading import Thread
+import logging
 import webbrowser
 
 from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Qt, Signal
@@ -50,6 +51,9 @@ from .system_state_frame import render_system_state_image
 from .system_state_settings import SystemStateSettingsWidget
 
 
+log = logging.getLogger(__name__)
+
+
 class UpdateBridge(QObject):
     """Marshal background update results safely back onto the Qt GUI thread."""
 
@@ -59,7 +63,7 @@ class UpdateBridge(QObject):
 class SafeShutdownWindow(MainWindow):
     """OwnDash lifecycle extensions for shutdown, updates and system states."""
 
-    _RESUME_RECONNECT_DELAYS_MS = (600, 800, 1000, 1200, 1400)
+    _RESUME_RECONNECT_DELAYS_MS = (600, 800, 1000, 1200, 1400, 2000, 3000, 5000, 8000, 12000, 15000, 20000, 30000)
     _SYSTEM_STATE_ANIMATION_INTERVAL_MS = 750
 
     def _build_toolbar(self) -> None:
@@ -113,6 +117,8 @@ class SafeShutdownWindow(MainWindow):
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
         self._resume_reconnect_attempt = 0
+        self._resume_recovery_generation = 0
+        self._resume_retry_queued = False
         self._system_state_animation_phase = 0.0
         self._system_state_animation_timer = QTimer(self)
         self._system_state_animation_timer.setInterval(
@@ -156,6 +162,7 @@ class SafeShutdownWindow(MainWindow):
 
     def _display_connected(self, info: object) -> None:
         super()._display_connected(info)
+        self._invalidate_resume_callbacks()
         self._connected_display_info = info
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
@@ -219,6 +226,7 @@ class SafeShutdownWindow(MainWindow):
         super()._start_display_stream()
 
     def _stop_display_stream(self) -> None:
+        self._invalidate_resume_callbacks()
         self._resume_reconnect_pending = False
         self._resume_recovery_armed = False
         self._resume_reconnect_attempt = 0
@@ -229,6 +237,7 @@ class SafeShutdownWindow(MainWindow):
         super()._stop_display_stream()
 
     def _display_error(self, error: object) -> None:
+        log.warning("Display connection/transfer failed: %s: %s", type(error).__name__, error)
         runtime = getattr(self, "_system_state_runtime", None)
         current_state = runtime.visible_state if runtime is not None else SystemState.ACTIVE
         recoverable_resume_error = (
@@ -283,6 +292,10 @@ class SafeShutdownWindow(MainWindow):
             self.tray_display_action.setEnabled(False)
             self.tray_display_action.setText(self._t("Display ist gestoppt"))
 
+    def _invalidate_resume_callbacks(self) -> None:
+        self._resume_recovery_generation += 1
+        self._resume_retry_queued = False
+
     def _schedule_usb_resume_reconnect(self) -> None:
         """Start a short, bounded post-resume recovery window.
 
@@ -290,13 +303,15 @@ class SafeShutdownWindow(MainWindow):
         present without the logind ACL, then accessible. Probing these states
         before opening PyUSB prevents transient conditions from surfacing as
         user-facing errors. This timer chain exists only after resume and stops
-        immediately on success or after roughly five seconds.
+        immediately on success or after roughly 100 seconds. Some USB hubs
+        take tens of seconds to re-enumerate after a controller reset.
         """
         if self.display_backend_key != "aic_usb":
             self._resume_reconnect_pending = False
             self._resume_recovery_armed = False
             self._resume_reconnect_attempt = 0
             return
+        self._invalidate_resume_callbacks()
         self._resume_reconnect_pending = True
         self._resume_recovery_armed = True
         self._resume_reconnect_attempt = 0
@@ -308,17 +323,31 @@ class SafeShutdownWindow(MainWindow):
     def _queue_usb_resume_reconnect(self) -> None:
         if not self._resume_reconnect_pending or self.display_backend_key != "aic_usb":
             return
+        if self._resume_retry_queued:
+            return
         if self._resume_reconnect_attempt >= len(self._RESUME_RECONNECT_DELAYS_MS):
             self._finish_usb_resume_recovery_failure()
             return
         delay = self._RESUME_RECONNECT_DELAYS_MS[self._resume_reconnect_attempt]
         self._resume_reconnect_attempt += 1
-        QTimer.singleShot(int(delay), self._attempt_usb_resume_reconnect)
+        generation = self._resume_recovery_generation
+        self._resume_retry_queued = True
+
+        def attempt() -> None:
+            if generation != self._resume_recovery_generation:
+                return
+            self._resume_retry_queued = False
+            if self._system_state_runtime.visible_state is SystemState.SUSPENDING:
+                return
+            self._attempt_usb_resume_reconnect()
+
+        QTimer.singleShot(int(delay), attempt)
 
     def _attempt_usb_resume_reconnect(self) -> None:
         if not self._resume_reconnect_pending or self.display_backend_key != "aic_usb":
             return
         status = probe_artinchip_usb()
+        log.info("USB resume attempt %s: connected=%s accessible=%s", self._resume_reconnect_attempt, status.connected, status.accessible)
         if status.connected and status.accessible:
             # Keep the recovery flags armed until _display_connected arrives.
             # If the backend still fails while opening the device, _display_error
@@ -650,6 +679,7 @@ class SafeShutdownWindow(MainWindow):
         self._idle_state_monitor.set_enabled(idle_enabled)
 
         if not master:
+            self._invalidate_resume_callbacks()
             self._system_state_adapter.stop()
             self._idle_state_monitor.stop()
             self._resume_reconnect_pending = False
@@ -688,6 +718,7 @@ class SafeShutdownWindow(MainWindow):
         is_suspend_start = state is SystemState.SUSPENDING and bool(enabled)
         is_resume = state is SystemState.SUSPENDING and not bool(enabled)
         if is_suspend_start:
+            self._invalidate_resume_callbacks()
             self._resume_reconnect_pending = False
             self._resume_recovery_armed = False
             self._resume_reconnect_attempt = 0
@@ -698,7 +729,11 @@ class SafeShutdownWindow(MainWindow):
                     # The display may survive suspend and only fail when its
                     # first post-resume transfer occurs. Keep that transient
                     # failure quiet for a bounded window, not indefinitely.
-                    QTimer.singleShot(12000, self._clear_resume_recovery_arm)
+                    generation = self._resume_recovery_generation
+                    QTimer.singleShot(120000, lambda: (
+                        self._clear_resume_recovery_arm()
+                        if generation == self._resume_recovery_generation else None
+                    ))
 
         self._system_state_runtime.handle_condition(state, bool(enabled))
 
@@ -826,10 +861,10 @@ class SafeShutdownWindow(MainWindow):
         self._last_display_payload = payload
         try:
             if final:
-                # Best effort only. OwnDash never takes a systemd sleep/shutdown
-                # inhibitor, and this wait is intentionally short so OS lifecycle
-                # operations are never meaningfully delayed by the display.
-                streamer.submit_final(payload, timeout=0.25)
+                # The logind source holds a bounded sleep delay while this
+                # synchronous callback renders and sends the standby frame.
+                sent = streamer.submit_final(payload, timeout=0.25)
+                log.info("System-state frame %s: sender completed=%s", state.name, bool(sent))
             else:
                 # Slow lock/idle HUD frames use the streamer's normal coalescing
                 # queue and never block the UI thread waiting for USB transfer.
@@ -878,6 +913,8 @@ class SafeShutdownWindow(MainWindow):
             self._configure_system_state_animation(state)
 
     def _stop_system_state_services(self) -> None:
+        self._invalidate_resume_callbacks()
+        self._resume_reconnect_pending = False
         self._system_state_animation_timer.stop()
         adapter = getattr(self, "_system_state_adapter", None)
         if adapter is not None:

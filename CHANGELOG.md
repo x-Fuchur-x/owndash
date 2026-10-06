@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.14.0 Beta 6
+
+- Fixed USB reconnection after suspend when stale libusb entries incorrectly looked like multiple displays; reconcile candidates with current Linux device addresses while preserving real multiple-display protection.
+- Extend bounded resume recovery to approximately 100 seconds for slow USB controllers, with cancellation and stale-callback guards.
+- Use a bounded logind sleep-delay handshake so the standby frame can be transmitted before the application is frozen.
+- Unify the frame, side indicators, podium and floor geometry across all six 480×1920 reference status screens while retaining their state colours and symbols.
+- Update README status-screen previews and add lifecycle/connection diagnostics.
+- Physical standby and automatic dashboard recovery confirmed on the maintainer's Bazzite/KDE + VSDISPLAY setup; recovery can remain delayed by the USB controller.
+
 ## 0.14.0 Beta 5
 
 - Added an always-available **Display & Device** Device Center that remains useful even when no display is connected.
